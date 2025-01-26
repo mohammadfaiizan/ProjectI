@@ -70,22 +70,6 @@ class ArrayOperations:
         return -1
 
     @staticmethod
-    def binary_search(arr, target):
-        """
-        Perform binary search on a sorted array to find the target element.
-        """
-        low, high = 0, len(arr) - 1
-        while low <= high:
-            mid = (low + high) // 2
-            if arr[mid] == target:
-                return mid
-            elif arr[mid] < target:
-                low = mid + 1
-            else:
-                high = mid - 1
-        return -1
-
-    @staticmethod
     def first_and_last_occurrence(arr, target):
         """
         Find the first and last occurrence of a target element in a sorted array.
@@ -99,68 +83,6 @@ class ArrayOperations:
         return (first, last)
 
     @staticmethod
-    def bubble_sort(arr):
-        """
-        Sort the array using bubble sort.
-        """
-        n = len(arr)
-        for i in range(n):
-            for j in range(0, n - i - 1):
-                if arr[j] > arr[j + 1]:
-                    arr[j], arr[j + 1] = arr[j + 1], arr[j]
-        return arr
-
-    @staticmethod
-    def selection_sort(arr):
-        """
-        Sort the array using selection sort.
-        """
-        n = len(arr)
-        for i in range(n):
-            min_idx = i
-            for j in range(i + 1, n):
-                if arr[j] < arr[min_idx]:
-                    min_idx = j
-            arr[i], arr[min_idx] = arr[min_idx], arr[i]
-        return arr
-
-    @staticmethod
-    def insertion_sort(arr):
-        """
-        Sort the array using insertion sort.
-        """
-        for i in range(1, len(arr)):
-            key = arr[i]
-            j = i - 1
-            while j >= 0 and key < arr[j]:
-                arr[j + 1] = arr[j]
-                j -= 1
-            arr[j + 1] = key
-        return arr
-
-    @staticmethod
-    def merge_sorted_arrays(arr1, arr2):
-        """
-        Merge two sorted arrays.
-        """
-        merged = []
-        i = j = 0
-        while i < len(arr1) and j < len(arr2):
-            if arr1[i] < arr2[j]:
-                merged.append(arr1[i])
-                i += 1
-            else:
-                merged.append(arr2[j])
-                j += 1
-        while i < len(arr1):
-            merged.append(arr1[i])
-            i += 1
-        while j < len(arr2):
-            merged.append(arr2[j])
-            j += 1
-        return merged
-
-    @staticmethod
     def sum_of_elements(arr):
         """
         Find the sum of all elements in the array.
@@ -169,37 +91,6 @@ class ArrayOperations:
         for num in arr:
             total += num
         return total
-
-    @staticmethod
-    def max_subarray_sum(arr):
-        """
-        Find the subarray with the maximum sum (Kadane's Algorithm).
-        """
-        max_sum = current_sum = arr[0]
-        for num in arr[1:]:
-            if current_sum < 0:
-                current_sum = num
-            else:
-                current_sum += num
-            if current_sum > max_sum:
-                max_sum = current_sum
-        return max_sum
-
-    @staticmethod
-    def subarray_with_given_sum(arr, target):
-        """
-        Check if a subarray with a given sum exists using sliding window.
-        """
-        current_sum = 0
-        start = 0
-        for end in range(len(arr)):
-            current_sum += arr[end]
-            while current_sum > target:
-                current_sum -= arr[start]
-                start += 1
-            if current_sum == target:
-                return (start, end)
-        return -1
 
     @staticmethod
     def count_frequency(arr):
