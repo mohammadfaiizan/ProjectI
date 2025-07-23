@@ -1,0 +1,607 @@
+COMPLETE FILE LIST - AI/ML/DL THEORY (165 FILES)
+==================================================
+
+I. MATHEMATICS FOR AI/ML (15 files)
+=====================================
+
+A. LINEAR ALGEBRA (4 files)
+----------------------------
+01_Linear_Algebra_001_vectors_and_vector_spaces.txt
+- Vector operations, linear combinations, span, basis, dimension
+
+01_Linear_Algebra_002_matrices_and_matrix_operations.txt  
+- Matrix multiplication, inverse, determinant, rank, eigenvalues/eigenvectors
+
+01_Linear_Algebra_003_linear_transformations_and_mappings.txt
+- Linear maps, kernel, image, change of basis, similarity transforms
+
+01_Linear_Algebra_004_advanced_topics_svd_pca.txt
+- Singular Value Decomposition, Principal Component Analysis, matrix factorization
+
+B. CALCULUS & OPTIMIZATION (4 files)  
+-------------------------------------
+01_Calculus_001_multivariable_calculus_fundamentals.txt
+- Partial derivatives, gradients, Jacobian, Hessian matrix
+
+01_Calculus_002_optimization_theory_unconstrained.txt
+- Gradient descent, Newton's method, convergence analysis
+
+01_Calculus_003_constrained_optimization_lagrange.txt
+- Lagrange multipliers, KKT conditions, convex optimization
+
+01_Calculus_004_numerical_optimization_algorithms.txt
+- BFGS, L-BFGS, Adam, RMSprop, advanced optimizers
+
+C. STATISTICS & PROBABILITY (4 files)
+--------------------------------------
+01_Statistics_001_probability_theory_fundamentals.txt
+- Sample spaces, random variables, distributions, expectation
+
+01_Statistics_002_statistical_inference_estimation.txt
+- MLE, MAP, Bayesian inference, hypothesis testing
+
+01_Statistics_003_multivariate_statistics_distributions.txt
+- Multivariate Gaussian, covariance, correlation, joint distributions
+
+01_Statistics_004_statistical_learning_theory.txt
+- PAC learning, VC dimension, bias-variance tradeoff, concentration inequalities
+
+D. INFORMATION THEORY (3 files)
+--------------------------------
+01_Information_001_entropy_and_information_measures.txt
+- Shannon entropy, mutual information, KL divergence
+
+01_Information_002_coding_theory_compression.txt
+- Huffman coding, arithmetic coding, lossless compression
+
+01_Information_003_information_theory_in_ml.txt
+- Cross-entropy loss, information bottleneck, rate-distortion theory
+
+II. MACHINE LEARNING FUNDAMENTALS (20 files)
+=============================================
+
+A. CORE CONCEPTS (5 files)
+---------------------------
+02_ML_Core_001_introduction_to_machine_learning.txt
+- Supervised vs unsupervised vs reinforcement learning, types of problems
+
+02_ML_Core_002_learning_theory_and_generalization.txt
+- Empirical risk minimization, generalization bounds, overfitting
+
+02_ML_Core_003_bias_variance_tradeoff_analysis.txt
+- Bias-variance decomposition, model complexity, regularization
+
+02_ML_Core_004_feature_engineering_and_selection.txt
+- Feature extraction, transformation, selection methods, dimensionality reduction
+
+02_ML_Core_005_data_preprocessing_and_cleaning.txt
+- Missing data, outliers, normalization, encoding categorical variables
+
+B. SUPERVISED LEARNING (6 files)
+---------------------------------
+02_Supervised_001_linear_models_regression_classification.txt
+- Linear/logistic regression, least squares, maximum likelihood
+
+02_Supervised_002_tree_based_methods_decision_trees.txt
+- Decision trees, random forests, gradient boosting, XGBoost
+
+02_Supervised_003_instance_based_learning_knn.txt
+- k-Nearest Neighbors, distance metrics, curse of dimensionality
+
+02_Supervised_004_kernel_methods_svm.txt
+- Support Vector Machines, kernel trick, dual formulation
+
+02_Supervised_005_probabilistic_models_naive_bayes.txt
+- Naive Bayes, Gaussian discriminant analysis, probabilistic classifiers
+
+02_Supervised_006_ensemble_methods_boosting_bagging.txt
+- AdaBoost, gradient boosting, bagging, voting classifiers
+
+C. UNSUPERVISED LEARNING (5 files)
+-----------------------------------
+02_Unsupervised_001_clustering_algorithms_kmeans.txt
+- K-means, hierarchical clustering, DBSCAN, Gaussian mixture models
+
+02_Unsupervised_002_dimensionality_reduction_pca_ica.txt
+- PCA, ICA, t-SNE, UMAP, manifold learning
+
+02_Unsupervised_003_density_estimation_methods.txt
+- Kernel density estimation, parametric vs non-parametric methods
+
+02_Unsupervised_004_association_rule_learning.txt
+- Market basket analysis, Apriori algorithm, FP-growth
+
+02_Unsupervised_005_anomaly_detection_methods.txt
+- Statistical methods, isolation forest, one-class SVM
+
+D. MODEL EVALUATION & SELECTION (4 files)
+------------------------------------------
+02_Evaluation_001_cross_validation_resampling.txt
+- K-fold CV, stratified sampling, bootstrap, leave-one-out
+
+02_Evaluation_002_performance_metrics_classification.txt
+- Accuracy, precision, recall, F1-score, ROC, AUC, confusion matrix
+
+02_Evaluation_003_regression_metrics_model_selection.txt
+- MSE, MAE, R², adjusted R², information criteria (AIC, BIC)
+
+02_Evaluation_004_hyperparameter_tuning_optimization.txt
+- Grid search, random search, Bayesian optimization, early stopping
+
+III. DEEP LEARNING (25 files)
+==============================
+
+A. NEURAL NETWORK FUNDAMENTALS (6 files)
+-----------------------------------------
+03_NN_Fundamentals_001_perceptron_multilayer_networks.txt
+- Single perceptron, multilayer perceptron, universal approximation theorem
+
+03_NN_Fundamentals_002_backpropagation_algorithm.txt
+- Forward pass, backward pass, chain rule, computational graphs
+
+03_NN_Fundamentals_003_activation_functions_analysis.txt
+- Sigmoid, tanh, ReLU, Leaky ReLU, Swish, GELU, activation choices
+
+03_NN_Fundamentals_004_loss_functions_optimization.txt
+- Cross-entropy, MSE, Huber loss, focal loss, contrastive loss
+
+03_NN_Fundamentals_005_weight_initialization_strategies.txt
+- Xavier, He initialization, layer normalization, batch normalization
+
+03_NN_Fundamentals_006_gradient_flow_vanishing_exploding.txt
+- Gradient problems, skip connections, gradient clipping
+
+B. ADVANCED ARCHITECTURES (8 files)
+------------------------------------
+03_Architectures_001_convolutional_neural_networks.txt
+- Convolution, pooling, CNN architectures, parameter sharing
+
+03_Architectures_002_recurrent_neural_networks.txt
+- Vanilla RNN, LSTM, GRU, bidirectional RNNs
+
+03_Architectures_003_attention_mechanisms_transformers.txt
+- Self-attention, multi-head attention, Transformer architecture
+
+03_Architectures_004_autoencoders_variational_autoencoders.txt
+- Standard autoencoders, VAE, β-VAE, disentangled representations
+
+03_Architectures_005_generative_adversarial_networks.txt
+- GAN training, discriminator/generator, DCGAN, Wasserstein GAN
+
+03_Architectures_006_residual_networks_skip_connections.txt
+- ResNet, DenseNet, highway networks, gradient flow
+
+03_Architectures_007_graph_neural_networks_gcn.txt
+- Graph convolutions, GraphSAGE, Graph Attention Networks
+
+03_Architectures_008_memory_networks_neural_turing.txt
+- Memory networks, Neural Turing Machines, Differentiable Neural Computers
+
+C. TRAINING TECHNIQUES (6 files)
+---------------------------------
+03_Training_001_optimization_algorithms_sgd_adam.txt
+- SGD, momentum, Adam, AdaGrad, RMSprop, learning rate schedules
+
+03_Training_002_regularization_techniques_dropout.txt
+- L1/L2 regularization, dropout, DropConnect, noise injection
+
+03_Training_003_batch_normalization_layer_normalization.txt
+- Batch norm, layer norm, group norm, instance norm
+
+03_Training_004_transfer_learning_fine_tuning.txt
+- Pre-trained models, feature extraction, fine-tuning strategies
+
+03_Training_005_distributed_training_parallel_computing.txt
+- Data parallelism, model parallelism, gradient accumulation
+
+03_Training_006_curriculum_learning_multi_task.txt
+- Curriculum learning, multi-task learning, meta-learning basics
+
+D. REGULARIZATION & OPTIMIZATION (5 files)
+--------------------------------------------
+03_Regularization_001_overfitting_prevention_techniques.txt
+- Early stopping, validation curves, capacity control
+
+03_Regularization_002_data_augmentation_strategies.txt
+- Image augmentation, text augmentation, adversarial training
+
+03_Regularization_003_advanced_optimization_methods.txt
+- Second-order methods, natural gradients, K-FAC
+
+03_Regularization_004_loss_function_engineering.txt
+- Custom losses, metric learning, contrastive learning
+
+03_Regularization_005_model_compression_pruning.txt
+- Network pruning, quantization, knowledge distillation
+
+IV. COMPUTER VISION (18 files)
+===============================
+
+A. IMAGE PROCESSING FUNDAMENTALS (4 files)
+-------------------------------------------
+04_Vision_Fundamentals_001_digital_image_representation.txt
+- Pixels, color spaces, image formats, spatial resolution
+
+04_Vision_Fundamentals_002_image_filtering_convolution.txt
+- Linear filters, edge detection, noise reduction, morphological operations
+
+04_Vision_Fundamentals_003_feature_extraction_descriptors.txt
+- Corner detection, SIFT, SURF, HOG, LBP features
+
+04_Vision_Fundamentals_004_image_transformations_geometry.txt
+- Geometric transformations, homography, camera calibration
+
+B. CLASSICAL COMPUTER VISION (5 files)
+---------------------------------------
+04_Classical_001_edge_detection_segmentation.txt
+- Canny edge detector, region growing, watershed, active contours
+
+04_Classical_002_object_detection_template_matching.txt
+- Template matching, sliding window, cascade classifiers
+
+04_Classical_003_feature_matching_stereo_vision.txt
+- Feature correspondence, epipolar geometry, stereo reconstruction
+
+04_Classical_004_optical_flow_motion_estimation.txt
+- Lucas-Kanade, Horn-Schunck, motion vectors, tracking
+
+04_Classical_005_camera_models_3d_reconstruction.txt
+- Pinhole camera, calibration, structure from motion, bundle adjustment
+
+C. DEEP LEARNING FOR VISION (6 files)
+--------------------------------------
+04_Deep_Vision_001_cnn_architectures_classification.txt
+- LeNet, AlexNet, VGG, ResNet, Inception, EfficientNet
+
+04_Deep_Vision_002_object_detection_rcnn_yolo.txt
+- R-CNN family, YOLO, SSD, anchor-based vs anchor-free
+
+04_Deep_Vision_003_semantic_segmentation_fcn_unet.txt
+- FCN, U-Net, DeepLab, mask prediction, pixel-wise classification
+
+04_Deep_Vision_004_instance_segmentation_mask_rcnn.txt
+- Mask R-CNN, instance vs semantic segmentation, panoptic segmentation
+
+04_Deep_Vision_005_generative_models_style_transfer.txt
+- Neural style transfer, pix2pix, CycleGAN, image-to-image translation
+
+04_Deep_Vision_006_self_supervised_contrastive_learning.txt
+- SimCLR, MoCo, BYOL, contrastive learning for vision
+
+D. ADVANCED VISION TOPICS (3 files)
+------------------------------------
+04_Advanced_Vision_001_3d_computer_vision_nerf.txt
+- 3D reconstruction, NeRF, 3D object detection, point clouds
+
+04_Advanced_Vision_002_video_understanding_action_recognition.txt
+- Temporal modeling, 3D CNNs, two-stream networks, video transformers
+
+04_Advanced_Vision_003_multimodal_vision_language.txt
+- Vision-language models, CLIP, image captioning, VQA
+
+V. NATURAL LANGUAGE PROCESSING (22 files)
+==========================================
+
+A. TEXT PROCESSING FUNDAMENTALS (4 files)
+------------------------------------------
+05_NLP_Fundamentals_001_text_preprocessing_tokenization.txt
+- Tokenization, stemming, lemmatization, normalization
+
+05_NLP_Fundamentals_002_language_models_ngrams.txt
+- N-gram models, smoothing techniques, perplexity
+
+05_NLP_Fundamentals_003_text_representation_bow_tfidf.txt
+- Bag of words, TF-IDF, word embeddings introduction
+
+05_NLP_Fundamentals_004_linguistic_features_pos_ner.txt
+- Part-of-speech tagging, named entity recognition, parsing
+
+B. CLASSICAL NLP (6 files)
+---------------------------
+05_Classical_001_statistical_machine_translation.txt
+- Phrase-based MT, alignment models, BLEU score
+
+05_Classical_002_information_retrieval_search.txt
+- Vector space model, relevance ranking, query expansion
+
+05_Classical_003_text_classification_sentiment.txt
+- Document classification, sentiment analysis, feature engineering
+
+05_Classical_004_topic_modeling_lda.txt
+- Latent Dirichlet Allocation, topic coherence, model selection
+
+05_Classical_005_syntactic_parsing_grammars.txt
+- Context-free grammars, dependency parsing, constituency parsing
+
+05_Classical_006_word_sense_disambiguation.txt
+- WSD algorithms, knowledge-based vs supervised approaches
+
+C. DEEP LEARNING FOR NLP (8 files)
+-----------------------------------
+05_Deep_NLP_001_word_embeddings_word2vec_glove.txt
+- Word2Vec, GloVe, FastText, embedding evaluation
+
+05_Deep_NLP_002_sequence_models_rnn_lstm.txt
+- RNNs for NLP, LSTM, GRU, bidirectional models
+
+05_Deep_NLP_003_attention_mechanisms_seq2seq.txt
+- Encoder-decoder, attention, pointer networks
+
+05_Deep_NLP_004_transformer_architecture_bert.txt
+- Transformer model, self-attention, positional encoding
+
+05_Deep_NLP_005_pretrained_models_bert_gpt.txt
+- BERT, GPT, RoBERTa, pre-training objectives
+
+05_Deep_NLP_006_neural_machine_translation.txt
+- Sequence-to-sequence, attention in MT, beam search
+
+05_Deep_NLP_007_question_answering_systems.txt
+- Reading comprehension, extractive vs generative QA
+
+05_Deep_NLP_008_dialogue_systems_chatbots.txt
+- Task-oriented vs open-domain dialogue, response generation
+
+D. LARGE LANGUAGE MODELS (4 files)
+-----------------------------------
+05_LLM_001_transformer_scaling_laws.txt
+- Scaling laws, emergent abilities, parameter efficiency
+
+05_LLM_002_instruction_tuning_rlhf.txt
+- Instruction following, RLHF, Constitutional AI
+
+05_LLM_003_prompting_techniques_few_shot.txt
+- Zero-shot, few-shot, chain-of-thought prompting
+
+05_LLM_004_llm_capabilities_limitations.txt
+- Reasoning, factual knowledge, hallucination, alignment
+
+VI. REINFORCEMENT LEARNING (15 files)
+======================================
+
+A. RL FUNDAMENTALS (4 files)
+-----------------------------
+06_RL_Fundamentals_001_mdp_bellman_equations.txt
+- Markov Decision Processes, states, actions, rewards, policies
+
+06_RL_Fundamentals_002_value_functions_optimality.txt
+- State-value, action-value functions, Bellman optimality
+
+06_RL_Fundamentals_003_exploration_vs_exploitation.txt
+- Multi-armed bandit, ε-greedy, UCB, Thompson sampling
+
+06_RL_Fundamentals_004_model_free_vs_model_based.txt
+- Distinctions, sample efficiency, planning vs learning
+
+B. VALUE-BASED METHODS (4 files)
+---------------------------------
+06_Value_Based_001_temporal_difference_learning.txt
+- TD(0), TD(λ), eligibility traces, on-policy vs off-policy
+
+06_Value_Based_002_q_learning_sarsa.txt
+- Q-learning algorithm, SARSA, expected SARSA
+
+06_Value_Based_003_deep_q_networks_dqn.txt
+- DQN, experience replay, target networks, double DQN
+
+06_Value_Based_004_advanced_value_methods.txt
+- Dueling DQN, prioritized experience replay, rainbow DQN
+
+C. POLICY-BASED METHODS (4 files)
+----------------------------------
+06_Policy_Based_001_policy_gradient_methods.txt
+- REINFORCE, policy gradient theorem, baseline methods
+
+06_Policy_Based_002_actor_critic_methods.txt
+- A2C, A3C, advantage estimation, asynchronous training
+
+06_Policy_Based_003_trust_region_methods.txt
+- TRPO, PPO, natural policy gradients, constraint optimization
+
+06_Policy_Based_004_continuous_control_ddpg.txt
+- DDPG, TD3, SAC, continuous action spaces
+
+D. ADVANCED RL (3 files)
+-------------------------
+06_Advanced_RL_001_hierarchical_reinforcement_learning.txt
+- Options framework, goal-conditioned RL, feudal networks
+
+06_Advanced_RL_002_multi_agent_reinforcement_learning.txt
+- MARL, cooperative vs competitive, communication
+
+06_Advanced_RL_003_meta_learning_few_shot_rl.txt
+- Learning to learn, MAML for RL, fast adaptation
+
+VII. SPECIALIZED DOMAINS (12 files)
+====================================
+
+A. GRAPH NEURAL NETWORKS (3 files)
+-----------------------------------
+07_GNN_001_graph_theory_fundamentals.txt
+- Graph representation, adjacency matrices, graph properties
+
+07_GNN_002_graph_convolution_message_passing.txt
+- GCN, GraphSAGE, message passing framework
+
+07_GNN_003_advanced_gnn_architectures.txt
+- GAT, Graph Transformer, spectral methods
+
+B. GENERATIVE MODELS (4 files)
+-------------------------------
+07_Generative_001_autoregressive_models.txt
+- PixelRNN, PixelCNN, autoregressive language models
+
+07_Generative_002_variational_autoencoders_theory.txt
+- VAE derivation, reparameterization trick, β-VAE
+
+07_Generative_003_generative_adversarial_networks_theory.txt
+- GAN training dynamics, mode collapse, Wasserstein distance
+
+07_Generative_004_diffusion_models_score_matching.txt
+- DDPM, score-based models, continuous-time diffusion
+
+C. META LEARNING (2 files)
+---------------------------
+07_Meta_001_learning_to_learn_algorithms.txt
+- MAML, Reptile, gradient-based meta-learning
+
+07_Meta_002_few_shot_learning_prototypical.txt
+- Prototypical networks, matching networks, relation networks
+
+D. MULTIMODAL LEARNING (3 files)
+---------------------------------
+07_Multimodal_001_vision_language_models.txt
+- Image-text alignment, visual grounding, multimodal transformers
+
+07_Multimodal_002_audio_visual_processing.txt
+- Speech recognition, audio-visual synchronization
+
+07_Multimodal_003_cross_modal_retrieval.txt
+- Cross-modal similarity, retrieval systems, ranking
+
+VIII. MLOps & PRODUCTION (18 files)
+===================================
+
+A. ML ENGINEERING (6 files)
+----------------------------
+08_MLOps_001_ml_system_design_principles.txt
+- System architecture, scalability, reliability
+
+08_MLOps_002_data_pipelines_feature_stores.txt
+- ETL, feature engineering, data versioning
+
+08_MLOps_003_model_versioning_experiment_tracking.txt
+- MLflow, model registry, experiment management
+
+08_MLOps_004_continuous_integration_deployment.txt
+- CI/CD for ML, automated testing, deployment pipelines
+
+08_MLOps_005_containerization_orchestration.txt
+- Docker, Kubernetes, microservices architecture
+
+08_MLOps_006_cloud_platforms_ml_services.txt
+- AWS, GCP, Azure ML services, serverless computing
+
+B. MODEL DEPLOYMENT (4 files)
+------------------------------
+08_Deployment_001_serving_architectures_apis.txt
+- REST APIs, gRPC, model serving frameworks
+
+08_Deployment_002_batch_vs_real_time_inference.txt
+- Batch processing, streaming, latency requirements
+
+08_Deployment_003_edge_deployment_mobile_optimization.txt
+- Edge computing, mobile deployment, model optimization
+
+08_Deployment_004_a_b_testing_canary_deployment.txt
+- Gradual rollout, A/B testing, shadow mode
+
+C. MONITORING & MAINTENANCE (4 files)
+--------------------------------------
+08_Monitoring_001_model_performance_monitoring.txt
+- Performance metrics, alerting, dashboards
+
+08_Monitoring_002_data_drift_concept_drift.txt
+- Drift detection, distribution shifts, adaptation
+
+08_Monitoring_003_model_interpretability_production.txt
+- LIME, SHAP, feature importance in production
+
+08_Monitoring_004_debugging_troubleshooting_ml.txt
+- Error analysis, model debugging, performance optimization
+
+D. SCALABILITY & INFRASTRUCTURE (4 files)
+------------------------------------------
+08_Infrastructure_001_distributed_training_scaling.txt
+- Data parallelism, model parallelism, distributed systems
+
+08_Infrastructure_002_storage_systems_data_lakes.txt
+- Data storage, data lakes, data warehouses
+
+08_Infrastructure_003_compute_optimization_gpu_clusters.txt
+- GPU utilization, cluster management, resource scheduling
+
+08_Infrastructure_004_cost_optimization_resource_management.txt
+- Cost analysis, auto-scaling, resource allocation
+
+IX. ETHICS & FAIRNESS (8 files)
+================================
+
+A. AI ETHICS (3 files)
+-----------------------
+09_Ethics_001_ethical_principles_ai_systems.txt
+- Beneficence, non-maleficence, autonomy, justice
+
+09_Ethics_002_privacy_security_data_protection.txt
+- Differential privacy, federated learning, GDPR compliance
+
+09_Ethics_003_accountability_transparency_governance.txt
+- Algorithmic accountability, AI governance, regulatory frameworks
+
+B. FAIRNESS & BIAS (3 files)
+-----------------------------
+09_Fairness_001_bias_types_sources_mitigation.txt
+- Historical bias, representation bias, measurement bias
+
+09_Fairness_002_fairness_metrics_definitions.txt
+- Demographic parity, equalized odds, individual fairness
+
+09_Fairness_003_bias_mitigation_techniques.txt
+- Pre-processing, in-processing, post-processing methods
+
+C. EXPLAINABLE AI (2 files)
+----------------------------
+09_XAI_001_interpretability_explainability_methods.txt
+- Local vs global explanations, model-agnostic methods
+
+09_XAI_002_human_ai_interaction_trust.txt
+- User studies, trust calibration, explanation interfaces
+
+X. RESEARCH & FRONTIER TOPICS (12 files)
+=========================================
+
+A. CURRENT RESEARCH TRENDS (4 files)
+-------------------------------------
+10_Research_001_foundation_models_scaling.txt
+- Large-scale pre-training, emergent abilities, scaling laws
+
+10_Research_002_self_supervised_learning_trends.txt
+- Contrastive learning, masked modeling, predictive coding
+
+10_Research_003_neural_architecture_search.txt
+- Automated ML, differentiable NAS, efficiency-aware design
+
+10_Research_004_continual_learning_lifelong.txt
+- Catastrophic forgetting, experience replay, meta-plasticity
+
+B. EMERGING TECHNOLOGIES (4 files)
+-----------------------------------
+10_Emerging_001_quantum_machine_learning.txt
+- Quantum algorithms, variational quantum circuits, NISQ era
+
+10_Emerging_002_neuromorphic_computing_spiking.txt
+- Spiking neural networks, brain-inspired computing
+
+10_Emerging_003_federated_learning_distributed.txt
+- Privacy-preserving learning, communication efficiency
+
+10_Emerging_004_automated_machine_learning.txt
+- AutoML, neural architecture search, hyperparameter optimization
+
+C. FUTURE DIRECTIONS (4 files)
+-------------------------------
+10_Future_001_artificial_general_intelligence.txt
+- AGI research directions, benchmarks, safety considerations
+
+10_Future_002_brain_computer_interfaces.txt
+- Neural decoding, brain-machine interfaces, neurotechnology
+
+10_Future_003_ai_for_science_discovery.txt
+- Scientific machine learning, physics-informed networks
+
+10_Future_004_sustainable_ai_green_computing.txt
+- Energy-efficient models, carbon footprint, sustainable ML
+
+=====================================
+TOTAL: 165 COMPREHENSIVE THEORY FILES
+===================================== 

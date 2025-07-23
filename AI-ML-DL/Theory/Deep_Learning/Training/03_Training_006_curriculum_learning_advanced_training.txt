@@ -1,0 +1,1389 @@
+CURRICULUM LEARNING AND ADVANCED TRAINING - Beyond Standard Training
+====================================================================
+
+TABLE OF CONTENTS:
+1. Curriculum Learning Fundamentals
+2. Self-Supervised Learning
+3. Meta-Learning and Few-Shot Learning
+4. Continual and Lifelong Learning
+5. Adversarial Training
+6. Multi-Task Learning
+7. Advanced Training Strategies
+8. Implementation and Practical Guidelines
+
+=======================================================
+
+1. CURRICULUM LEARNING FUNDAMENTALS
+===================================
+
+1.1 Curriculum Learning Motivation:
+----------------------------------
+Human Learning Analogy:
+Humans learn from easy to hard concepts
+Gradually increase difficulty over time
+
+Training Efficiency:
+Faster convergence with curriculum
+Better final performance
+
+Avoiding Poor Local Minima:
+Easy examples guide to good regions
+Harder examples provide fine-tuning
+
+Mathematical Intuition:
+Start with simpler loss landscape
+Gradually add complexity
+
+Benefits:
+- Faster convergence
+- Better generalization
+- More stable training
+- Improved final performance
+
+1.2 Curriculum Design Principles:
+--------------------------------
+Difficulty Ordering:
+Define difficulty metric for examples
+Order from easy to hard
+
+Pacing Function:
+Control rate of difficulty increase
+Balance speed vs stability
+
+Diversity:
+Include diverse examples at each level
+Avoid narrow specialization
+
+Task Relevance:
+Curriculum should relate to target task
+Meaningful progression
+
+1.3 Types of Curriculum:
+-----------------------
+Data Curriculum:
+Order training examples by difficulty
+Gradually introduce harder examples
+
+Task Curriculum:
+Order subtasks by difficulty
+Master simple tasks first
+
+Architecture Curriculum:
+Gradually increase model complexity
+Start simple, add complexity
+
+Loss Curriculum:
+Gradually modify loss function
+Start with simplified objectives
+
+1.4 Difficulty Measures:
+-----------------------
+Prediction Confidence:
+Low confidence → high difficulty
+Based on model predictions
+
+Human Annotation:
+Expert-defined difficulty scores
+Domain knowledge incorporated
+
+Complexity Metrics:
+Length, noise level, ambiguity
+Task-specific measures
+
+Learning Progress:
+How quickly examples are learned
+Adaptive difficulty assessment
+
+1.5 Curriculum Strategies:
+-------------------------
+Fixed Curriculum:
+Pre-defined difficulty ordering
+Simple but may not be optimal
+
+Adaptive Curriculum:
+Adjust based on learning progress
+More flexible and responsive
+
+Self-Paced Learning:
+Model chooses its own curriculum
+Automatic difficulty selection
+
+Multi-Armed Bandit:
+Explore different curricula
+Select best performing strategy
+
+=======================================================
+
+2. SELF-SUPERVISED LEARNING
+===========================
+
+2.1 Self-Supervised Learning Concept:
+------------------------------------
+Learning Without Labels:
+Use data structure for supervision
+Create labels from data itself
+
+Pretext Tasks:
+Design tasks that require understanding
+Transfer learned representations
+
+Representation Learning:
+Learn general features from unlabeled data
+Fine-tune for downstream tasks
+
+Benefits:
+- Leverage large unlabeled datasets
+- Learn rich representations
+- Reduce annotation requirements
+- Better initialization
+
+2.2 Contrastive Learning:
+------------------------
+Contrastive Objective:
+Learn to distinguish similar from dissimilar
+Pull positives together, push negatives apart
+
+InfoNCE Loss:
+ℒ = -log(exp(sim(q, k⁺)/τ) / Σᵢ exp(sim(q, kᵢ)/τ))
+
+where:
+- q: query representation
+- k⁺: positive key
+- kᵢ: negative keys
+- τ: temperature parameter
+
+SimCLR Framework:
+1. Data augmentation creates positive pairs
+2. Large batch provides negatives
+3. Projection head for contrastive learning
+4. Fine-tune encoder for downstream tasks
+
+Implementation:
+```python
+class SimCLR(nn.Module):
+    def __init__(self, encoder, projection_dim=128, temperature=0.07):
+        super().__init__()
+        self.encoder = encoder
+        self.projection_head = nn.Sequential(
+            nn.Linear(encoder.output_dim, encoder.output_dim),
+            nn.ReLU(),
+            nn.Linear(encoder.output_dim, projection_dim)
+        )
+        self.temperature = temperature
+    
+    def forward(self, x1, x2):
+        # Encode both views
+        h1 = self.encoder(x1)
+        h2 = self.encoder(x2)
+        
+        # Project to contrastive space
+        z1 = F.normalize(self.projection_head(h1), dim=1)
+        z2 = F.normalize(self.projection_head(h2), dim=1)
+        
+        # Compute contrastive loss
+        batch_size = z1.size(0)
+        
+        # Positive pairs
+        pos_sim = torch.sum(z1 * z2, dim=1) / self.temperature
+        
+        # All pairs (including negatives)
+        all_sim = torch.mm(z1, torch.cat([z1, z2], dim=0).t()) / self.temperature
+        
+        # Remove self-similarity
+        mask = torch.eye(batch_size * 2, dtype=torch.bool)
+        all_sim = all_sim[~mask].view(batch_size, -1)
+        
+        # InfoNCE loss
+        labels = torch.arange(batch_size)
+        loss = F.cross_entropy(all_sim, labels)
+        
+        return loss
+```
+
+2.3 Momentum Contrastive Learning (MoCo):
+----------------------------------------
+Momentum Encoder:
+Slowly updated encoder for keys
+Provides consistent negative examples
+
+Queue-based Negatives:
+Maintain queue of negative keys
+Large number of negatives without large batches
+
+Momentum Update:
+θₖ ← m·θₖ + (1-m)·θᵩ
+
+where m is momentum coefficient (e.g., 0.999)
+
+Benefits:
+- Large effective batch size
+- Consistent negative examples
+- Memory efficient
+
+2.4 BYOL (Bootstrap Your Own Latent):
+------------------------------------
+No Negative Examples:
+Learn without explicit negatives
+Use predictor network instead
+
+Architecture:
+- Online network: Updated with gradients
+- Target network: Momentum-updated copy
+- Predictor: Maps online to target space
+
+Loss Function:
+ℒ = ||p_θ(z_θ) - z'_ξ||₂²
+
+where z'_ξ is stop-gradient target
+
+Key Insight:
+Predictor prevents collapse
+Asymmetric architecture crucial
+
+2.5 SwAV (Swapping Assignments between Views):
+---------------------------------------------
+Clustering-based Approach:
+Assign views to clusters
+Swap assignments between augmented views
+
+Sinkhorn-Knopp Algorithm:
+Compute optimal assignments
+Balanced cluster assignments
+
+Multi-Crop Strategy:
+Mix of large and small crops
+Efficient training strategy
+
+Benefits:
+- No explicit negatives needed
+- Scalable to large datasets
+- Good performance
+
+2.6 Masked Language/Image Modeling:
+---------------------------------
+BERT-style Pre-training:
+Mask tokens and predict them
+Learn bidirectional representations
+
+Masked Autoencoder (MAE):
+Mask image patches
+Reconstruct missing patches
+
+Asymmetric Architecture:
+- Encoder: Process visible patches
+- Decoder: Reconstruct full image
+
+High Masking Ratio:
+75% masking works well
+Forces semantic understanding
+
+Implementation:
+```python
+class MaskedAutoencoder(nn.Module):
+    def __init__(self, encoder, decoder, patch_size=16, mask_ratio=0.75):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.patch_size = patch_size
+        self.mask_ratio = mask_ratio
+    
+    def random_masking(self, x, mask_ratio):
+        N, L, D = x.shape
+        len_keep = int(L * (1 - mask_ratio))
+        
+        noise = torch.rand(N, L, device=x.device)
+        ids_shuffle = torch.argsort(noise, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+        
+        # Keep subset
+        ids_keep = ids_shuffle[:, :len_keep]
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+        
+        # Generate mask
+        mask = torch.ones([N, L], device=x.device)
+        mask[:, :len_keep] = 0
+        mask = torch.gather(mask, dim=1, index=ids_restore)
+        
+        return x_masked, mask, ids_restore
+    
+    def forward(self, x):
+        # Patchify input
+        patches = self.patchify(x)
+        
+        # Mask patches
+        patches_masked, mask, ids_restore = self.random_masking(patches, self.mask_ratio)
+        
+        # Encode visible patches
+        latent = self.encoder(patches_masked)
+        
+        # Decode with mask tokens
+        pred = self.decoder(latent, ids_restore)
+        
+        # Compute loss only on masked patches
+        loss = self.compute_loss(x, pred, mask)
+        
+        return loss, pred, mask
+```
+
+=======================================================
+
+3. META-LEARNING AND FEW-SHOT LEARNING
+======================================
+
+3.1 Meta-Learning Concept:
+--------------------------
+Learning to Learn:
+Learn algorithm that can quickly adapt
+Few examples sufficient for new tasks
+
+Bi-level Optimization:
+Inner loop: Task-specific adaptation
+Outer loop: Meta-parameter updates
+
+Few-Shot Learning:
+N-way K-shot classification
+N classes with K examples each
+
+Benefits:
+- Rapid adaptation to new tasks
+- Data-efficient learning
+- Better generalization
+
+3.2 Model-Agnostic Meta-Learning (MAML):
+---------------------------------------
+Gradient-Based Meta-Learning:
+Learn initialization for fast adaptation
+φᵢ = θ - α∇_θ ℒ_Dᵢᵗʳᵃⁱⁿ(θ)
+
+Meta-Objective:
+min_θ Σᵢ ℒ_Dᵢᵗᵉˢᵗ(φᵢ)
+
+Second-Order Gradients:
+∇_θ ℒ_Dᵢᵗᵉˢᵗ(θ - α∇_θ ℒ_Dᵢᵗʳᵃⁱⁿ(θ))
+
+Implementation:
+```python
+class MAML(nn.Module):
+    def __init__(self, model, inner_lr=0.01, outer_lr=0.001):
+        super().__init__()
+        self.model = model
+        self.inner_lr = inner_lr
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=outer_lr)
+    
+    def inner_update(self, support_x, support_y):
+        # Compute support loss
+        logits = self.model(support_x)
+        loss = F.cross_entropy(logits, support_y)
+        
+        # Compute gradients
+        grads = torch.autograd.grad(loss, self.model.parameters(), create_graph=True)
+        
+        # Update parameters
+        updated_params = []
+        for param, grad in zip(self.model.parameters(), grads):
+            updated_params.append(param - self.inner_lr * grad)
+        
+        return updated_params
+    
+    def meta_loss(self, tasks):
+        meta_loss = 0
+        
+        for support_x, support_y, query_x, query_y in tasks:
+            # Inner loop: adapt to support set
+            updated_params = self.inner_update(support_x, support_y)
+            
+            # Outer loop: evaluate on query set
+            logits = self.model(query_x, params=updated_params)
+            loss = F.cross_entropy(logits, query_y)
+            meta_loss += loss
+        
+        return meta_loss / len(tasks)
+    
+    def meta_update(self, tasks):
+        self.optimizer.zero_grad()
+        loss = self.meta_loss(tasks)
+        loss.backward()
+        self.optimizer.step()
+        return loss.item()
+```
+
+3.3 First-Order MAML (FOMAML):
+-----------------------------
+Simplified Gradients:
+Ignore second-order terms
+Treat adapted parameters as constants
+
+Benefits:
+- Computationally cheaper
+- Less memory intensive
+- Often similar performance
+
+Reptile Algorithm:
+Even simpler meta-learning
+φ ← φ + ε(θ - φ)
+
+3.4 Prototypical Networks:
+-------------------------
+Prototype Learning:
+Learn prototype for each class
+Classify based on distance to prototypes
+
+Class Prototype:
+cₖ = (1/|Sₖ|) Σ_{(xᵢ,yᵢ)∈Sₖ} f_φ(xᵢ)
+
+Classification:
+p_φ(y=k|x) = exp(-d(f_φ(x), cₖ)) / Σⱼ exp(-d(f_φ(x), cⱼ))
+
+Benefits:
+- Simple and interpretable
+- Works well for few-shot learning
+- No complex optimization
+
+3.5 Matching Networks:
+---------------------
+Attention-Based Matching:
+Compare query to support examples
+Weighted combination of labels
+
+Attention Mechanism:
+a(x̂, xᵢ) = exp(cosine(f(x̂), g(xᵢ))) / Σⱼ exp(cosine(f(x̂), g(xⱼ)))
+
+Prediction:
+ŷ = Σᵢ a(x̂, xᵢ) yᵢ
+
+Full Context Embeddings:
+Use LSTM to encode support set context
+Better representations
+
+3.6 Meta-Learning Applications:
+------------------------------
+Few-Shot Classification:
+Learn from few examples
+Adapt to new classes quickly
+
+Neural Architecture Search:
+Meta-learn architecture search strategies
+Transfer across tasks
+
+Hyperparameter Optimization:
+Learn good hyperparameter initializations
+Faster hyperparameter tuning
+
+Reinforcement Learning:
+Meta-learn exploration strategies
+Quick adaptation to new environments
+
+=======================================================
+
+4. CONTINUAL AND LIFELONG LEARNING
+==================================
+
+4.1 Continual Learning Challenges:
+---------------------------------
+Catastrophic Forgetting:
+Neural networks forget previous tasks
+When learning new tasks
+
+Stability-Plasticity Dilemma:
+Balance between retaining old knowledge
+And learning new information
+
+Task Interference:
+New tasks interfere with old ones
+Shared parameters cause conflicts
+
+Evaluation Challenges:
+How to measure retention
+Across multiple tasks
+
+4.2 Regularization-Based Methods:
+--------------------------------
+Elastic Weight Consolidation (EWC):
+Protect important weights from change
+ℒ_EWC = ℒ_new + λ Σᵢ Fᵢ(θᵢ - θᵢ*)²
+
+Fisher Information:
+F = 𝔼[∇_θ log p(x|θ)]²
+Measure parameter importance
+
+Synaptic Intelligence (SI):
+Track parameter importance during training
+Accumulate importance over time
+
+Benefits:
+- Simple to implement
+- No architecture changes
+- Principled approach
+
+Limitations:
+- May still forget
+- Hyperparameter sensitive
+- Assumes task boundaries
+
+Implementation:
+```python
+class EWC:
+    def __init__(self, model, dataset, importance=1000):
+        self.model = model
+        self.importance = importance
+        self.params = {n: p.clone().detach() for n, p in model.named_parameters()}
+        self.fisher = self.compute_fisher(dataset)
+    
+    def compute_fisher(self, dataset):
+        fisher = {}
+        self.model.eval()
+        
+        for n, p in self.model.named_parameters():
+            fisher[n] = torch.zeros_like(p)
+        
+        for data, target in dataset:
+            self.model.zero_grad()
+            output = self.model(data)
+            loss = F.log_softmax(output, dim=1)[range(len(target)), target].mean()
+            loss.backward()
+            
+            for n, p in self.model.named_parameters():
+                if p.grad is not None:
+                    fisher[n] += p.grad.data ** 2
+        
+        # Normalize by dataset size
+        for n in fisher:
+            fisher[n] /= len(dataset)
+        
+        return fisher
+    
+    def penalty(self):
+        loss = 0
+        for n, p in self.model.named_parameters():
+            if n in self.fisher:
+                loss += (self.fisher[n] * (p - self.params[n]) ** 2).sum()
+        return self.importance * loss
+```
+
+4.3 Memory-Based Methods:
+------------------------
+Experience Replay:
+Store examples from previous tasks
+Replay during new task learning
+
+Episodic Memory:
+Store representative examples
+Use for interference prevention
+
+Gradient Episodic Memory (GEM):
+Ensure gradients don't hurt previous tasks
+Constrained optimization
+
+A-GEM (Averaged GEM):
+Relaxed version of GEM
+Average constraint violation
+
+Implementation:
+```python
+class ExperienceReplay:
+    def __init__(self, memory_size=1000):
+        self.memory_size = memory_size
+        self.memory = []
+    
+    def add_examples(self, examples, labels):
+        for x, y in zip(examples, labels):
+            if len(self.memory) < self.memory_size:
+                self.memory.append((x, y))
+            else:
+                # Random replacement
+                idx = random.randint(0, self.memory_size - 1)
+                self.memory[idx] = (x, y)
+    
+    def sample_batch(self, batch_size):
+        if len(self.memory) < batch_size:
+            return self.memory
+        
+        indices = random.sample(range(len(self.memory)), batch_size)
+        batch = [self.memory[i] for i in indices]
+        
+        x_batch = torch.stack([item[0] for item in batch])
+        y_batch = torch.stack([item[1] for item in batch])
+        
+        return x_batch, y_batch
+    
+    def replay_loss(self, model, batch_size):
+        if len(self.memory) == 0:
+            return 0
+        
+        x_replay, y_replay = self.sample_batch(batch_size)
+        output = model(x_replay)
+        return F.cross_entropy(output, y_replay)
+```
+
+4.4 Architecture-Based Methods:
+------------------------------
+Progressive Neural Networks:
+Add new parameters for new tasks
+Preserve old task performance
+
+PackNet:
+Prune network for each task
+Pack multiple tasks efficiently
+
+Dynamically Expandable Networks:
+Grow network capacity as needed
+Add neurons/layers dynamically
+
+Benefits:
+- No forgetting by design
+- Task-specific capacity
+- Good performance retention
+
+Limitations:
+- Growing memory requirements
+- Increased complexity
+- Limited scalability
+
+4.5 Meta-Learning for Continual Learning:
+----------------------------------------
+Learn to Learn Without Forgetting:
+Meta-learn continual learning strategies
+Transfer across task sequences
+
+Gradient-Based Meta-Learning:
+MAML for continual learning
+Learn good initialization
+
+Memory-Augmented Meta-Learning:
+Meta-learn memory management
+Optimize memory allocation
+
+=======================================================
+
+5. ADVERSARIAL TRAINING
+=======================
+
+5.1 Adversarial Examples:
+------------------------
+Definition:
+Small perturbations that fool models
+x_adv = x + δ where ||δ|| < ε
+
+Threat Models:
+- L∞ attacks: Bounded pixel changes
+- L₂ attacks: Bounded Euclidean distance
+- L₀ attacks: Sparse perturbations
+
+Transferability:
+Adversarial examples transfer between models
+Indicates fundamental vulnerabilities
+
+5.2 Adversarial Attack Methods:
+------------------------------
+Fast Gradient Sign Method (FGSM):
+x_adv = x + ε · sign(∇_x ℒ(θ, x, y))
+
+Projected Gradient Descent (PGD):
+Iterative FGSM with projection
+x_{t+1} = Π_{||δ||≤ε}(x_t + α · sign(∇_x ℒ(θ, x_t, y)))
+
+C&W Attack:
+Optimization-based attack
+min ||δ||₂ + c · f(x + δ)
+
+AutoAttack:
+Ensemble of diverse attacks
+More reliable evaluation
+
+5.3 Adversarial Training:
+------------------------
+Robust Optimization:
+min_θ 𝔼_{(x,y)∼D} [max_{||δ||≤ε} ℒ(θ, x + δ, y)]
+
+Training Procedure:
+1. Generate adversarial examples
+2. Train on mixture of clean and adversarial
+3. Repeat for robust model
+
+Implementation:
+```python
+class AdversarialTrainer:
+    def __init__(self, model, epsilon=0.3, alpha=0.01, num_steps=10):
+        self.model = model
+        self.epsilon = epsilon
+        self.alpha = alpha
+        self.num_steps = num_steps
+    
+    def generate_adversarial(self, x, y):
+        # Initialize perturbation
+        delta = torch.zeros_like(x, requires_grad=True)
+        
+        for _ in range(self.num_steps):
+            # Forward pass
+            output = self.model(x + delta)
+            loss = F.cross_entropy(output, y)
+            
+            # Compute gradients
+            loss.backward()
+            
+            # Update perturbation
+            delta = delta + self.alpha * delta.grad.sign()
+            
+            # Project to epsilon ball
+            delta = torch.clamp(delta, -self.epsilon, self.epsilon)
+            delta = delta.detach().requires_grad_(True)
+        
+        return x + delta
+    
+    def train_step(self, x, y, optimizer):
+        # Generate adversarial examples
+        x_adv = self.generate_adversarial(x, y)
+        
+        # Train on adversarial examples
+        optimizer.zero_grad()
+        output = self.model(x_adv)
+        loss = F.cross_entropy(output, y)
+        loss.backward()
+        optimizer.step()
+        
+        return loss.item()
+```
+
+5.4 TRADES (TRadeoff-inspired Adversarial DEfense):
+--------------------------------------------------
+Balanced Objective:
+Trade-off between natural and robust accuracy
+ℒ_TRADES = ℒ_natural + β · ℒ_robust
+
+Robust Loss:
+ℒ_robust = KL(f(x) || f(x + δ))
+Consistency between clean and adversarial
+
+Benefits:
+- Better trade-off control
+- Improved natural accuracy
+- Theoretical justification
+
+5.5 Certified Defenses:
+----------------------
+Randomized Smoothing:
+Add noise during inference
+Provide probabilistic guarantees
+
+Interval Bound Propagation:
+Compute bounds on network outputs
+Verify robustness certificates
+
+Abstract Interpretation:
+Use abstract domains
+Verify network properties
+
+Benefits:
+- Provable guarantees
+- No adaptive attacks
+- Fundamental security
+
+=======================================================
+
+6. MULTI-TASK LEARNING
+======================
+
+6.1 Multi-Task Learning Motivation:
+----------------------------------
+Shared Representations:
+Learn features useful across tasks
+Improve data efficiency
+
+Regularization Effect:
+Multiple tasks prevent overfitting
+Better generalization
+
+Task Relationships:
+Leverage relationships between tasks
+Transfer knowledge across domains
+
+Benefits:
+- Improved performance
+- Data efficiency
+- Better generalization
+- Reduced computational cost
+
+6.2 Multi-Task Architectures:
+----------------------------
+Hard Parameter Sharing:
+Shared hidden layers
+Task-specific output heads
+
+Soft Parameter Sharing:
+Separate networks per task
+Regularize to be similar
+
+Cross-Stitch Networks:
+Learn how to combine features
+Across different tasks
+
+Task-Specific Attention:
+Attend to relevant features
+For each task
+
+Implementation:
+```python
+class MultiTaskModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, task_configs):
+        super().__init__()
+        
+        # Shared encoder
+        self.shared_encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU()
+        )
+        
+        # Task-specific heads
+        self.task_heads = nn.ModuleDict()
+        for task_name, num_classes in task_configs.items():
+            self.task_heads[task_name] = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim // 2),
+                nn.ReLU(),
+                nn.Linear(hidden_dim // 2, num_classes)
+            )
+        
+        # Task-specific attention
+        self.task_attention = nn.ModuleDict()
+        for task_name in task_configs:
+            self.task_attention[task_name] = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.Sigmoid()
+            )
+    
+    def forward(self, x, task_name):
+        # Shared representation
+        shared_features = self.shared_encoder(x)
+        
+        # Task-specific attention
+        attention_weights = self.task_attention[task_name](shared_features)
+        task_features = shared_features * attention_weights
+        
+        # Task-specific prediction
+        output = self.task_heads[task_name](task_features)
+        
+        return output
+```
+
+6.3 Task Weighting Strategies:
+-----------------------------
+Uniform Weighting:
+Equal weight for all tasks
+Simple baseline approach
+
+Uncertainty Weighting:
+Weight by prediction uncertainty
+σ_task used as weighting factor
+
+GradNorm:
+Balance gradient magnitudes across tasks
+Adaptive task weighting
+
+Dynamic Weight Average:
+Adjust weights based on training dynamics
+Rate of loss decrease
+
+Implementation:
+```python
+class UncertaintyWeighting(nn.Module):
+    def __init__(self, num_tasks):
+        super().__init__()
+        self.log_vars = nn.Parameter(torch.zeros(num_tasks))
+    
+    def forward(self, losses):
+        weighted_loss = 0
+        for i, loss in enumerate(losses):
+            precision = torch.exp(-self.log_vars[i])
+            weighted_loss += precision * loss + self.log_vars[i]
+        
+        return weighted_loss
+
+class GradNorm:
+    def __init__(self, model, tasks, alpha=0.12):
+        self.model = model
+        self.tasks = tasks
+        self.alpha = alpha
+        self.initial_losses = None
+        self.task_weights = nn.Parameter(torch.ones(len(tasks)))
+    
+    def update_weights(self, losses):
+        if self.initial_losses is None:
+            self.initial_losses = losses.clone()
+        
+        # Compute relative loss ratios
+        loss_ratios = losses / self.initial_losses
+        
+        # Compute average gradient norm
+        shared_params = list(self.model.shared_parameters())
+        
+        grad_norms = []
+        for i, task_loss in enumerate(losses):
+            grads = torch.autograd.grad(task_loss, shared_params, retain_graph=True)
+            grad_norm = torch.norm(torch.cat([g.flatten() for g in grads]))
+            grad_norms.append(grad_norm)
+        
+        grad_norms = torch.stack(grad_norms)
+        avg_grad_norm = grad_norms.mean()
+        
+        # Compute target gradient norms
+        relative_rates = loss_ratios / loss_ratios.mean()
+        target_grad_norms = avg_grad_norm * (relative_rates ** self.alpha)
+        
+        # Update task weights
+        grad_norm_loss = F.l1_loss(grad_norms, target_grad_norms)
+        grad_norm_loss.backward()
+        
+        # Renormalize weights
+        with torch.no_grad():
+            self.task_weights.data = self.task_weights.data / self.task_weights.data.sum() * len(self.tasks)
+```
+
+6.4 Task Clustering:
+-------------------
+Task Grouping:
+Cluster similar tasks together
+Share parameters within clusters
+
+Hierarchical Clustering:
+Multi-level task relationships
+Tree-structured sharing
+
+Task Affinity Learning:
+Learn task relationships
+Data-driven clustering
+
+Benefits:
+- Better parameter sharing
+- Avoid negative transfer
+- Scalable to many tasks
+
+6.5 Meta-Learning for Multi-Task:
+--------------------------------
+Task-Agnostic Meta-Learning:
+Learn across task distributions
+Quick adaptation to new tasks
+
+Multi-Task MAML:
+Extend MAML to multiple tasks
+Better initialization
+
+Gradient-Based Task Clustering:
+Use gradients to measure task similarity
+Dynamic task grouping
+
+=======================================================
+
+7. ADVANCED TRAINING STRATEGIES
+===============================
+
+7.1 Knowledge Distillation:
+--------------------------
+Teacher-Student Framework:
+Large teacher model
+Compact student model
+
+Soft Targets:
+Use teacher's probability distribution
+ℒ_KD = KL(P_teacher || P_student)
+
+Temperature Scaling:
+Soften probability distribution
+P_i = exp(z_i/T) / Σⱼ exp(z_j/T)
+
+Feature Distillation:
+Match intermediate representations
+Align feature maps
+
+Implementation:
+```python
+class KnowledgeDistillation:
+    def __init__(self, teacher, student, temperature=3, alpha=0.7):
+        self.teacher = teacher
+        self.student = student
+        self.temperature = temperature
+        self.alpha = alpha
+    
+    def distillation_loss(self, student_logits, teacher_logits, targets):
+        # Soft target loss
+        teacher_probs = F.softmax(teacher_logits / self.temperature, dim=1)
+        student_log_probs = F.log_softmax(student_logits / self.temperature, dim=1)
+        kd_loss = F.kl_div(student_log_probs, teacher_probs, reduction='batchmean')
+        kd_loss *= self.temperature ** 2
+        
+        # Hard target loss
+        ce_loss = F.cross_entropy(student_logits, targets)
+        
+        # Combined loss
+        return self.alpha * kd_loss + (1 - self.alpha) * ce_loss
+    
+    def train_step(self, data, targets, optimizer):
+        # Teacher inference (no gradients)
+        with torch.no_grad():
+            teacher_logits = self.teacher(data)
+        
+        # Student forward pass
+        student_logits = self.student(data)
+        
+        # Compute distillation loss
+        loss = self.distillation_loss(student_logits, teacher_logits, targets)
+        
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        return loss.item()
+```
+
+7.2 Progressive Learning:
+------------------------
+Progressive Growing:
+Start with low resolution
+Gradually increase resolution
+
+Progressive Training:
+Start with simple architecture
+Add complexity over time
+
+Benefits:
+- Stable training
+- Better convergence
+- High-quality results
+
+Applications:
+- GAN training
+- High-resolution generation
+- Complex architectures
+
+7.3 Noisy Student Training:
+--------------------------
+Self-Training Framework:
+Teacher trains on labeled data
+Student trains on pseudo-labels + noise
+
+Noise Injection:
+Add noise during student training
+- Dropout
+- Data augmentation
+- Stochastic depth
+
+Iterative Process:
+Student becomes new teacher
+Repeat the process
+
+Benefits:
+- Improved performance
+- Better robustness
+- Leverages unlabeled data
+
+7.4 MixUp and CutMix:
+--------------------
+MixUp:
+Linear interpolation of examples
+x̃ = λx_i + (1-λ)x_j
+ỹ = λy_i + (1-λ)y_j
+
+CutMix:
+Cut and paste image regions
+Mix labels proportionally
+
+Benefits:
+- Better generalization
+- Calibrated predictions
+- Regularization effect
+
+7.5 AutoAugment:
+---------------
+Learned Augmentation Policies:
+Search for optimal augmentation
+Use reinforcement learning
+
+Policy Space:
+Combinations of transformations
+Magnitudes and probabilities
+
+RandAugment:
+Simplified version
+Uniform sampling approach
+
+Benefits:
+- Task-specific augmentation
+- Improved performance
+- Automated policy design
+
+=======================================================
+
+8. IMPLEMENTATION AND PRACTICAL GUIDELINES
+==========================================
+
+8.1 Curriculum Learning Implementation:
+--------------------------------------
+Difficulty-Based Curriculum:
+```python
+class CurriculumDataset(Dataset):
+    def __init__(self, dataset, difficulty_scores, curriculum_strategy='linear'):
+        self.dataset = dataset
+        self.difficulty_scores = difficulty_scores
+        self.curriculum_strategy = curriculum_strategy
+        self.current_epoch = 0
+        
+        # Sort by difficulty
+        sorted_indices = np.argsort(difficulty_scores)
+        self.sorted_dataset = [dataset[i] for i in sorted_indices]
+    
+    def set_epoch(self, epoch):
+        self.current_epoch = epoch
+    
+    def get_curriculum_size(self):
+        if self.curriculum_strategy == 'linear':
+            # Linear increase
+            progress = min(self.current_epoch / 100, 1.0)
+            return int(progress * len(self.dataset))
+        elif self.curriculum_strategy == 'exponential':
+            # Exponential increase
+            progress = 1 - np.exp(-self.current_epoch / 20)
+            return int(progress * len(self.dataset))
+        else:
+            return len(self.dataset)
+    
+    def __len__(self):
+        return self.get_curriculum_size()
+    
+    def __getitem__(self, idx):
+        curriculum_size = self.get_curriculum_size()
+        if idx >= curriculum_size:
+            idx = idx % curriculum_size
+        return self.sorted_dataset[idx]
+```
+
+Self-Paced Learning:
+```python
+class SelfPacedLoss(nn.Module):
+    def __init__(self, base_criterion, lambda_param=1.0):
+        super().__init__()
+        self.base_criterion = base_criterion
+        self.lambda_param = lambda_param
+    
+    def forward(self, outputs, targets):
+        # Compute base loss for each sample
+        losses = torch.stack([
+            self.base_criterion(outputs[i:i+1], targets[i:i+1])
+            for i in range(len(outputs))
+        ])
+        
+        # Compute weights (binary variables)
+        weights = (losses <= self.lambda_param).float()
+        
+        # Weighted loss
+        weighted_loss = (weights * losses).sum() / (weights.sum() + 1e-8)
+        
+        # Add regularization term
+        regularization = self.lambda_param * weights.sum()
+        
+        return weighted_loss - regularization
+```
+
+8.2 Self-Supervised Learning Implementation:
+-------------------------------------------
+SimCLR Training Loop:
+```python
+def train_simclr(model, dataloader, optimizer, temperature=0.07, epochs=100):
+    for epoch in range(epochs):
+        for batch_idx, (data, _) in enumerate(dataloader):
+            # Create two augmented views
+            view1 = augmentation_pipeline(data)
+            view2 = augmentation_pipeline(data)
+            
+            # Forward pass
+            z1 = model(view1)
+            z2 = model(view2)
+            
+            # Compute contrastive loss
+            loss = contrastive_loss(z1, z2, temperature)
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            if batch_idx % 100 == 0:
+                print(f'Epoch: {epoch}, Batch: {batch_idx}, Loss: {loss.item():.4f}')
+```
+
+8.3 Meta-Learning Implementation:
+--------------------------------
+MAML Training:
+```python
+def train_maml(model, task_distribution, meta_optimizer, inner_lr=0.01, meta_epochs=1000):
+    for epoch in range(meta_epochs):
+        meta_loss = 0
+        
+        # Sample batch of tasks
+        tasks = task_distribution.sample_batch(batch_size=32)
+        
+        for task in tasks:
+            support_x, support_y, query_x, query_y = task
+            
+            # Clone model for task adaptation
+            adapted_model = deepcopy(model)
+            
+            # Inner loop: adapt to support set
+            for inner_step in range(5):
+                support_pred = adapted_model(support_x)
+                support_loss = F.cross_entropy(support_pred, support_y)
+                
+                # Compute gradients
+                grads = torch.autograd.grad(support_loss, adapted_model.parameters(), create_graph=True)
+                
+                # Update parameters
+                for param, grad in zip(adapted_model.parameters(), grads):
+                    param.data -= inner_lr * grad
+            
+            # Outer loop: evaluate on query set
+            query_pred = adapted_model(query_x)
+            query_loss = F.cross_entropy(query_pred, query_y)
+            meta_loss += query_loss
+        
+        # Meta-update
+        meta_optimizer.zero_grad()
+        (meta_loss / len(tasks)).backward()
+        meta_optimizer.step()
+        
+        if epoch % 100 == 0:
+            print(f'Meta-epoch: {epoch}, Meta-loss: {meta_loss.item() / len(tasks):.4f}')
+```
+
+8.4 Multi-Task Learning Implementation:
+--------------------------------------
+Training Loop:
+```python
+def train_multitask(model, task_dataloaders, optimizers, task_weights=None):
+    if task_weights is None:
+        task_weights = {task: 1.0 for task in task_dataloaders.keys()}
+    
+    # Create iterators
+    task_iterators = {task: iter(loader) for task, loader in task_dataloaders.items()}
+    
+    for epoch in range(num_epochs):
+        epoch_losses = {task: 0 for task in task_dataloaders.keys()}
+        
+        for step in range(steps_per_epoch):
+            total_loss = 0
+            
+            for task_name in task_dataloaders.keys():
+                try:
+                    data, targets = next(task_iterators[task_name])
+                except StopIteration:
+                    task_iterators[task_name] = iter(task_dataloaders[task_name])
+                    data, targets = next(task_iterators[task_name])
+                
+                # Forward pass for this task
+                outputs = model(data, task_name)
+                loss = F.cross_entropy(outputs, targets)
+                
+                # Weight the loss
+                weighted_loss = task_weights[task_name] * loss
+                total_loss += weighted_loss
+                
+                epoch_losses[task_name] += loss.item()
+            
+            # Backward pass
+            for optimizer in optimizers.values():
+                optimizer.zero_grad()
+            
+            total_loss.backward()
+            
+            for optimizer in optimizers.values():
+                optimizer.step()
+        
+        # Print epoch results
+        print(f"Epoch {epoch}:")
+        for task, loss in epoch_losses.items():
+            print(f"  {task}: {loss / steps_per_epoch:.4f}")
+```
+
+8.5 Practical Guidelines:
+-------------------------
+Curriculum Learning:
+1. Define meaningful difficulty measures
+2. Start with simple examples
+3. Gradually increase complexity
+4. Monitor learning progress
+5. Adjust pacing as needed
+
+Self-Supervised Learning:
+1. Design appropriate pretext tasks
+2. Use strong data augmentation
+3. Large batch sizes help
+4. Transfer carefully to downstream tasks
+5. Consider domain specificity
+
+Meta-Learning:
+1. Ensure diverse task distribution
+2. Balance support/query set sizes
+3. Tune inner/outer learning rates
+4. Monitor both meta and task performance
+5. Consider computational costs
+
+Multi-Task Learning:
+1. Choose related tasks
+2. Balance task difficulties
+3. Monitor for negative transfer
+4. Use appropriate architectures
+5. Consider task weighting strategies
+
+8.6 Common Pitfalls:
+-------------------
+Curriculum Learning:
+- Poor difficulty measures
+- Too rapid progression
+- Ignoring diversity
+- Not adapting to progress
+
+Self-Supervised Learning:
+- Weak augmentations
+- Poor negative sampling
+- Domain mismatch
+- Insufficient pre-training
+
+Meta-Learning:
+- Limited task diversity
+- Poor task distribution
+- Overfitting to meta-train tasks
+- Computational complexity
+
+Multi-Task Learning:
+- Unrelated tasks
+- Imbalanced difficulties
+- Poor architecture design
+- Ignoring task conflicts
+
+8.7 Success Guidelines:
+----------------------
+Planning:
+1. Understand your specific learning problem
+2. Choose appropriate advanced training strategy
+3. Consider computational resources
+4. Plan evaluation methodology
+
+Implementation:
+1. Start with simple baselines
+2. Implement incrementally
+3. Monitor training dynamics
+4. Use appropriate evaluation metrics
+
+Optimization:
+1. Tune hyperparameters carefully
+2. Consider multiple strategies
+3. Monitor for overfitting
+4. Use proper validation
+
+Deployment:
+1. Test on real-world scenarios
+2. Monitor performance over time
+3. Plan for model updates
+4. Document training procedures
+
+=======================================================
+END OF DOCUMENT 

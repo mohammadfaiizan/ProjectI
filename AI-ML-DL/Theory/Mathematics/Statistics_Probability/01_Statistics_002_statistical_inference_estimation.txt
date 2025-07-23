@@ -1,0 +1,609 @@
+STATISTICAL INFERENCE AND ESTIMATION - Theory and Methods for ML
+==================================================================
+
+TABLE OF CONTENTS:
+1. Fundamentals of Statistical Inference
+2. Point Estimation Theory
+3. Maximum Likelihood Estimation
+4. Bayesian Estimation
+5. Confidence Intervals and Hypothesis Testing
+6. Non-parametric Methods
+7. Bootstrap and Resampling Methods
+8. Applications in Machine Learning
+
+=======================================================
+
+1. FUNDAMENTALS OF STATISTICAL INFERENCE
+========================================
+
+1.1 Statistical Model:
+---------------------
+Statistical model: Family of probability distributions
+M = {P_θ : θ ∈ Θ}
+
+where:
+- θ: parameter (unknown)
+- Θ: parameter space
+- P_θ: probability distribution indexed by θ
+
+Examples:
+- Normal: θ = (μ, σ²), Θ = ℝ × ℝ₊
+- Bernoulli: θ = p, Θ = [0,1]
+- Regression: θ = β, Θ = ℝᵖ
+
+1.2 Sample and Sampling Distribution:
+------------------------------------
+Sample: X₁, ..., Xₙ ~ P_θ (i.i.d.)
+Sample space: 𝒳ⁿ
+Sampling distribution: Joint distribution of (X₁, ..., Xₙ)
+
+Sufficient statistic T(X₁, ..., Xₙ):
+Contains all information about θ in the sample
+
+Factorization theorem:
+T is sufficient iff p(x|θ) = g(T(x), θ)h(x)
+
+1.3 Likelihood Function:
+-----------------------
+Likelihood: L(θ) = L(θ; x₁, ..., xₙ) = ∏ᵢ₌₁ⁿ f(xᵢ; θ)
+Log-likelihood: ℓ(θ) = log L(θ) = Σᵢ₌₁ⁿ log f(xᵢ; θ)
+
+Properties:
+- Function of θ for fixed data
+- Not a probability density in θ
+- Contains information about plausible parameter values
+
+1.4 Fisher Information:
+----------------------
+Fisher information: I(θ) = E[(-∂²ℓ(θ)/∂θ²)]
+
+Alternative: I(θ) = E[(∂ℓ(θ)/∂θ)²]
+
+Fisher information matrix (multivariate):
+I(θ)ᵢⱼ = E[-∂²ℓ(θ)/(∂θᵢ∂θⱼ)]
+
+Properties:
+- Measures information about θ in single observation
+- Related to curvature of log-likelihood
+- Higher information ⟹ more precise estimation
+
+1.5 Exponential Family:
+----------------------
+f(x; θ) = h(x)exp(η(θ)ᵀT(x) - A(θ))
+
+where:
+- η(θ): natural parameter
+- T(x): sufficient statistic
+- A(θ): log-partition function
+
+Properties:
+- Many common distributions belong to exponential family
+- Nice theoretical properties for inference
+- Sufficient statistics have simple form
+
+=======================================================
+
+2. POINT ESTIMATION THEORY
+==========================
+
+2.1 Estimator Properties:
+-------------------------
+Estimator: Function θ̂ₙ = θ̂ₙ(X₁, ..., Xₙ)
+Estimate: Realized value θ̂ₙ(x₁, ..., xₙ)
+
+Unbiasedness: E[θ̂ₙ] = θ for all θ ∈ Θ
+Bias: bias(θ̂ₙ) = E[θ̂ₙ] - θ
+
+Consistency: θ̂ₙ →ᵖ θ as n → ∞
+Strong consistency: θ̂ₙ →ᵃ·ˢ· θ as n → ∞
+
+2.2 Mean Squared Error:
+----------------------
+MSE(θ̂ₙ) = E[(θ̂ₙ - θ)²] = Var(θ̂ₙ) + (bias(θ̂ₙ))²
+
+Bias-variance decomposition:
+- Unbiased estimators: MSE = Variance
+- Biased estimators: Trade-off between bias and variance
+
+Efficiency: Estimator with smallest MSE (or variance if unbiased)
+
+2.3 Cramér-Rao Lower Bound:
+---------------------------
+For unbiased estimator θ̂:
+Var(θ̂) ≥ 1/I(θ) (univariate case)
+Var(θ̂) ≥ I(θ)⁻¹ (multivariate case)
+
+Efficient estimator: Achieves Cramér-Rao bound
+- Rare in finite samples
+- Often achievable asymptotically
+
+2.4 Sufficiency and Completeness:
+---------------------------------
+Rao-Blackwell theorem: If T is sufficient for θ and θ̂ is unbiased:
+θ̃ = E[θ̂|T] is unbiased and Var(θ̃) ≤ Var(θ̂)
+
+Complete statistic T: E[g(T)] = 0 for all θ ⟹ g(T) = 0 a.s.
+
+Lehmann-Scheffé theorem: If T is complete sufficient and θ̂(T) is unbiased,
+then θ̂(T) is UMVUE (uniformly minimum variance unbiased estimator)
+
+2.5 Method of Moments:
+---------------------
+Equate sample moments to population moments:
+(1/n)Σᵢ₌₁ⁿ Xᵢᵏ = E[Xᵏ] for k = 1, ..., p
+
+Solve for parameters θ₁, ..., θₚ
+
+Properties:
+- Simple to compute
+- Consistent under regularity conditions
+- May not be efficient
+- Can yield estimates outside parameter space
+
+=======================================================
+
+3. MAXIMUM LIKELIHOOD ESTIMATION
+================================
+
+3.1 Maximum Likelihood Estimator (MLE):
+---------------------------------------
+θ̂_{MLE} = argmax_θ L(θ) = argmax_θ ℓ(θ)
+
+First-order condition (score equation):
+∂ℓ(θ)/∂θ|_{θ=θ̂} = 0
+
+Properties under regularity conditions:
+- Consistent: θ̂_{MLE} →ᵖ θ₀
+- Asymptotically normal: √n(θ̂_{MLE} - θ₀) →ᵈ N(0, I(θ₀)⁻¹)
+- Asymptotically efficient: Achieves Cramér-Rao bound
+- Invariant: If τ = g(θ), then τ̂_{MLE} = g(θ̂_{MLE})
+
+3.2 Regularity Conditions:
+--------------------------
+1. Θ is open subset of ℝᵖ
+2. Support of f(x; θ) doesn't depend on θ
+3. f(x; θ) is differentiable in θ
+4. Integration and differentiation can be interchanged
+5. Fisher information is finite and positive definite
+
+3.3 Computational Methods:
+-------------------------
+Newton-Raphson: θ_{k+1} = θₖ - [∇²ℓ(θₖ)]⁻¹∇ℓ(θₖ)
+
+Fisher scoring: θ_{k+1} = θₖ + I(θₖ)⁻¹∇ℓ(θₖ)
+
+EM Algorithm (for missing data/latent variables):
+E-step: Q(θ|θ⁽ᵏ⁾) = E[log p(X,Z|θ)|X,θ⁽ᵏ⁾]
+M-step: θ⁽ᵏ⁺¹⁾ = argmax_θ Q(θ|θ⁽ᵏ⁾)
+
+3.4 Examples:
+------------
+Normal distribution (μ, σ² unknown):
+μ̂ = X̄ₙ = (1/n)Σᵢ₌₁ⁿ Xᵢ
+σ̂² = (1/n)Σᵢ₌₁ⁿ (Xᵢ - X̄ₙ)²
+
+Exponential distribution (λ unknown):
+λ̂ = 1/X̄ₙ
+
+Logistic regression:
+ℓ(β) = Σᵢ₌₁ⁿ [yᵢxᵢᵀβ - log(1 + exp(xᵢᵀβ))]
+
+3.5 Profile Likelihood:
+----------------------
+For θ = (ψ, λ) where ψ is parameter of interest:
+Profile likelihood: L_p(ψ) = max_λ L(ψ, λ)
+
+Used when:
+- Only interested in subset of parameters
+- Nuisance parameters present
+- Dimension reduction needed
+
+=======================================================
+
+4. BAYESIAN ESTIMATION
+======================
+
+4.1 Bayesian Framework:
+----------------------
+Prior: π(θ)
+Likelihood: L(θ|x) = f(x|θ)
+Posterior: π(θ|x) ∝ L(θ|x)π(θ)
+
+Bayes' theorem:
+π(θ|x) = L(θ|x)π(θ) / ∫ L(θ|x)π(θ)dθ
+
+Predictive distribution:
+p(x_{new}|x) = ∫ f(x_{new}|θ)π(θ|x)dθ
+
+4.2 Point Estimates:
+-------------------
+Posterior mean: θ̂_{PM} = E[θ|x]
+Posterior median: θ̂_{Med} = median(θ|x)
+Maximum a posteriori (MAP): θ̂_{MAP} = argmax_θ π(θ|x)
+
+Loss functions:
+- Squared loss: L(θ, a) = (θ - a)² ⟹ optimal action = posterior mean
+- Absolute loss: L(θ, a) = |θ - a| ⟹ optimal action = posterior median
+- 0-1 loss: L(θ, a) = I(θ ≠ a) ⟹ optimal action = posterior mode
+
+4.3 Conjugate Priors:
+---------------------
+Conjugate family: Prior and posterior have same functional form
+
+Examples:
+- Normal likelihood, normal prior ⟹ normal posterior
+- Binomial likelihood, beta prior ⟹ beta posterior
+- Poisson likelihood, gamma prior ⟹ gamma posterior
+
+Beta-Binomial: X|p ~ Binomial(n, p), p ~ Beta(α, β)
+⟹ p|x ~ Beta(α + x, β + n - x)
+
+Normal-Normal: X|μ ~ N(μ, σ²), μ ~ N(μ₀, τ²)
+⟹ μ|x ~ N((τ²x̄ + σ²μ₀)/(τ² + σ²/n), (τ²σ²/n)/(τ² + σ²/n))
+
+4.4 Non-informative Priors:
+---------------------------
+Jeffreys prior: π(θ) ∝ √det(I(θ))
+- Invariant under reparameterization
+- Often improper but leads to proper posterior
+
+Reference priors: Maximize expected information gain
+Uniform priors: π(θ) ∝ 1 (on appropriate scale)
+
+4.5 Empirical Bayes:
+-------------------
+Estimate hyperparameters from data:
+θᵢ|μ ~ π(θᵢ|μ), μ unknown
+Estimate μ̂ from marginal distribution
+Use π(θᵢ|μ̂) as "prior"
+
+Two-stage procedure:
+1. Estimate hyperparameters
+2. Compute posterior using estimated hyperparameters
+
+4.6 Computational Methods:
+-------------------------
+Markov Chain Monte Carlo (MCMC):
+- Metropolis-Hastings algorithm
+- Gibbs sampling
+- Hamiltonian Monte Carlo
+
+Variational inference:
+- Approximate posterior with simpler distribution
+- Minimize KL divergence
+- Faster than MCMC but less accurate
+
+=======================================================
+
+5. CONFIDENCE INTERVALS AND HYPOTHESIS TESTING
+==============================================
+
+5.1 Confidence Intervals:
+------------------------
+100(1-α)% confidence interval: Random interval [L(X), U(X)] such that
+P(θ ∈ [L(X), U(X)]) = 1 - α for all θ
+
+Interpretation: Long-run frequency of coverage
+
+Pivotal quantity method:
+Find Q(X, θ) with known distribution independent of θ
+Use to construct interval
+
+5.2 Large Sample Confidence Intervals:
+-------------------------------------
+Based on asymptotic normality of MLE:
+θ̂ ± z_{α/2}√(Î(θ̂)⁻¹/n)
+
+where Î(θ̂) is observed Fisher information
+
+Delta method for functions:
+g(θ̂) ± z_{α/2}|g'(θ̂)|√(Î(θ̂)⁻¹/n)
+
+Profile likelihood intervals:
+{θ : 2[ℓ(θ̂) - ℓ(θ)] ≤ χ²_{1,α}}
+
+5.3 Hypothesis Testing:
+----------------------
+Null hypothesis: H₀: θ ∈ Θ₀
+Alternative hypothesis: H₁: θ ∈ Θ₁ (often Θ₁ = Θ₀ᶜ)
+
+Test statistic: T(X)
+Rejection region: R = {x : T(x) ∈ C}
+p-value: P(T(X) ≥ T(x_obs)|H₀)
+
+Type I error: α = P(reject H₀|H₀ true)
+Type II error: β = P(accept H₀|H₁ true)
+Power: 1 - β = P(reject H₀|H₁ true)
+
+5.4 Likelihood Ratio Test:
+-------------------------
+Test statistic: λ(x) = L(θ̂₀)/L(θ̂)
+where θ̂₀ = argmax_{θ∈Θ₀} L(θ), θ̂ = argmax_{θ∈Θ} L(θ)
+
+Asymptotic distribution under H₀:
+-2 log λ(X) →ᵈ χ²_r where r = dim(Θ) - dim(Θ₀)
+
+Score test: Based on score function at restricted estimate
+Wald test: Based on unrestricted estimate and its standard error
+
+5.5 Multiple Testing:
+--------------------
+Familywise error rate (FWER): P(at least one Type I error)
+False discovery rate (FDR): E[V/R] where V = false discoveries, R = total discoveries
+
+Bonferroni correction: Use α/m for each of m tests
+Controls FWER at level α
+
+Benjamini-Hochberg procedure: Controls FDR at level α
+
+5.6 Goodness of Fit Tests:
+-------------------------
+Kolmogorov-Smirnov test: Based on empirical CDF
+D_n = sup_x |F_n(x) - F₀(x)|
+
+Anderson-Darling test: Weighted version of KS test
+More sensitive to tail differences
+
+Chi-square test: For discrete distributions
+X² = Σᵢ (Oᵢ - Eᵢ)²/Eᵢ ~ χ²_{k-1-p}
+
+=======================================================
+
+6. NON-PARAMETRIC METHODS
+=========================
+
+6.1 Empirical Distribution Function:
+-----------------------------------
+F_n(x) = (1/n)Σᵢ₌₁ⁿ I(Xᵢ ≤ x)
+
+Properties:
+- Unbiased: E[F_n(x)] = F(x)
+- Consistent: F_n(x) →ᵃ·ˢ· F(x)
+- Glivenko-Cantelli: sup_x |F_n(x) - F(x)| →ᵃ·ˢ· 0
+
+Dvoretzky-Kiefer-Wolfowitz inequality:
+P(sup_x |F_n(x) - F(x)| > ε) ≤ 2exp(-2nε²)
+
+6.2 Kernel Density Estimation:
+------------------------------
+f̂_h(x) = (1/nh)Σᵢ₌₁ⁿ K((x - Xᵢ)/h)
+
+where K is kernel function and h is bandwidth
+
+Common kernels:
+- Gaussian: K(u) = (1/√2π)exp(-u²/2)
+- Epanechnikov: K(u) = (3/4)(1 - u²)I(|u| ≤ 1)
+- Uniform: K(u) = (1/2)I(|u| ≤ 1)
+
+Bias-variance trade-off:
+- Small h: Low bias, high variance
+- Large h: High bias, low variance
+
+Optimal bandwidth: h* ∝ n^(-1/5) (for second-order kernels)
+
+6.3 Non-parametric Regression:
+-----------------------------
+Nadaraya-Watson estimator:
+m̂(x) = Σᵢ₌₁ⁿ w_i(x)Yᵢ
+
+where w_i(x) = K((x - Xᵢ)/h) / Σⱼ₌₁ⁿ K((x - Xⱼ)/h)
+
+Local polynomial regression:
+Fit polynomial locally around each point
+
+Smoothing splines:
+Minimize: Σᵢ₌₁ⁿ (yᵢ - g(xᵢ))² + λ∫ (g''(t))²dt
+
+6.4 Rank-Based Methods:
+----------------------
+Wilcoxon signed-rank test: For paired data
+W⁺ = Σᵢ:dᵢ>0 R_i where R_i is rank of |dᵢ|
+
+Mann-Whitney U test: For two independent samples
+U = Σᵢ₌₁ⁿ¹ Σⱼ₌₁ⁿ² I(X_i > Y_j)
+
+Spearman's rank correlation:
+ρ_s = 1 - (6Σᵢ₌₁ⁿ d_i²)/(n(n²-1))
+where d_i = rank(X_i) - rank(Y_i)
+
+6.5 Order Statistics:
+--------------------
+X₍₁₎ ≤ X₍₂₎ ≤ ... ≤ X₍ₙ₎
+
+Sample quantiles:
+Q̂_p = X₍⌈np⌉₎ (simple definition)
+
+Properties:
+- Sample median: Q̂₀.₅
+- Robust to outliers
+- Asymptotically normal
+
+=======================================================
+
+7. BOOTSTRAP AND RESAMPLING METHODS
+===================================
+
+7.1 Bootstrap Principle:
+-----------------------
+Empirical distribution F̂_n as proxy for unknown F
+Bootstrap sample: X₁*, ..., X_n* sampled i.i.d. from F̂_n
+Bootstrap statistic: θ̂* = T(X₁*, ..., X_n*)
+
+Plug-in principle: Estimate F by F̂_n, then compute quantities of interest
+
+7.2 Non-parametric Bootstrap:
+----------------------------
+Algorithm:
+1. Draw bootstrap sample (x₁*, ..., x_n*) from {x₁, ..., x_n} with replacement
+2. Compute θ̂* = T(x₁*, ..., x_n*)
+3. Repeat B times to get θ̂*₁, ..., θ̂*_B
+4. Use empirical distribution of θ̂*ᵢ to approximate distribution of θ̂
+
+Bootstrap estimate of bias: bias* = θ̂*̄ - θ̂
+Bootstrap estimate of variance: var* = (1/(B-1))Σᵢ₌₁ᵇ (θ̂*ᵢ - θ̂*̄)²
+
+7.3 Bootstrap Confidence Intervals:
+----------------------------------
+Normal approximation: θ̂ ± z_{α/2}√var*
+
+Percentile method: [θ̂*_{(α/2)}, θ̂*_{(1-α/2)}]
+
+Bias-corrected and accelerated (BCa):
+Adjusts for bias and skewness
+
+Bootstrap-t: Uses studentized statistic
+
+7.4 Parametric Bootstrap:
+------------------------
+1. Estimate parameters: θ̂ = θ̂(x₁, ..., x_n)
+2. Generate bootstrap sample from F_{θ̂}
+3. Compute bootstrap statistic
+4. Repeat and analyze
+
+Useful when parametric model is reasonable
+
+7.5 Jackknife:
+-------------
+Delete-one jackknife:
+θ̂₍ᵢ₎ = T(x₁, ..., x_{i-1}, x_{i+1}, ..., x_n)
+
+Jackknife estimate of bias: bias_jack = (n-1)(θ̂₍.₎ - θ̂)
+where θ̂₍.₎ = (1/n)Σᵢ₌₁ⁿ θ̂₍ᵢ₎
+
+Jackknife estimate of variance: var_jack = ((n-1)/n)Σᵢ₌₁ⁿ (θ̂₍ᵢ₎ - θ̂₍.₎)²
+
+7.6 Cross-Validation:
+--------------------
+Leave-one-out CV: Use n-1 observations to predict left-out observation
+K-fold CV: Divide data into K folds, use K-1 folds for training
+
+CV estimate of prediction error:
+CV = (1/n)Σᵢ₌₁ⁿ L(yᵢ, ŷ₍₋ᵢ₎)
+
+Bootstrap .632 estimator:
+Err_{.632} = 0.368 × err + 0.632 × Err_boot
+
+=======================================================
+
+8. APPLICATIONS IN MACHINE LEARNING
+===================================
+
+8.1 Bias-Variance Decomposition:
+-------------------------------
+For prediction error at point x₀:
+Err(x₀) = Bias²(f̂(x₀)) + Var(f̂(x₀)) + σ²
+
+Irreducible error: σ² (noise)
+Reducible error: Bias² + Variance
+
+Trade-off:
+- Complex models: Low bias, high variance
+- Simple models: High bias, low variance
+
+8.2 Model Selection and Regularization:
+--------------------------------------
+AIC: -2ℓ(θ̂) + 2p (Akaike Information Criterion)
+BIC: -2ℓ(θ̂) + p log n (Bayesian Information Criterion)
+
+Regularized likelihood:
+ℓ_reg(θ) = ℓ(θ) - λ||θ||_q
+
+Lasso (q=1): Promotes sparsity
+Ridge (q=2): Shrinks coefficients
+Elastic net: Combination of L1 and L2
+
+8.3 Ensemble Methods:
+--------------------
+Bagging: Bootstrap aggregating
+- Train models on bootstrap samples
+- Average predictions (regression) or vote (classification)
+- Reduces variance
+
+Boosting: Sequential learning
+- Weight misclassified examples more heavily
+- Combines weak learners into strong learner
+- Can reduce bias and variance
+
+Random forests: Bagging + random feature selection
+
+8.4 Uncertainty Quantification:
+------------------------------
+Prediction intervals: Account for parameter uncertainty + noise
+Credible intervals: Bayesian posterior intervals
+
+Conformal prediction: Distribution-free prediction intervals
+- Split data into training and calibration sets
+- Use calibration set to determine interval size
+
+Monte Carlo dropout: Approximate Bayesian inference in neural networks
+
+8.5 Hypothesis Testing in ML:
+----------------------------
+Statistical significance of model differences:
+- McNemar's test (paired comparisons)
+- Wilcoxon signed-rank test
+- Bootstrap tests
+
+Multiple comparisons: Testing many models/hyperparameters
+- Control family-wise error rate
+- Use held-out test set sparingly
+
+8.6 Causal Inference:
+--------------------
+Randomized experiments: Gold standard for causal inference
+Observational studies: Require additional assumptions
+
+Methods:
+- Instrumental variables
+- Regression discontinuity
+- Difference-in-differences
+- Propensity score matching
+
+Confounding: Association ≠ causation
+
+8.7 A/B Testing:
+---------------
+Randomized controlled experiments for online systems
+
+Statistical power: Probability of detecting effect if it exists
+Sample size calculation: n ∝ 1/Δ² where Δ is effect size
+
+Multiple testing issues:
+- Testing multiple metrics
+- Peeking at results
+- Post-hoc analyses
+
+8.8 Bayesian Methods in ML:
+---------------------------
+Bayesian neural networks: Uncertainty over weights
+Gaussian processes: Non-parametric Bayesian regression
+Bayesian optimization: For hyperparameter tuning
+
+Variational inference: Scalable approximate Bayesian methods
+Markov Chain Monte Carlo: Exact sampling from posterior
+
+8.9 Robustness and Diagnostics:
+------------------------------
+Outlier detection: Identify anomalous observations
+Influence analysis: How much each observation affects results
+
+Robust estimators:
+- M-estimators: Generalize MLE with different loss functions
+- Trimmed means: Remove extreme observations
+- Huber estimator: Compromise between mean and median
+
+Model diagnostics:
+- Residual analysis
+- Q-Q plots
+- Goodness-of-fit tests
+
+Key Insights for ML:
+- Statistical inference provides rigorous framework for learning from data
+- Bias-variance trade-off fundamental to model selection
+- Bootstrap enables uncertainty quantification without distributional assumptions
+- Hypothesis testing requires careful consideration of multiple comparisons
+- Bayesian methods naturally incorporate prior knowledge and uncertainty
+- Robustness important when model assumptions violated
+
+=======================================================
+END OF DOCUMENT 

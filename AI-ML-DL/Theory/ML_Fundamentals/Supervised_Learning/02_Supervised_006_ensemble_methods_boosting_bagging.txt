@@ -1,0 +1,861 @@
+ENSEMBLE METHODS - Boosting, Bagging, and Collective Intelligence
+====================================================================
+
+TABLE OF CONTENTS:
+1. Ensemble Learning Fundamentals
+2. Bootstrap Aggregating (Bagging)
+3. Boosting Algorithms
+4. Voting and Averaging Methods
+5. Stacking and Meta-Learning
+6. Advanced Ensemble Techniques
+7. Theory and Analysis
+8. Applications and Practical Implementation
+
+=======================================================
+
+1. ENSEMBLE LEARNING FUNDAMENTALS
+=================================
+
+1.1 Core Concepts:
+-----------------
+Ensemble Learning: Combine multiple models to create a stronger predictor
+
+Key Principle: "Wisdom of crowds"
+- Individual models may be weak
+- Collective decision often better
+- Diversity among models crucial
+
+Base Learners (Weak Learners):
+- Individual models in ensemble
+- Often simple models (decision stumps, small trees)
+- Each performs slightly better than random
+
+Meta-Learning:
+- Learning how to combine base learners
+- Can be as simple as averaging or sophisticated stacking
+
+1.2 Why Ensembles Work:
+---------------------
+Error Decomposition:
+E[(f(x) - y)²] = Bias² + Variance + Noise
+
+Ensemble Benefits:
+- Variance Reduction: Average out individual model errors
+- Bias Reduction: Sequential learning corrects systematic errors
+- Improved Robustness: Less sensitive to outliers and noise
+
+Condorcet's Jury Theorem:
+If individual classifiers have accuracy p > 0.5 and are independent:
+- Ensemble accuracy increases with ensemble size
+- Approaches 1 as number of classifiers → ∞
+
+1.3 Types of Ensemble Methods:
+-----------------------------
+Parallel Ensembles:
+- Train base learners independently
+- Examples: Bagging, Random Forest
+- Focus on variance reduction
+
+Sequential Ensembles:
+- Train base learners sequentially
+- Examples: Boosting, AdaBoost
+- Focus on bias reduction
+
+Parallel vs Sequential:
+- Parallel: Can be trained in parallel, robust
+- Sequential: Often more accurate, sensitive to outliers
+
+1.4 Diversity in Ensembles:
+--------------------------
+Algorithmic Diversity:
+- Different algorithms (trees, linear models, neural networks)
+- Different hyperparameters
+- Different architectures
+
+Data Diversity:
+- Different training subsets (bagging)
+- Different feature subsets
+- Different data transformations
+
+Randomness Sources:
+- Random sampling of data
+- Random feature selection
+- Random initialization
+- Stochastic algorithms
+
+Ambiguity Decomposition:
+E = Ē - A̅
+
+where E is ensemble error, Ē is average individual error, A̅ is average ambiguity (diversity)
+
+1.5 Ensemble Framework:
+----------------------
+Training Phase:
+1. Generate diverse base learners
+2. Train each base learner
+3. Learn combination strategy
+
+Prediction Phase:
+1. Obtain predictions from all base learners
+2. Combine predictions using meta-learner
+3. Output final prediction
+
+Combination Strategies:
+- Simple averaging/voting
+- Weighted averaging
+- Meta-learning (stacking)
+- Dynamic selection
+
+=======================================================
+
+2. BOOTSTRAP AGGREGATING (BAGGING)
+==================================
+
+2.1 Bootstrap Sampling:
+----------------------
+Bootstrap Sample:
+- Sample n instances with replacement from training set
+- Each bootstrap sample has ~63% unique instances
+- ~37% are out-of-bag (OOB) instances
+
+Bootstrap Bias:
+E[X̄*] = E[X̄] (unbiased estimator)
+
+Bootstrap Variance:
+Var[X̄*] = Var[X̄]/B + (1-1/B)Cov[X̄ᵢ*, X̄ⱼ*]
+
+where B is number of bootstrap samples
+
+2.2 Bagging Algorithm:
+---------------------
+Training:
+1. Generate B bootstrap samples: D₁*, D₂*, ..., Dᵦ*
+2. Train base learner on each sample: h₁, h₂, ..., hᵦ
+3. Store all trained models
+
+Prediction:
+- Regression: ĥ(x) = (1/B) Σᵦ hᵦ(x)
+- Classification: Majority vote or average probabilities
+
+Out-of-Bag Error:
+- Use OOB samples as validation set
+- No need for separate test set
+- Unbiased estimate of generalization error
+
+2.3 Theoretical Analysis:
+------------------------
+Variance Reduction:
+If base learners have variance σ² and correlation ρ:
+Var[ensemble] = ρσ² + (1-ρ)σ²/B
+
+Key insights:
+- Lower correlation → better variance reduction
+- More models → better variance reduction (diminishing returns)
+
+Bias:
+E[ensemble] = E[base learner]
+Bagging doesn't reduce bias
+
+2.4 Random Forests:
+------------------
+Enhancement to Bagging:
+1. Bootstrap sampling (as in bagging)
+2. Random feature selection at each split
+3. Grow deep trees (low bias)
+
+Feature Randomness:
+- At each node, select mtry features randomly
+- Choose best split among selected features
+- Typical values: mtry = √p (classification), p/3 (regression)
+
+Advantages:
+- Further decorrelates trees
+- Handles high-dimensional data
+- Built-in feature importance
+- Excellent default performance
+
+2.5 Extremely Randomized Trees:
+------------------------------
+Additional Randomization:
+- Use entire training set (no bootstrap)
+- Random thresholds for splits
+- Faster training
+
+Algorithm:
+1. For each tree, use full training set
+2. At each node, randomly select features
+3. For each feature, randomly select threshold
+4. Choose best random split
+
+Trade-offs:
+- Higher bias, lower variance than Random Forest
+- Often competitive performance
+- Much faster training
+
+2.6 Feature Importance:
+----------------------
+Mean Decrease Impurity (MDI):
+Iⱼ = Σₜ Σₙ p(n) * Δi(n) * 𝟙[v(n) = j]
+
+where p(n) is proportion of samples reaching node n
+
+Permutation Importance:
+1. Calculate OOB error
+2. Permute feature j in OOB samples
+3. Recalculate OOB error
+4. Importance = increase in error
+
+Advantages of Permutation:
+- Less biased toward high-cardinality features
+- Model-agnostic
+- More reliable
+
+2.7 Hyperparameter Tuning:
+-------------------------
+Key Parameters:
+- n_estimators: Number of trees (more is usually better)
+- max_features: Features per split (controls randomness)
+- max_depth: Tree depth (controls overfitting)
+- min_samples_split: Minimum samples to split
+- min_samples_leaf: Minimum samples per leaf
+
+Tuning Strategy:
+1. Start with defaults
+2. Increase n_estimators until performance plateaus
+3. Tune max_features via cross-validation
+4. Adjust tree-specific parameters if needed
+
+=======================================================
+
+3. BOOSTING ALGORITHMS
+======================
+
+3.1 Boosting Principles:
+-----------------------
+Sequential Learning:
+- Train weak learners sequentially
+- Each learner corrects mistakes of previous ensemble
+- Focus on difficult examples
+
+Weak Learning Assumption:
+Any learning algorithm that performs slightly better than random can be boosted to arbitrarily high accuracy
+
+AdaBoost Insight:
+Exponentially re-weight training examples based on current ensemble performance
+
+3.2 AdaBoost Algorithm:
+----------------------
+Initialization:
+w₁⁽ⁱ⁾ = 1/n for i = 1, ..., n
+
+For t = 1, ..., T:
+1. Train weak learner hₜ on weighted training set
+2. Calculate weighted error: εₜ = Σᵢ w⁽ⁱ⁾ₜ 𝟙[yᵢ ≠ hₜ(xᵢ)] / Σᵢ w⁽ⁱ⁾ₜ
+3. Calculate classifier weight: αₜ = ½ log((1-εₜ)/εₜ)
+4. Update weights: w⁽ⁱ⁾ₜ₊₁ = w⁽ⁱ⁾ₜ exp(-αₜyᵢhₜ(xᵢ))
+5. Normalize weights
+
+Final Classifier:
+H(x) = sign(Σₜ αₜhₜ(x))
+
+3.3 AdaBoost Analysis:
+---------------------
+Training Error Bound:
+Training error ≤ ∏ₜ 2√(εₜ(1-εₜ))
+
+If εₜ ≤ ½ - γ for all t:
+Training error ≤ exp(-2γ²T)
+
+Exponential decay in training error!
+
+Generalization Bound:
+With probability 1-δ:
+P(H(x) ≠ y) ≤ P̂(H(x) ≠ y) + O(√((d log(n/d) + log(1/δ))/n))
+
+where d is VC dimension of base learner class
+
+3.4 Loss Function Perspective:
+-----------------------------
+AdaBoost minimizes exponential loss:
+L(y, f(x)) = exp(-yf(x))
+
+Gradient View:
+- Negative gradient: yᵢexp(-yᵢf(xᵢ))
+- Proportional to sample weights in AdaBoost
+
+Connection to Logistic Regression:
+Both minimize convex surrogates of 0-1 loss:
+- AdaBoost: Exponential loss
+- Logistic: Logistic loss
+
+3.5 Gradient Boosting:
+---------------------
+General Framework:
+F₀(x) = argmin_γ Σᵢ L(yᵢ, γ)
+
+For m = 1, ..., M:
+1. Compute pseudo-residuals: rᵢₘ = -∂L(yᵢ, F(xᵢ))/∂F|F=Fₘ₋₁
+2. Fit base learner hₘ to residuals: hₘ = argmin_h Σᵢ (rᵢₘ - h(xᵢ))²
+3. Find step size: γₘ = argmin_γ Σᵢ L(yᵢ, Fₘ₋₁(xᵢ) + γhₘ(xᵢ))
+4. Update: Fₘ(x) = Fₘ₋₁(x) + γₘhₘ(x)
+
+3.6 Common Loss Functions:
+-------------------------
+Regression:
+- Squared Loss: L(y,f) = ½(y-f)²
+- Absolute Loss: L(y,f) = |y-f|
+- Huber Loss: Smooth combination of squared and absolute
+
+Classification:
+- Exponential: L(y,f) = exp(-yf) (AdaBoost)
+- Logistic: L(y,f) = log(1 + exp(-yf))
+- Hinge: L(y,f) = max(0, 1-yf)
+
+Robust Losses:
+- Less sensitive to outliers
+- Better generalization in noisy settings
+
+3.7 Regularization in Boosting:
+------------------------------
+Shrinkage (Learning Rate):
+Fₘ(x) = Fₘ₋₁(x) + ν·γₘhₘ(x)
+
+where ν ∈ (0,1] is learning rate
+
+Stochastic Gradient Boosting:
+- Subsample training data for each iteration
+- Typical subsample ratio: 0.5-0.8
+- Reduces overfitting and improves speed
+
+Early Stopping:
+- Monitor validation error
+- Stop when validation error stops improving
+- Prevents overfitting
+
+3.8 XGBoost Innovations:
+-----------------------
+Regularized Objective:
+Obj = Σᵢ l(yᵢ, ŷᵢ) + Σₜ Ω(fₜ)
+
+where Ω(f) = γT + ½λ||w||²
+
+Second-Order Approximation:
+Use both gradient and Hessian information
+More accurate than first-order methods
+
+System Optimizations:
+- Parallel tree construction
+- Cache-aware algorithms
+- Sparse-aware algorithms
+- Approximate tree learning
+
+=======================================================
+
+4. VOTING AND AVERAGING METHODS
+===============================
+
+4.1 Simple Voting:
+-----------------
+Hard Voting (Majority Vote):
+ĥ(x) = mode{h₁(x), h₂(x), ..., hₘ(x)}
+
+Soft Voting (Probability Averaging):
+ĥ(x) = argmax_k (1/M) Σₘ P(y = k|x, hₘ)
+
+When to Use:
+- Hard voting: When only class predictions available
+- Soft voting: When probability estimates available (usually better)
+
+4.2 Weighted Voting:
+-------------------
+Weighted Average:
+ĥ(x) = Σₘ wₘhₘ(x) / Σₘ wₘ
+
+Weight Selection:
+- Uniform weights: wₘ = 1/M
+- Performance-based: wₘ ∝ validation accuracy
+- Inverse error: wₘ ∝ 1/error_m
+- Learned weights: Optimize on validation set
+
+Dynamic Weighting:
+Weights can depend on input x:
+ĥ(x) = Σₘ wₘ(x)hₘ(x)
+
+4.3 Bayesian Model Averaging:
+----------------------------
+Posterior Model Probability:
+P(M|D) ∝ P(D|M)P(M)
+
+Prediction:
+P(y|x, D) = Σₘ P(y|x, M)P(M|D)
+
+Challenges:
+- Computing model evidence P(D|M)
+- Exponential number of models
+- Approximations needed in practice
+
+4.4 Mixture of Experts:
+----------------------
+Gating Network:
+g(x): Computes mixing weights for each expert
+
+Expert Networks:
+hₘ(x): Specialized models for different regions
+
+Combined Prediction:
+ĥ(x) = Σₘ g_m(x)hₘ(x)
+
+where g_m(x) = softmax(vₘᵀx)
+
+4.5 Selection vs Combination:
+----------------------------
+Dynamic Selection:
+- Choose best model for each input
+- Based on local competence
+- Risk of overfitting to validation set
+
+Combination:
+- Always use all models
+- More robust but may include poor models
+- Better average performance
+
+Hybrid Approaches:
+- Select subset of models
+- Combine selected models
+- Balance between selection and combination
+
+=======================================================
+
+5. STACKING AND META-LEARNING
+=============================
+
+5.1 Stacked Generalization:
+--------------------------
+Two-Level Architecture:
+- Level 0: Base learners (diverse algorithms)
+- Level 1: Meta-learner (learns to combine)
+
+Training Process:
+1. Split training data: Train/Validation
+2. Train base learners on Train set
+3. Generate predictions on Validation set
+4. Train meta-learner on {validation features, validation targets}
+
+Prediction:
+1. Base learners predict on test instance
+2. Meta-learner combines base predictions
+3. Output final prediction
+
+5.2 Cross-Validation Stacking:
+-----------------------------
+Avoid Overfitting:
+Use k-fold CV to generate level-1 training data
+
+Algorithm:
+1. Partition training data into k folds
+2. For each fold i:
+   a. Train base learners on other k-1 folds
+   b. Predict on fold i
+3. Concatenate all out-of-fold predictions
+4. Train meta-learner on concatenated predictions
+
+Advantages:
+- Uses all training data
+- Reduces overfitting
+- More reliable meta-features
+
+5.3 Meta-Features:
+-----------------
+Base Predictions:
+Most common meta-features are base learner outputs
+
+Confidence Measures:
+- Prediction probability
+- Entropy of probability distribution
+- Distance to decision boundary
+
+Problem Characteristics:
+- Instance difficulty
+- Local data density
+- Feature statistics
+
+Ranking Information:
+- Rank of predicted classes
+- Pairwise comparisons
+- Top-k predictions
+
+5.4 Meta-Learning Algorithms:
+----------------------------
+Simple Meta-Learners:
+- Linear regression (regression problems)
+- Logistic regression (classification)
+- Ridge regression (regularization)
+
+Complex Meta-Learners:
+- Neural networks
+- Random forests
+- Support vector machines
+
+Considerations:
+- Simple often works well
+- Avoid overfitting at meta-level
+- Regularization important
+
+5.5 Multi-Level Stacking:
+------------------------
+More than Two Levels:
+- Level 0: Base learners
+- Level 1: First meta-learners
+- Level 2: Second meta-learners
+- ...
+
+Diminishing Returns:
+- Usually 2-3 levels sufficient
+- Risk of overfitting increases
+- Computational cost grows
+
+5.6 Feature-Weighted Linear Stacking:
+------------------------------------
+Context-Dependent Combination:
+w(x) = softmax(Vx + b)
+ĥ(x) = Σₘ wₘ(x)hₘ(x)
+
+where V and b are learned parameters
+
+Local Expertise:
+Different models excel in different regions
+Learn region-specific weights
+
+=======================================================
+
+6. ADVANCED ENSEMBLE TECHNIQUES
+===============================
+
+6.1 Dynamic Ensemble Selection:
+------------------------------
+Instance-Specific Selection:
+For each test instance, select subset of models
+
+Selection Criteria:
+- Local accuracy in neighborhood
+- Diversity among selected models
+- Confidence measures
+
+K-Nearest Oracle (KNO):
+1. Find k nearest neighbors in training set
+2. Evaluate each model on these neighbors
+3. Select best performing model
+
+DES-Performance:
+Weight models by their local performance
+
+6.2 Multi-Objective Ensembles:
+-----------------------------
+Pareto-Optimal Ensembles:
+Optimize multiple objectives simultaneously:
+- Accuracy vs diversity
+- Accuracy vs complexity
+- Speed vs accuracy
+
+NSGA-II for Ensembles:
+Non-dominated sorting genetic algorithm
+Evolve ensemble configurations
+
+6.3 Online Ensemble Learning:
+----------------------------
+Streaming Data:
+- Models must adapt to new data
+- Concept drift handling
+- Limited memory and computation
+
+Weighted Majority Algorithm:
+Update model weights based on performance:
+wₜ₊₁ = wₜ × β^(loss_t)
+
+where β ∈ (0,1) is decay factor
+
+Adaptive Windowing:
+Maintain performance statistics in sliding window
+Drop models when performance degrades
+
+6.4 Negative Correlation Learning:
+---------------------------------
+Explicit Diversity Promotion:
+Train ensemble members to make different errors
+
+Objective Function:
+Eᵢ = ½(yᵢ - fᵢ)² + λpᵢ
+
+where pᵢ = (fᵢ - f̄)(Σⱼ≠ᵢ(fⱼ - f̄))
+
+Encourages anti-correlation among ensemble members
+
+6.5 Clustering-Based Ensembles:
+-------------------------------
+Partition Training Data:
+1. Cluster training instances
+2. Train specialist model for each cluster
+3. Use clustering to route test instances
+
+Advantages:
+- Specialized models for different regions
+- Natural diversity
+- Interpretable ensemble structure
+
+6.6 Evolutionary Ensembles:
+--------------------------
+Genetic Algorithm Approach:
+- Population: Ensemble configurations
+- Fitness: Validation performance
+- Operations: Crossover, mutation, selection
+
+GADES (Genetic Algorithm-based Ensemble Selection):
+Evolve both model selection and weights
+
+Advantages:
+- Global optimization
+- Handles large model pools
+- Can optimize complex objectives
+
+=======================================================
+
+7. THEORY AND ANALYSIS
+======================
+
+7.1 PAC-Bayesian Analysis:
+-------------------------
+Generalization Bounds:
+For any prior π and δ > 0, with probability ≥ 1-δ:
+
+KL(ρ||π) ≤ n·KL(L̂(ρ)||L(ρ)) + log(n/δ)
+
+where ρ is posterior over ensemble members
+
+Implications:
+- Ensembles close to prior generalize better
+- Trade-off between empirical performance and complexity
+
+7.2 Rademacher Complexity:
+-------------------------
+Ensemble Complexity:
+R̂ₙ(H) = (1/n)𝔼σ[sup_{h∈H} Σᵢσᵢh(xᵢ)]
+
+For convex combinations:
+R̂ₙ(conv(H)) = R̂ₙ(H)
+
+Averaging doesn't increase complexity!
+
+7.3 Margin Theory:
+-----------------
+Ensemble Margin:
+ρ(x,y) = (1/2)[f_y(x) - max_{k≠y} f_k(x)]
+
+Larger margins → better generalization
+
+AdaBoost Margin Bound:
+P(margin ≤ θ) ≤ ∏ₜ 2√(εₜ(1-εₜ)) exp(θ²T/2)
+
+7.4 Bias-Variance Decomposition:
+-------------------------------
+Individual Model:
+E[(y - h(x))²] = Bias² + Variance + Noise
+
+Ensemble:
+E[(y - ĥ(x))²] = Bias² + Variance/M + (1-1/M)Covariance + Noise
+
+Key Insights:
+- Averaging reduces variance
+- Correlated errors limit improvement
+- Diversity crucial for ensemble success
+
+7.5 Stability Analysis:
+----------------------
+Algorithmic Stability:
+How much does ensemble change with small data perturbations?
+
+Uniform Stability:
+|L(A(S), z) - L(A(S'), z)| ≤ β
+
+for datasets S, S' differing in one point
+
+Ensemble Stability:
+Often more stable than individual learners
+Averaging smooths out instabilities
+
+7.6 Learning Curves:
+-------------------
+Ensemble Size vs Performance:
+- Initially steep improvement
+- Diminishing returns
+- Eventually plateaus
+
+Computational Trade-offs:
+- Training time grows linearly
+- Prediction time grows linearly
+- Memory requirements grow linearly
+
+Optimal Ensemble Size:
+Balance between performance and cost
+
+=======================================================
+
+8. APPLICATIONS AND PRACTICAL IMPLEMENTATION
+============================================
+
+8.1 Computer Vision:
+-------------------
+Image Classification:
+- Ensemble of CNNs with different architectures
+- Data augmentation for diversity
+- Test-time augmentation
+
+Object Detection:
+- Multi-scale ensembles
+- Different anchor configurations
+- Model fusion at feature level
+
+Medical Imaging:
+- Critical applications require high reliability
+- Ensemble uncertainty quantification
+- Cross-validation for model selection
+
+8.2 Natural Language Processing:
+-------------------------------
+Text Classification:
+- Different feature representations
+- Various algorithms (Naive Bayes, SVM, neural networks)
+- Ensemble of language models
+
+Machine Translation:
+- Multiple translation systems
+- Different approaches (statistical, neural)
+- Minimum Bayes Risk decoding
+
+Sentiment Analysis:
+- Lexicon-based + machine learning
+- Different preprocessing strategies
+- Multi-domain adaptation
+
+8.3 Time Series Forecasting:
+---------------------------
+Multiple Models:
+- ARIMA, exponential smoothing, neural networks
+- Different lag structures
+- Seasonal vs non-seasonal components
+
+Forecast Combination:
+- Simple averaging often competitive
+- Performance-weighted combinations
+- Dynamic model selection
+
+8.4 Recommender Systems:
+-----------------------
+Hybrid Approaches:
+- Collaborative filtering + content-based
+- Matrix factorization + neural networks
+- Different similarity measures
+
+Cold Start Problem:
+- Different models for different scenarios
+- Ensemble handles various data sparsity levels
+
+8.5 Financial Applications:
+--------------------------
+Risk Management:
+- Model uncertainty quantification
+- Regulatory requirements for model validation
+- Ensemble robustness
+
+Algorithmic Trading:
+- Multiple signal sources
+- Different time horizons
+- Risk-adjusted combination
+
+Credit Scoring:
+- Regulatory interpretability requirements
+- Ensemble of interpretable models
+- Calibrated probability outputs
+
+8.6 Implementation Best Practices:
+---------------------------------
+Software Design:
+- Modular architecture for base learners
+- Parallel training capabilities
+- Efficient prediction pipelines
+
+Memory Management:
+- Large ensembles require careful memory planning
+- Model compression techniques
+- Lazy loading strategies
+
+Hyperparameter Optimization:
+- Nested cross-validation
+- Bayesian optimization for ensemble configuration
+- Multi-objective optimization
+
+8.7 Production Considerations:
+-----------------------------
+Latency Requirements:
+- Parallel prediction execution
+- Model pruning for speed
+- Approximation techniques
+
+Model Updates:
+- Incremental ensemble updates
+- A/B testing for new models
+- Graceful degradation strategies
+
+Monitoring:
+- Individual model performance tracking
+- Ensemble diversity monitoring
+- Concept drift detection
+
+8.8 Common Pitfalls:
+-------------------
+Overfitting:
+- Complex meta-learners overfit
+- Insufficient validation data
+- Too many ensemble levels
+
+Computational Complexity:
+- Underestimating training/prediction time
+- Memory requirements for large ensembles
+- Scalability issues
+
+Diversity vs Accuracy:
+- Sacrificing accuracy for diversity
+- Correlation among ensemble members
+- Proper diversity measures
+
+Data Leakage:
+- Information leakage in cross-validation
+- Temporal leakage in time series
+- Target leakage in feature engineering
+
+8.9 Success Guidelines:
+----------------------
+Ensemble Design:
+- Start with diverse, well-performing base models
+- Use proper cross-validation for meta-learning
+- Balance complexity with interpretability
+
+Validation Strategy:
+- Nested cross-validation for unbiased estimates
+- Temporal validation for time series
+- Stratified sampling for imbalanced data
+
+Feature Engineering:
+- Domain expertise crucial for base models
+- Feature diversity promotes ensemble diversity
+- Careful preprocessing pipeline design
+
+Practical Deployment:
+- Plan for computational requirements early
+- Monitor ensemble components individually
+- Implement graceful degradation mechanisms
+- Document ensemble architecture thoroughly
+- Test extensively before production deployment
+- Plan for model updates and maintenance
+
+=======================================================
+END OF DOCUMENT 

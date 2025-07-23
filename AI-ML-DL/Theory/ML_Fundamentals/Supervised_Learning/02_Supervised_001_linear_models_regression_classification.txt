@@ -1,0 +1,708 @@
+LINEAR MODELS FOR REGRESSION AND CLASSIFICATION - Mathematical Foundations
+==========================================================================
+
+TABLE OF CONTENTS:
+1. Linear Regression Fundamentals
+2. Logistic Regression and Classification
+3. Regularized Linear Models
+4. Generalized Linear Models
+5. Bayesian Linear Regression
+6. Practical Implementation and Optimization
+7. Model Evaluation and Diagnostics
+8. Advanced Topics and Extensions
+
+=======================================================
+
+1. LINEAR REGRESSION FUNDAMENTALS
+=================================
+
+1.1 Mathematical Foundation:
+---------------------------
+Linear Model Assumption:
+y = β₀ + β₁x₁ + β₂x₂ + ... + βₚxₚ + ε
+
+Matrix Form:
+y = Xβ + ε
+
+Where:
+- y ∈ ℝⁿ: Response vector
+- X ∈ ℝⁿˣᵖ: Design matrix (features)
+- β ∈ ℝᵖ: Parameter vector
+- ε ∈ ℝⁿ: Error term
+
+Assumptions:
+1. Linearity: E[y|X] = Xβ
+2. Independence: Errors are independent
+3. Homoscedasticity: Var(ε) = σ²I
+4. Normality: ε ~ N(0, σ²I)
+
+1.2 Ordinary Least Squares (OLS):
+---------------------------------
+Objective Function:
+RSS(β) = ||y - Xβ||² = Σᵢ(yᵢ - βᵀxᵢ)²
+
+Analytical Solution:
+β̂ = (XᵀX)⁻¹Xᵀy
+
+Geometric Interpretation:
+- Projection of y onto column space of X
+- ŷ = Xβ̂ = X(XᵀX)⁻¹Xᵀy = Hy
+- H is the "hat matrix" (projection matrix)
+
+Properties of OLS Estimator:
+- Unbiased: E[β̂] = β
+- Minimum variance among linear unbiased estimators (BLUE)
+- Consistent: β̂ → β as n → ∞
+- Asymptotically normal
+
+1.3 Statistical Properties:
+--------------------------
+Variance of β̂:
+Var(β̂) = σ²(XᵀX)⁻¹
+
+Standard Errors:
+SE(β̂ⱼ) = σ̂√[(XᵀX)⁻¹]ⱼⱼ
+
+where σ̂² = RSS/(n-p) is the residual standard error
+
+R-squared (Coefficient of Determination):
+R² = 1 - RSS/TSS = 1 - Σᵢ(yᵢ - ŷᵢ)²/Σᵢ(yᵢ - ȳ)²
+
+Adjusted R-squared:
+R²ₐdⱼ = 1 - (1-R²)(n-1)/(n-p-1)
+
+1.4 Hypothesis Testing:
+----------------------
+Individual Coefficient Tests:
+H₀: βⱼ = 0 vs H₁: βⱼ ≠ 0
+
+t-statistic: t = β̂ⱼ/SE(β̂ⱼ) ~ t_{n-p}
+
+F-test for Overall Significance:
+H₀: β₁ = β₂ = ... = βₚ = 0
+
+F = (TSS - RSS)/p / (RSS/(n-p-1)) ~ F_{p,n-p-1}
+
+Confidence Intervals:
+β̂ⱼ ± t_{α/2,n-p} × SE(β̂ⱼ)
+
+1.5 Multicollinearity:
+---------------------
+Definition: High correlation among predictor variables
+
+Detection:
+- Correlation matrix inspection
+- Variance Inflation Factor (VIF): VIFⱼ = 1/(1-R²ⱼ)
+- Condition number of XᵀX
+
+Consequences:
+- Unstable coefficient estimates
+- Large standard errors
+- Sensitivity to small data changes
+
+Solutions:
+- Remove highly correlated variables
+- Principal component regression
+- Ridge regression
+- Partial least squares
+
+1.6 Residual Analysis:
+---------------------
+Residuals: eᵢ = yᵢ - ŷᵢ
+
+Standardized Residuals:
+rᵢ = eᵢ/σ̂√(1-hᵢᵢ)
+
+where hᵢᵢ is the i-th diagonal element of H
+
+Diagnostic Plots:
+- Residuals vs Fitted: Check linearity, homoscedasticity
+- Q-Q Plot: Check normality assumption
+- Scale-Location: Check homoscedasticity
+- Residuals vs Leverage: Identify influential points
+
+Outlier Detection:
+- Leverage: hᵢᵢ > 2p/n
+- Studentized residuals: |rᵢ| > 2
+- Cook's distance: Dᵢ > 4/n
+
+=======================================================
+
+2. LOGISTIC REGRESSION AND CLASSIFICATION
+=========================================
+
+2.1 Binary Logistic Regression:
+-------------------------------
+Model Specification:
+P(Y = 1|x) = π(x) = exp(β₀ + βᵀx)/(1 + exp(β₀ + βᵀx))
+
+Logit Transformation:
+logit(π) = log(π/(1-π)) = β₀ + βᵀx
+
+Sigmoid Function:
+π(x) = 1/(1 + exp(-β₀ - βᵀx))
+
+Properties:
+- 0 ≤ π(x) ≤ 1
+- Monotonic in linear predictor
+- S-shaped curve
+- Linear log-odds
+
+2.2 Maximum Likelihood Estimation:
+---------------------------------
+Likelihood Function:
+L(β) = ∏ᵢ π(xᵢ)^yᵢ (1-π(xᵢ))^(1-yᵢ)
+
+Log-Likelihood:
+ℓ(β) = Σᵢ [yᵢ log π(xᵢ) + (1-yᵢ) log(1-π(xᵢ))]
+
+Score Function (Gradient):
+U(β) = ∂ℓ/∂β = Xᵀ(y - π)
+
+Information Matrix (Hessian):
+I(β) = -∂²ℓ/∂β∂βᵀ = XᵀWX
+
+where W = diag(π(xᵢ)(1-π(xᵢ)))
+
+2.3 Newton-Raphson Algorithm:
+----------------------------
+Iterative Update:
+β^(k+1) = β^(k) + I(β^(k))⁻¹U(β^(k))
+
+Equivalently (IRLS):
+β^(k+1) = (XᵀW^(k)X)⁻¹XᵀW^(k)z^(k)
+
+where z^(k) = Xβ^(k) + W^(k)⁻¹(y - π^(k))
+
+Convergence Criteria:
+- ||β^(k+1) - β^(k)|| < tolerance
+- |ℓ(β^(k+1)) - ℓ(β^(k))| < tolerance
+
+2.4 Statistical Inference:
+--------------------------
+Asymptotic Distribution:
+β̂ ~ N(β, I(β)⁻¹)
+
+Wald Test:
+W = (β̂ⱼ/SE(β̂ⱼ))² ~ χ²₁
+
+Likelihood Ratio Test:
+LR = 2(ℓ(β̂) - ℓ(β₀)) ~ χ²ₚ
+
+Score Test:
+S = U(β₀)ᵀI(β₀)⁻¹U(β₀) ~ χ²ₚ
+
+2.5 Model Evaluation:
+--------------------
+Deviance:
+D = -2ℓ(β̂) = -2Σᵢ[yᵢ log π̂ᵢ + (1-yᵢ) log(1-π̂ᵢ)]
+
+AIC = -2ℓ(β̂) + 2p
+BIC = -2ℓ(β̂) + p log(n)
+
+Pseudo R-squared:
+McFadden's R² = 1 - ℓ(β̂)/ℓ(β₀)
+
+Classification Metrics:
+- Accuracy, Precision, Recall, F1-score
+- ROC curve and AUC
+- Confusion matrix
+- Brier score
+
+2.6 Multinomial Logistic Regression:
+-----------------------------------
+Model for K classes:
+P(Y = k|x) = exp(β₀ₖ + βₖᵀx) / Σⱼ exp(β₀ⱼ + βⱼᵀx)
+
+Reference Category (k=1):
+P(Y = k|x) = exp(βₖᵀx) / (1 + Σⱼ₌₂ᴷ exp(βⱼᵀx))
+
+Log-odds Ratio:
+log(P(Y = k|x)/P(Y = 1|x)) = βₖᵀx
+
+Estimation via maximum likelihood with similar Newton-Raphson approach.
+
+=======================================================
+
+3. REGULARIZED LINEAR MODELS
+============================
+
+3.1 Ridge Regression (L2 Regularization):
+-----------------------------------------
+Objective Function:
+β̂ᴿⁱᵈᵍᵉ = argmin_β {||y - Xβ||² + λ||β||²₂}
+
+Analytical Solution:
+β̂ᴿⁱᵈᵍᵉ = (XᵀX + λI)⁻¹Xᵀy
+
+Properties:
+- Shrinks coefficients toward zero
+- Handles multicollinearity
+- All features retained
+- Continuous in λ
+
+Bayesian Interpretation:
+- Equivalent to Gaussian prior: β ~ N(0, σ²/λ)
+- Posterior mode with normal prior
+
+Cross-Validation for λ:
+- k-fold CV to select optimal λ
+- Grid search over λ values
+- One standard error rule
+
+3.2 Lasso Regression (L1 Regularization):
+----------------------------------------
+Objective Function:
+β̂ᴸᵃˢˢᵒ = argmin_β {||y - Xβ||² + λ||β||₁}
+
+Properties:
+- Automatic feature selection
+- Some coefficients exactly zero
+- Non-differentiable at zero
+- Piecewise linear solution paths
+
+Coordinate Descent Algorithm:
+For each j, minimize over βⱼ:
+β̂ⱼ = S(Σᵢ xᵢⱼ(yᵢ - ŷᵢ⁽⁻ʲ⁾)/n, λ) / Σᵢ x²ᵢⱼ/n
+
+where S(z, γ) = sign(z)(|z| - γ)₊ is soft thresholding
+
+3.3 Elastic Net:
+---------------
+Objective Function:
+β̂ᴱᴺ = argmin_β {||y - Xβ||² + λ₁||β||₁ + λ₂||β||²₂}
+
+Alternative Parameterization:
+β̂ᴱᴺ = argmin_β {||y - Xβ||² + λ[α||β||₁ + (1-α)||β||²₂]}
+
+Properties:
+- Combines L1 and L2 penalties
+- Groups correlated features
+- α controls L1/L2 balance
+- Automatic feature selection with grouping
+
+3.4 Regularization Paths:
+------------------------
+Solution as function of λ:
+- Ridge: Smooth shrinkage
+- Lasso: Piecewise linear, features enter/exit
+- Elastic Net: Combines both behaviors
+
+Degrees of Freedom:
+- Ridge: df(λ) = tr[X(XᵀX + λI)⁻¹Xᵀ]
+- Lasso: df(λ) ≈ number of non-zero coefficients
+
+3.5 Cross-Validation and Model Selection:
+----------------------------------------
+k-Fold Cross-Validation:
+1. Split data into k folds
+2. For each λ:
+   - Train on k-1 folds
+   - Validate on remaining fold
+3. Select λ minimizing CV error
+
+Information Criteria:
+- AIC = n log(RSS/n) + 2df
+- BIC = n log(RSS/n) + df log(n)
+
+One Standard Error Rule:
+- Select most parsimonious model within one SE of minimum
+
+=======================================================
+
+4. GENERALIZED LINEAR MODELS
+============================
+
+4.1 GLM Framework:
+-----------------
+Components:
+1. Random Component: Y ~ f(y; θ, φ)
+2. Systematic Component: η = Xβ
+3. Link Function: g(μ) = η
+
+Exponential Family:
+f(y; θ, φ) = exp[(yθ - b(θ))/a(φ) + c(y, φ)]
+
+Common Distributions:
+- Normal: Identity link, μ = η
+- Binomial: Logit link, log(μ/(1-μ)) = η
+- Poisson: Log link, log(μ) = η
+- Gamma: Log link or inverse link
+
+4.2 Estimation and Inference:
+----------------------------
+Log-Likelihood:
+ℓ(β) = Σᵢ [yᵢθᵢ - b(θᵢ)]/a(φ) + Σᵢ c(yᵢ, φ)
+
+Score Function:
+U(β) = Xᵀ diag(μ'ᵢ/V(μᵢ))(y - μ)
+
+where V(μ) is variance function
+
+Fisher Information:
+I(β) = XᵀW X
+
+where W = diag(μ'ᵢ²/V(μᵢ))
+
+4.3 Poisson Regression:
+----------------------
+Model: Y ~ Poisson(μ)
+Link: log(μ) = Xβ
+Mean: μ = exp(Xβ)
+
+Log-Likelihood:
+ℓ(β) = Σᵢ [yᵢ(Xᵢβ) - exp(Xᵢβ) - log(yᵢ!)]
+
+Applications:
+- Count data modeling
+- Rate modeling with offset
+- Contingency table analysis
+
+Overdispersion:
+- Variance > mean
+- Quasi-Poisson or negative binomial
+
+4.4 Gamma Regression:
+--------------------
+Model: Y ~ Gamma(shape, rate)
+Link: log(μ) = Xβ or 1/μ = Xβ
+
+Applications:
+- Positive continuous data
+- Skewed distributions
+- Insurance claims, survival times
+
+4.5 Model Diagnostics:
+---------------------
+Deviance Residuals:
+dᵢ = sign(yᵢ - μᵢ)√(2[ℓ(yᵢ; yᵢ) - ℓ(μᵢ; yᵢ)])
+
+Pearson Residuals:
+rᵢ = (yᵢ - μᵢ)/√V(μᵢ)
+
+Overdispersion Parameter:
+φ̂ = X²/(n - p) where X² = Σᵢ rᵢ²
+
+=======================================================
+
+5. BAYESIAN LINEAR REGRESSION
+=============================
+
+5.1 Bayesian Framework:
+----------------------
+Prior: β ~ N(β₀, Σ₀)
+Likelihood: y|β ~ N(Xβ, σ²I)
+Posterior: β|y ~ N(β̂, Σ̂)
+
+Posterior Parameters:
+Σ̂⁻¹ = Σ₀⁻¹ + (1/σ²)XᵀX
+β̂ = Σ̂[Σ₀⁻¹β₀ + (1/σ²)Xᵀy]
+
+5.2 Conjugate Priors:
+--------------------
+Normal-Inverse-Gamma:
+- β|σ² ~ N(β₀, σ²V₀)
+- σ² ~ InvGamma(a₀, b₀)
+
+Posterior:
+- β|σ², y ~ N(β̂, σ²V̂)
+- σ²|y ~ InvGamma(â, b̂)
+
+Updates:
+V̂⁻¹ = V₀⁻¹ + XᵀX
+β̂ = V̂(V₀⁻¹β₀ + Xᵀy)
+â = a₀ + n/2
+b̂ = b₀ + (SSR + (β̂-β₀)ᵀV₀⁻¹(β̂-β₀))/2
+
+5.3 Marginal Likelihood:
+-----------------------
+Model Evidence:
+p(y|M) = ∫ p(y|β, σ², M)p(β, σ²|M) dβ dσ²
+
+For model comparison and selection
+
+Bayes Factors:
+BF₁₂ = p(y|M₁)/p(y|M₂)
+
+5.4 Variable Selection:
+----------------------
+Spike-and-Slab Priors:
+- π(βⱼ) = (1-γⱼ)δ₀ + γⱼN(0, τ²)
+- γⱼ ~ Bernoulli(pⱼ)
+
+Gibbs Sampling:
+1. Sample β|γ, y
+2. Sample γ|β, y
+3. Sample hyperparameters
+
+Bayesian Model Averaging:
+p(β|y) = Σₘ p(β|y, M)p(M|y)
+
+5.5 Empirical Bayes:
+-------------------
+Estimate hyperparameters from data:
+- Type II Maximum Likelihood
+- EM algorithm
+- Cross-validation
+
+Automatic Relevance Determination (ARD):
+- Individual precision for each βⱼ
+- Automatic feature selection
+
+=======================================================
+
+6. PRACTICAL IMPLEMENTATION AND OPTIMIZATION
+============================================
+
+6.1 Computational Considerations:
+--------------------------------
+Matrix Factorizations:
+- QR decomposition: X = QR
+- SVD: X = UDVᵀ
+- Cholesky: XᵀX = LLᵀ
+
+Numerical Stability:
+- Use QR over normal equations
+- Condition number monitoring
+- Regularization for ill-conditioning
+
+Large-Scale Problems:
+- Stochastic gradient descent
+- Coordinate descent
+- Online algorithms
+- Distributed computing
+
+6.2 Stochastic Gradient Descent:
+-------------------------------
+Update Rule:
+β^(t+1) = β^(t) - η∇ℓ(β^(t); xᵢ, yᵢ)
+
+For Linear Regression:
+∇ℓ = -xᵢ(yᵢ - xᵢᵀβ^(t))
+
+For Logistic Regression:
+∇ℓ = -xᵢ(yᵢ - π(xᵢ))
+
+Learning Rate Schedules:
+- Constant: η(t) = η₀
+- Decay: η(t) = η₀/(1 + decay × t)
+- Step: η(t) = η₀ × γ^⌊t/step⌋
+
+6.3 Coordinate Descent:
+----------------------
+Algorithm:
+For j = 1, ..., p:
+  β̂ⱼ ← argmin_βⱼ L(β₁, ..., βⱼ₋₁, βⱼ, βⱼ₊₁, ..., βₚ)
+
+Advantages:
+- Simple updates
+- Handles non-differentiable penalties
+- Memory efficient
+- Parallelizable
+
+6.4 Feature Scaling:
+-------------------
+Standardization:
+x̃ⱼ = (xⱼ - x̄ⱼ)/sⱼ
+
+Importance:
+- Required for regularized methods
+- Ensures equal penalization
+- Improves convergence
+
+6.5 Warm Starts:
+----------------
+Regularization Path:
+- Use solution at λₖ to initialize λₖ₊₁
+- Speeds up computation
+- Common in glmnet, scikit-learn
+
+Active Set Methods:
+- Track non-zero coefficients
+- Focus computation on active set
+- Efficient for sparse solutions
+
+=======================================================
+
+7. MODEL EVALUATION AND DIAGNOSTICS
+===================================
+
+7.1 Regression Evaluation:
+--------------------------
+Mean Squared Error: MSE = (1/n)Σᵢ(yᵢ - ŷᵢ)²
+Root Mean Squared Error: RMSE = √MSE
+Mean Absolute Error: MAE = (1/n)Σᵢ|yᵢ - ŷᵢ|
+Mean Absolute Percentage Error: MAPE = (100/n)Σᵢ|yᵢ - ŷᵢ|/|yᵢ|
+
+R² = 1 - SS_res/SS_tot
+Adjusted R² = 1 - (1-R²)(n-1)/(n-p-1)
+
+7.2 Classification Evaluation:
+-----------------------------
+Confusion Matrix:
+        Predicted
+Actual  |  0  |  1  |
+   0    | TN  | FP  |
+   1    | FN  | TP  |
+
+Metrics:
+- Accuracy = (TP + TN)/(TP + TN + FP + FN)
+- Precision = TP/(TP + FP)
+- Recall (Sensitivity) = TP/(TP + FN)
+- Specificity = TN/(TN + FP)
+- F1-Score = 2 × (Precision × Recall)/(Precision + Recall)
+
+ROC and AUC:
+- Plot TPR vs FPR at different thresholds
+- AUC: Area Under the Curve
+- Perfect classifier: AUC = 1
+- Random classifier: AUC = 0.5
+
+7.3 Cross-Validation:
+--------------------
+k-Fold CV:
+1. Split data into k folds
+2. Train on k-1 folds, test on 1
+3. Repeat k times
+4. Average performance
+
+Leave-One-Out CV:
+- Special case where k = n
+- Expensive but unbiased
+
+Stratified CV:
+- Maintain class proportions
+- Important for imbalanced data
+
+Time Series CV:
+- Respect temporal ordering
+- Forward chaining validation
+
+7.4 Residual Analysis:
+---------------------
+Residual Plots:
+- Residuals vs Fitted: Check linearity
+- Q-Q Plot: Check normality
+- Scale-Location: Check homoscedasticity
+
+Tests:
+- Breusch-Pagan: Heteroscedasticity
+- Durbin-Watson: Autocorrelation
+- Jarque-Bera: Normality
+
+7.5 Influence Diagnostics:
+-------------------------
+Leverage: hᵢᵢ = xᵢᵀ(XᵀX)⁻¹xᵢ
+Cook's Distance: Dᵢ = (rᵢ²/p)(hᵢᵢ/(1-hᵢᵢ))
+DFBETAS: Change in coefficients when removing point i
+
+High Influence:
+- Leverage > 2p/n
+- Cook's D > 4/n
+- |DFBETAS| > 2/√n
+
+=======================================================
+
+8. ADVANCED TOPICS AND EXTENSIONS
+=================================
+
+8.1 Robust Regression:
+---------------------
+Huber Loss:
+L_δ(r) = {½r² if |r| ≤ δ, δ(|r| - ½δ) if |r| > δ}
+
+M-estimators:
+β̂ = argmin_β Σᵢ ρ(yᵢ - xᵢᵀβ)
+
+Iteratively Reweighted Least Squares:
+β^(k+1) = (XᵀW^(k)X)⁻¹XᵀW^(k)y
+
+where wᵢ^(k) = ψ(rᵢ^(k))/rᵢ^(k)
+
+8.2 Non-parametric Extensions:
+-----------------------------
+Local Regression (LOWESS):
+- Fit local polynomials
+- Weighted by distance
+- Smoothing parameter selection
+
+Kernel Regression:
+ŷ(x) = Σᵢ K((x-xᵢ)/h)yᵢ / Σᵢ K((x-xᵢ)/h)
+
+Spline Regression:
+- Piecewise polynomials
+- Smoothness constraints
+- Penalized splines
+
+8.3 Mixed Effects Models:
+------------------------
+Model: y = Xβ + Zu + ε
+- β: Fixed effects
+- u: Random effects
+- Z: Design matrix for random effects
+
+BLUP (Best Linear Unbiased Prediction):
+û = DZᵀ(ZDZᵀ + σ²I)⁻¹(y - Xβ̂)
+
+8.4 High-Dimensional Regression:
+-------------------------------
+p > n Problems:
+- More parameters than observations
+- Standard OLS fails
+- Regularization essential
+
+Sure Independence Screening:
+- Pre-screening for ultra-high dimensions
+- Correlation-based screening
+- Iterative screening
+
+8.5 Online Learning:
+-------------------
+Stochastic Gradient Descent:
+- Process one sample at a time
+- Suitable for streaming data
+- Adaptive learning rates
+
+Recursive Least Squares:
+P^(k) = P^(k-1) - P^(k-1)x_k x_k^T P^(k-1)/(1 + x_k^T P^(k-1) x_k)
+β̂^(k) = β̂^(k-1) + P^(k) x_k (y_k - x_k^T β̂^(k-1))
+
+8.6 Practical Considerations:
+----------------------------
+Feature Engineering:
+- Polynomial features
+- Interaction terms
+- Transformations
+- Domain knowledge
+
+Model Selection:
+- Forward/backward selection
+- All subsets regression
+- Information criteria
+- Cross-validation
+
+Interpretation:
+- Coefficient interpretation
+- Confidence intervals
+- Effect sizes
+- Partial effects
+
+Production Deployment:
+- Model serialization
+- Feature pipeline
+- Monitoring and retraining
+- A/B testing
+
+Key Insights for Practitioners:
+- Linear models provide strong baselines and interpretability
+- Regularization crucial for high-dimensional problems
+- Choose appropriate evaluation metrics for your problem
+- Validate assumptions through residual analysis
+- Consider computational constraints in algorithm selection
+- Feature engineering often more important than algorithm choice
+- Cross-validation essential for reliable performance estimates
+- Document model assumptions and limitations
+- Monitor model performance in production environments
+
+=======================================================
+END OF DOCUMENT 

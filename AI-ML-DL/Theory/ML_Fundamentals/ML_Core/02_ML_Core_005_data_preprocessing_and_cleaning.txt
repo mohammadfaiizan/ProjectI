@@ -1,0 +1,752 @@
+DATA PREPROCESSING AND CLEANING - Ensuring Data Quality for ML
+================================================================
+
+TABLE OF CONTENTS:
+1. Data Quality Fundamentals
+2. Missing Data Handling
+3. Outlier Detection and Treatment
+4. Data Normalization and Scaling
+5. Categorical Data Encoding
+6. Data Validation and Quality Assessment
+7. Advanced Preprocessing Techniques
+8. Production Data Pipeline Considerations
+
+=======================================================
+
+1. DATA QUALITY FUNDAMENTALS
+============================
+
+1.1 Data Quality Dimensions:
+---------------------------
+Accuracy: Correctness of data values
+- Free from errors and mistakes
+- Matches real-world values
+- Proper data types and formats
+
+Completeness: Presence of all required data
+- No missing values where expected
+- All mandatory fields populated
+- Complete records and attributes
+
+Consistency: Uniformity across data sources
+- Same format and representation
+- No contradictory information
+- Consistent naming conventions
+
+Timeliness: Currency and relevance of data
+- Up-to-date information
+- Appropriate temporal coverage
+- Recent enough for the use case
+
+Validity: Conformance to defined formats
+- Meets business rules and constraints
+- Proper data types and ranges
+- Valid relationships between fields
+
+Uniqueness: No unwanted duplicates
+- Single representation of entities
+- Proper identification of duplicates
+- Consistent entity resolution
+
+1.2 Common Data Quality Issues:
+------------------------------
+Missing Values:
+- Complete absence of values (NULL, NaN)
+- Placeholder values ("", "N/A", "-999")
+- Systematic vs random missingness
+- Impact on model performance
+
+Inconsistent Formatting:
+- Date formats: MM/DD/YYYY vs DD-MM-YYYY
+- Case sensitivity: "John" vs "JOHN"
+- Units of measurement: meters vs feet
+- Encoding differences: UTF-8 vs ASCII
+
+Duplicate Records:
+- Exact duplicates (all fields identical)
+- Near duplicates (minor differences)
+- Entity resolution challenges
+- Impact on model bias
+
+Outliers and Anomalies:
+- Statistical outliers (beyond threshold)
+- Domain-specific anomalies
+- Data entry errors
+- True extreme values vs errors
+
+Data Type Issues:
+- Numeric data stored as strings
+- Categorical data as numbers
+- Date/time parsing problems
+- Mixed data types in columns
+
+1.3 Data Quality Assessment:
+---------------------------
+Profiling Metrics:
+- Completeness rate: % non-missing values
+- Uniqueness rate: % unique values
+- Validity rate: % values meeting constraints
+- Consistency score: agreement across sources
+
+Statistical Analysis:
+- Distribution analysis (histograms, box plots)
+- Summary statistics (mean, median, mode)
+- Correlation analysis
+- Anomaly detection scores
+
+Business Rule Validation:
+- Domain-specific constraints
+- Referential integrity checks
+- Range and format validations
+- Logical consistency checks
+
+=======================================================
+
+2. MISSING DATA HANDLING
+========================
+
+2.1 Types of Missingness:
+-------------------------
+Missing Completely at Random (MCAR):
+- Probability of missing independent of observed/unobserved data
+- Missing values are randomly distributed
+- Analysis methods remain unbiased
+- Rare in practice
+
+Missing at Random (MAR):
+- Probability of missing depends on observed data only
+- Can be predicted from other variables
+- Imputation methods can be effective
+- Common assumption in practice
+
+Missing Not at Random (MNAR):
+- Missingness depends on unobserved values
+- Systematic relationship with missing values
+- Requires domain knowledge to handle
+- Most challenging case
+
+2.2 Missing Data Patterns:
+--------------------------
+Univariate: Missing values in single variable
+Monotone: Ordered pattern of missingness
+General: Complex missing data patterns
+Block: Missing values in groups of variables
+
+2.3 Simple Imputation Methods:
+-----------------------------
+Deletion Methods:
+- Listwise deletion: Remove records with any missing values
+- Pairwise deletion: Use available data for each analysis
+- Pros: Simple, no assumptions about missing values
+- Cons: Loss of information, potential bias
+
+Mean/Median/Mode Imputation:
+```python
+# Numerical variables
+df['numeric_col'].fillna(df['numeric_col'].mean())
+df['numeric_col'].fillna(df['numeric_col'].median())
+
+# Categorical variables
+df['cat_col'].fillna(df['cat_col'].mode()[0])
+```
+
+Forward/Backward Fill:
+- Time series data
+- Carry forward last observed value
+- Fill backward from next observed value
+
+Constant Value Imputation:
+- Domain-specific default values
+- Zero for counts, "Unknown" for categories
+- Indicator for missing category
+
+2.4 Advanced Imputation Methods:
+-------------------------------
+K-Nearest Neighbors Imputation:
+- Find k similar records
+- Impute based on neighbor values
+- Distance metrics: Euclidean, Manhattan
+- Handles mixed data types
+
+Multiple Imputation:
+1. Create multiple imputed datasets
+2. Analyze each dataset separately
+3. Pool results accounting for uncertainty
+4. Proper inference with missing data
+
+Iterative Imputation (MICE):
+- Model each variable with missing values
+- Iterate through variables updating imputations
+- Use other variables as predictors
+- Flexible modeling approach
+
+Matrix Factorization:
+- Treat as recommendation problem
+- Factorize incomplete data matrix
+- Learn latent factors
+- Predict missing values
+
+Deep Learning Imputation:
+- Autoencoders for missing value imputation
+- Variational autoencoders with uncertainty
+- Generative adversarial imputation networks
+- Learn complex patterns
+
+2.5 Evaluation of Imputation:
+----------------------------
+Simulation Studies:
+- Remove values artificially
+- Compare imputed vs true values
+- Metrics: RMSE, MAE for numerical; accuracy for categorical
+
+Cross-Validation:
+- Hold out observed values
+- Impute and evaluate
+- Model performance with imputed data
+
+Sensitivity Analysis:
+- Test different imputation methods
+- Assess robustness of results
+- Compare downstream model performance
+
+=======================================================
+
+3. OUTLIER DETECTION AND TREATMENT
+==================================
+
+3.1 Statistical Outlier Detection:
+----------------------------------
+Z-Score Method:
+z = (x - μ) / σ
+- Threshold: |z| > 2.5 or 3
+- Assumes normal distribution
+- Sensitive to extreme outliers
+
+Interquartile Range (IQR):
+- Q1 = 25th percentile, Q3 = 75th percentile
+- IQR = Q3 - Q1
+- Outliers: < Q1 - 1.5×IQR or > Q3 + 1.5×IQR
+- Robust to distribution assumptions
+
+Modified Z-Score:
+Modified z = 0.6745 × (x - median) / MAD
+- Uses median and median absolute deviation
+- More robust than standard z-score
+- Threshold: |modified z| > 3.5
+
+3.2 Machine Learning Outlier Detection:
+--------------------------------------
+Isolation Forest:
+- Isolates outliers using random trees
+- Outliers easier to isolate than normal points
+- No assumptions about data distribution
+- Efficient for high-dimensional data
+
+One-Class SVM:
+- Learn boundary around normal data
+- Points outside boundary are outliers
+- Kernel tricks for non-linear boundaries
+- Sensitive to hyperparameter tuning
+
+Local Outlier Factor (LOF):
+- Measures local density deviation
+- Compares density to k nearest neighbors
+- Identifies local outliers
+- Good for clusters of different densities
+
+DBSCAN:
+- Density-based clustering
+- Points not in any cluster are outliers
+- Handles clusters of different shapes
+- Sensitive to parameters (eps, min_samples)
+
+3.3 Outlier Treatment Strategies:
+--------------------------------
+Removal:
+- Delete outlier records
+- Simple but loses information
+- Risk of removing important data
+- Check impact on model performance
+
+Transformation:
+- Log transformation for right-skewed data
+- Square root transformation
+- Box-Cox transformation
+- Winsorization (cap at percentiles)
+
+Robust Methods:
+- Use algorithms robust to outliers
+- Huber regression instead of linear regression
+- Random forests handle outliers well
+- Median-based statistics
+
+Separate Modeling:
+- Model outliers separately
+- Mixture models
+- Anomaly detection systems
+- Domain-specific handling
+
+3.4 Multivariate Outlier Detection:
+----------------------------------
+Mahalanobis Distance:
+d = √[(x - μ)ᵀ Σ⁻¹ (x - μ)]
+- Accounts for correlation structure
+- Chi-square distribution under normality
+- Threshold based on degrees of freedom
+
+Principal Component Analysis:
+- Project to lower dimensions
+- Detect outliers in PC space
+- Reconstruct and measure error
+- Outliers have high reconstruction error
+
+Minimum Covariance Determinant:
+- Robust estimation of mean and covariance
+- Identify outlying subset
+- Less sensitive to outliers in estimation
+- Good for contaminated normal data
+
+=======================================================
+
+4. DATA NORMALIZATION AND SCALING
+=================================
+
+4.1 Why Scale Data:
+------------------
+Algorithm Requirements:
+- Distance-based algorithms (k-NN, SVM, k-means)
+- Gradient descent optimization
+- Principal component analysis
+- Neural networks
+
+Scale Differences:
+- Age (0-100) vs Income (10,000-100,000)
+- Different units of measurement
+- Prevent features from dominating
+
+4.2 Scaling Methods:
+-------------------
+Min-Max Normalization:
+x_scaled = (x - min) / (max - min)
+- Scales to [0, 1] range
+- Preserves relationships
+- Sensitive to outliers
+
+Standard Scaling (Z-score):
+x_scaled = (x - mean) / std
+- Mean = 0, standard deviation = 1
+- Less sensitive to outliers
+- Preserves distribution shape
+
+Robust Scaling:
+x_scaled = (x - median) / IQR
+- Uses robust statistics
+- Less sensitive to outliers
+- Good for skewed distributions
+
+Unit Vector Scaling:
+x_scaled = x / ||x||
+- Scales to unit norm
+- Preserves direction
+- Good for text data
+
+Quantile Uniform:
+- Maps to uniform distribution
+- Rank-based transformation
+- Non-parametric approach
+
+4.3 When to Apply Scaling:
+-------------------------
+Before or After Split:
+- Fit scaler on training data only
+- Apply same transformation to test data
+- Prevent data leakage
+
+```python
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+```
+
+Feature-Specific Scaling:
+- Different scaling for different features
+- Domain knowledge considerations
+- Mixed data types handling
+
+4.4 Advanced Normalization:
+--------------------------
+Power Transformations:
+- Box-Cox: y = (x^λ - 1) / λ
+- Yeo-Johnson: handles negative values
+- Makes data more normal
+- Optimal λ via maximum likelihood
+
+Quantile Transformation:
+- Maps to normal or uniform distribution
+- Rank-based, robust to outliers
+- Non-linear transformation
+- Preserves ranking
+
+=======================================================
+
+5. CATEGORICAL DATA ENCODING
+============================
+
+5.1 Nominal Categorical Variables:
+---------------------------------
+One-Hot Encoding:
+- Binary dummy variables
+- No ordinal relationship assumed
+- Can create many features
+- Sparse representation
+
+```python
+pd.get_dummies(df['category'], prefix='cat')
+# or
+from sklearn.preprocessing import OneHotEncoder
+encoder = OneHotEncoder(sparse=False)
+```
+
+Label Encoding:
+- Integer assignment to categories
+- Implies ordinal relationship
+- Use only for ordinal variables
+- Risk of artificial ordering
+
+Target Encoding:
+- Replace with target statistic
+- Mean target value for regression
+- Class probability for classification
+- Risk of overfitting, needs regularization
+
+5.2 Ordinal Categorical Variables:
+---------------------------------
+Ordinal Encoding:
+- Preserve natural ordering
+- Map to integers respecting order
+- Examples: ratings (poor, good, excellent)
+- Domain knowledge essential
+
+Custom Mapping:
+```python
+size_mapping = {'S': 1, 'M': 2, 'L': 3, 'XL': 4}
+df['size_encoded'] = df['size'].map(size_mapping)
+```
+
+5.3 High Cardinality Categorical Variables:
+------------------------------------------
+Frequency Encoding:
+- Replace with category frequency
+- Simple and effective
+- Handles new categories as rare
+- Loses category identity
+
+Binary Encoding:
+- Convert to binary representation
+- Fewer features than one-hot
+- Preserves some distance information
+- Log₂(k) features for k categories
+
+Hashing:
+- Use hash function
+- Fixed number of output features
+- Handles unknown categories
+- Risk of hash collisions
+
+Embeddings:
+- Learn dense representations
+- Capture semantic relationships
+- Requires training data
+- Effective for deep learning
+
+5.4 Handling Unknown Categories:
+-------------------------------
+Training Time Preparation:
+- Reserve category for "unknown"
+- Use frequency thresholds
+- Combine rare categories
+
+Test Time Handling:
+- Map unknowns to special category
+- Use most frequent category
+- Average encoding values
+
+=======================================================
+
+6. DATA VALIDATION AND QUALITY ASSESSMENT
+=========================================
+
+6.1 Schema Validation:
+---------------------
+Data Types:
+- Correct types for each column
+- Consistent type usage
+- Handle mixed types
+
+```python
+# Type checking
+expected_types = {'age': int, 'name': str, 'score': float}
+for col, expected_type in expected_types.items():
+    assert df[col].dtype == expected_type
+```
+
+Range Validation:
+- Minimum and maximum values
+- Domain-specific constraints
+- Business rule validation
+
+Format Validation:
+- Date formats, email patterns
+- Regular expressions
+- Standardized formats
+
+6.2 Statistical Validation:
+--------------------------
+Distribution Checks:
+- Expected vs observed distributions
+- Kolmogorov-Smirnov test
+- Statistical significance testing
+- Drift detection
+
+Correlation Analysis:
+- Expected relationships
+- Correlation matrix inspection
+- Unexpected correlations investigation
+
+Temporal Consistency:
+- Time series validation
+- Trend analysis
+- Seasonality checks
+
+6.3 Business Logic Validation:
+-----------------------------
+Referential Integrity:
+- Foreign key constraints
+- Relationship validation
+- Cross-table consistency
+
+Domain Rules:
+- Business-specific constraints
+- Logical relationships
+- Derived field validation
+
+6.4 Data Quality Reporting:
+--------------------------
+Quality Metrics Dashboard:
+- Completeness rates by field
+- Outlier percentages
+- Error counts and types
+- Trend analysis over time
+
+Automated Alerts:
+- Quality threshold violations
+- Unusual patterns detection
+- Data pipeline failures
+- Performance degradation
+
+Documentation:
+- Data lineage tracking
+- Transformation documentation
+- Quality issue logs
+- Resolution procedures
+
+=======================================================
+
+7. ADVANCED PREPROCESSING TECHNIQUES
+====================================
+
+7.1 Text Data Preprocessing:
+---------------------------
+Basic Cleaning:
+- Convert to lowercase
+- Remove punctuation and special characters
+- Handle contractions
+- Remove extra whitespace
+
+Tokenization:
+- Word-level tokenization
+- Sentence segmentation
+- Subword tokenization (BPE, WordPiece)
+- Language-specific considerations
+
+Stop Words:
+- Remove common words
+- Language-specific stop word lists
+- Domain-specific stop words
+- Impact on downstream tasks
+
+Stemming and Lemmatization:
+- Reduce words to root form
+- Stemming: crude rule-based
+- Lemmatization: dictionary-based
+- Trade-off between speed and accuracy
+
+7.2 Time Series Preprocessing:
+-----------------------------
+Temporal Alignment:
+- Synchronize different time series
+- Handle irregular sampling
+- Interpolation methods
+- Time zone handling
+
+Seasonality and Trends:
+- Detrending techniques
+- Seasonal decomposition
+- Differencing for stationarity
+- Fourier transforms
+
+Resampling:
+- Upsampling (interpolation)
+- Downsampling (aggregation)
+- Frequency conversion
+- Missing timestamp handling
+
+7.3 Image Data Preprocessing:
+----------------------------
+Geometric Transformations:
+- Resizing and cropping
+- Rotation and flipping
+- Perspective transformation
+- Data augmentation
+
+Color Space Conversion:
+- RGB to grayscale
+- HSV color space
+- Normalization of pixel values
+- Histogram equalization
+
+Noise Reduction:
+- Gaussian filtering
+- Median filtering
+- Bilateral filtering
+- Denoising algorithms
+
+7.4 Graph Data Preprocessing:
+----------------------------
+Graph Cleaning:
+- Remove isolated nodes
+- Handle multiple edges
+- Resolve self-loops
+- Validate edge consistency
+
+Feature Engineering:
+- Node degree statistics
+- Centrality measures
+- Community detection
+- Path-based features
+
+Graph Normalization:
+- Adjacency matrix normalization
+- Degree normalization
+- Spectral normalization
+- Random walk normalization
+
+=======================================================
+
+8. PRODUCTION DATA PIPELINE CONSIDERATIONS
+==========================================
+
+8.1 Pipeline Architecture:
+--------------------------
+ETL vs ELT:
+- Extract, Transform, Load
+- Extract, Load, Transform
+- Batch vs streaming processing
+- Scalability considerations
+
+Data Versioning:
+- Track data changes over time
+- Reproducibility requirements
+- Rollback capabilities
+- Schema evolution
+
+Monitoring:
+- Data quality metrics
+- Pipeline performance
+- Error rates and types
+- Alert systems
+
+8.2 Real-time Preprocessing:
+---------------------------
+Stream Processing:
+- Online transformations
+- Sliding window operations
+- Stateful computations
+- Low-latency requirements
+
+Caching Strategies:
+- Preprocessed feature caching
+- Lookup tables
+- Model artifact caching
+- Cache invalidation
+
+8.3 Scalability and Performance:
+-------------------------------
+Distributed Processing:
+- Apache Spark, Dask
+- Parallel computation
+- Memory management
+- Network optimization
+
+Optimization Techniques:
+- Vectorized operations
+- Lazy evaluation
+- Column-oriented storage
+- Query optimization
+
+8.4 Data Governance:
+-------------------
+Privacy and Security:
+- Data anonymization
+- PII handling
+- Access controls
+- Audit trails
+
+Compliance:
+- GDPR, CCPA requirements
+- Data retention policies
+- Right to be forgotten
+- Consent management
+
+Quality Assurance:
+- Testing frameworks
+- Validation pipelines
+- Error handling
+- Recovery procedures
+
+8.5 Best Practices:
+------------------
+Documentation:
+- Clear preprocessing steps
+- Parameter documentation
+- Example usage
+- Troubleshooting guides
+
+Version Control:
+- Code versioning
+- Configuration management
+- Dependency tracking
+- Reproducible environments
+
+Testing:
+- Unit tests for transformations
+- Integration testing
+- Performance testing
+- Regression testing
+
+Key Insights for Practitioners:
+- Understand your data before preprocessing
+- Handle missing data thoughtfully based on missingness type
+- Choose appropriate scaling methods for your algorithms
+- Validate data quality continuously
+- Document all preprocessing steps
+- Test preprocessing pipelines thoroughly
+- Monitor data quality in production
+- Plan for scalability from the beginning
+- Consider privacy and compliance requirements
+- Iterate based on model performance feedback
+
+=======================================================
+END OF DOCUMENT 

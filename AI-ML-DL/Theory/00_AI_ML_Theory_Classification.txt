@@ -1,0 +1,74 @@
+AI/ML/DL Theory - Professional Level Classification
+=====================================================
+
+MAIN CATEGORIES & SUBCATEGORIES:
+
+I. MATHEMATICS FOR AI/ML (15 files)
+   A. Linear Algebra (4 files)
+   B. Calculus & Optimization (4 files) 
+   C. Statistics & Probability (4 files)
+   D. Information Theory (3 files)
+
+II. MACHINE LEARNING FUNDAMENTALS (20 files)
+   A. Core Concepts (5 files)
+   B. Supervised Learning (6 files)
+   C. Unsupervised Learning (5 files)
+   D. Model Evaluation & Selection (4 files)
+
+III. DEEP LEARNING (25 files)
+   A. Neural Network Fundamentals (6 files)
+   B. Advanced Architectures (8 files)
+   C. Training Techniques (6 files)
+   D. Regularization & Optimization (5 files)
+
+IV. COMPUTER VISION (18 files)
+   A. Image Processing Fundamentals (4 files)
+   B. Classical Computer Vision (5 files)
+   C. Deep Learning for Vision (6 files)
+   D. Advanced Vision Topics (3 files)
+
+V. NATURAL LANGUAGE PROCESSING (22 files)
+   A. Text Processing Fundamentals (4 files)
+   B. Classical NLP (6 files)
+   C. Deep Learning for NLP (8 files)
+   D. Large Language Models (4 files)
+
+VI. REINFORCEMENT LEARNING (15 files)
+   A. RL Fundamentals (4 files)
+   B. Value-Based Methods (4 files)
+   C. Policy-Based Methods (4 files)
+   D. Advanced RL (3 files)
+
+VII. SPECIALIZED DOMAINS (12 files)
+   A. Graph Neural Networks (3 files)
+   B. Generative Models (4 files)
+   C. Meta Learning (2 files)
+   D. Multimodal Learning (3 files)
+
+VIII. MLOps & PRODUCTION (18 files)
+   A. ML Engineering (6 files)
+   B. Model Deployment (4 files)
+   C. Monitoring & Maintenance (4 files)
+   D. Scalability & Infrastructure (4 files)
+
+IX. ETHICS & FAIRNESS (8 files)
+   A. AI Ethics (3 files)
+   B. Fairness & Bias (3 files)
+   C. Explainable AI (2 files)
+
+X. RESEARCH & FRONTIER TOPICS (12 files)
+   A. Current Research Trends (4 files)
+   B. Emerging Technologies (4 files)
+   C. Future Directions (4 files)
+
+TOTAL FILES: 165 comprehensive theory files
+
+=====================================
+FILE NAMING CONVENTION:
+=====================================
+[Category_Number]_[Subcategory]_[Topic_Number]_[descriptive_name].txt
+
+Examples:
+01_Linear_Algebra_001_vectors_and_vector_spaces.txt
+03_Deep_Learning_001_perceptron_and_multilayer_networks.txt
+05_NLP_001_text_preprocessing_tokenization.txt 

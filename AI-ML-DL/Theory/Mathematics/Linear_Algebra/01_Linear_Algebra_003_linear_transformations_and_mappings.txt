@@ -1,0 +1,549 @@
+LINEAR TRANSFORMATIONS AND MAPPINGS - Advanced Linear Algebra
+===============================================================
+
+TABLE OF CONTENTS:
+1. Linear Transformations - Definition and Properties
+2. Matrix Representation of Linear Transformations
+3. Kernel and Image of Linear Transformations
+4. Invertible Transformations and Isomorphisms
+5. Change of Basis and Similarity Transforms
+6. Composite Transformations and Function Spaces
+7. Geometric Transformations in 2D and 3D
+8. Applications in Machine Learning
+
+=======================================================
+
+1. LINEAR TRANSFORMATIONS - DEFINITION AND PROPERTIES
+=====================================================
+
+1.1 Definition:
+--------------
+A function T: V → W between vector spaces V and W is a linear transformation if:
+
+1. Additivity: T(u + v) = T(u) + T(v) for all u, v ∈ V
+2. Homogeneity: T(cv) = cT(v) for all v ∈ V, c ∈ ℝ
+
+Equivalently: T(αu + βv) = αT(u) + βT(v) (linearity)
+
+1.2 Basic Properties:
+--------------------
+Zero preservation: T(0) = 0
+- Proof: T(0) = T(0 · v) = 0 · T(v) = 0
+
+Negation: T(-v) = -T(v)
+- Proof: T(-v) = T((-1) · v) = (-1) · T(v) = -T(v)
+
+Linear combination preservation:
+T(Σᵢ αᵢvᵢ) = Σᵢ αᵢT(vᵢ)
+
+1.3 Examples of Linear Transformations:
+--------------------------------------
+Identity transformation: I(v) = v
+Zero transformation: T(v) = 0 for all v
+Scalar multiplication: T(v) = cv for fixed c
+Projection: Project onto subspace
+Rotation: Rotate vectors by fixed angle
+Reflection: Reflect across line/plane
+
+1.4 Non-Linear Examples:
+-----------------------
+Translation: T(v) = v + b (b ≠ 0)
+- Fails zero preservation: T(0) = b ≠ 0
+Norm: T(v) = ||v||
+- Fails homogeneity: ||cv|| = |c|||v|| ≠ c||v|| when c < 0
+
+1.5 Vector Space of Linear Transformations:
+------------------------------------------
+Set L(V,W) = {T: V → W | T is linear}
+
+Operations:
+(T₁ + T₂)(v) = T₁(v) + T₂(v)
+(cT)(v) = cT(v)
+
+L(V,W) forms vector space under these operations
+
+Dimension: If dim(V) = n, dim(W) = m, then dim(L(V,W)) = mn
+
+=======================================================
+
+2. MATRIX REPRESENTATION OF LINEAR TRANSFORMATIONS
+==================================================
+
+2.1 Matrix Representation Theorem:
+----------------------------------
+Every linear transformation T: ℝⁿ → ℝᵐ can be represented as:
+T(x) = Ax for some matrix A ∈ ℝᵐˣⁿ
+
+Construction:
+If {e₁, e₂, ..., eₙ} is standard basis for ℝⁿ, then:
+A = [T(e₁) | T(e₂) | ... | T(eₙ)]
+
+Columns of A are images of standard basis vectors
+
+2.2 General Basis Representation:
+---------------------------------
+For T: V → W with bases B = {v₁,...,vₙ} for V and C = {w₁,...,wₘ} for W:
+
+Coordinate representation: [T]ᶜᴮ ∈ ℝᵐˣⁿ
+
+If v ∈ V with coordinates [v]ᴮ, then:
+[T(v)]ᶜ = [T]ᶜᴮ[v]ᴮ
+
+Matrix [T]ᶜᴮ has j-th column = [T(vⱼ)]ᶜ
+
+2.3 Standard Matrix:
+-------------------
+For T: ℝⁿ → ℝᵐ, standard matrix [T] is:
+[T] = [T(e₁) | T(e₂) | ... | T(eₙ)]
+
+Examples:
+Rotation by θ: [cos θ  -sin θ]
+               [sin θ   cos θ]
+
+Reflection across x-axis: [1   0]
+                         [0  -1]
+
+Projection onto x-axis: [1  0]
+                       [0  0]
+
+2.4 Properties of Matrix Representation:
+---------------------------------------
+Composition: [T₂ ∘ T₁] = [T₂][T₁]
+Addition: [T₁ + T₂] = [T₁] + [T₂]
+Scalar multiplication: [cT] = c[T]
+
+Invertibility: T invertible ⟺ [T] invertible
+Inverse: [T⁻¹] = [T]⁻¹
+
+=======================================================
+
+3. KERNEL AND IMAGE OF LINEAR TRANSFORMATIONS
+=============================================
+
+3.1 Kernel (Null Space):
+------------------------
+ker(T) = {v ∈ V : T(v) = 0}
+
+Properties:
+- ker(T) is subspace of V
+- T is injective ⟺ ker(T) = {0}
+- dim(ker(T)) = nullity of matrix representation
+
+Examples:
+Identity: ker(I) = {0}
+Zero transformation: ker(T) = V
+Projection: ker(T) = orthogonal complement of projected space
+
+3.2 Image (Range):
+-----------------
+im(T) = {T(v) : v ∈ V} = {w ∈ W : w = T(v) for some v ∈ V}
+
+Properties:
+- im(T) is subspace of W
+- T is surjective ⟺ im(T) = W
+- dim(im(T)) = rank of matrix representation
+
+Finding Image:
+im(T) = span{T(v₁), T(v₂), ..., T(vₙ)} where {v₁,...,vₙ} spans V
+For matrix A: im(A) = Col(A) (column space)
+
+3.3 Rank-Nullity Theorem:
+-------------------------
+For T: V → W where dim(V) = n:
+dim(ker(T)) + dim(im(T)) = n
+
+Equivalent forms:
+nullity(T) + rank(T) = dim(V)
+nullity(A) + rank(A) = number of columns of A
+
+Consequences:
+- If T: ℝⁿ → ℝⁿ is injective, then it's surjective
+- If T: ℝⁿ → ℝⁿ is surjective, then it's injective
+- Square matrices: injective ⟺ surjective ⟺ invertible
+
+3.4 Computing Kernel and Image:
+------------------------------
+For matrix A representing T:
+
+Kernel: Solve Ax = 0
+- Row reduce [A | 0]
+- Express solution in parametric form
+- Basis vectors from free variables
+
+Image: Find column space of A
+- Row reduce A to find pivot columns
+- Corresponding columns of original A form basis
+
+=======================================================
+
+4. INVERTIBLE TRANSFORMATIONS AND ISOMORPHISMS
+==============================================
+
+4.1 Invertible Linear Transformations:
+--------------------------------------
+T: V → W is invertible if there exists T⁻¹: W → V such that:
+T⁻¹ ∘ T = Iᵥ and T ∘ T⁻¹ = Iᵨ
+
+Equivalent conditions:
+- T is bijective (injective and surjective)
+- ker(T) = {0} and im(T) = W
+- Matrix representation is invertible
+
+Properties of T⁻¹:
+- (T⁻¹)⁻¹ = T
+- (T₁ ∘ T₂)⁻¹ = T₂⁻¹ ∘ T₁⁻¹
+- T⁻¹ is linear
+
+4.2 Isomorphisms:
+----------------
+An isomorphism is an invertible linear transformation
+
+Vector spaces V and W are isomorphic (V ≅ W) if there exists isomorphism T: V → W
+
+Key theorem: Finite-dimensional vector spaces are isomorphic ⟺ same dimension
+- All n-dimensional real vector spaces ≅ ℝⁿ
+- All n-dimensional complex vector spaces ≅ ℂⁿ
+
+4.3 Canonical Isomorphisms:
+--------------------------
+V ≅ ℝⁿ where n = dim(V):
+Choose basis {v₁,...,vₙ} for V
+T: V → ℝⁿ by T(Σᵢ αᵢvᵢ) = [α₁,...,αₙ]ᵀ
+
+Matrix spaces: ℝᵐˣⁿ ≅ ℝᵐⁿ (vectorization)
+Polynomial spaces: Pₙ ≅ ℝⁿ⁺¹ (coefficient mapping)
+
+4.4 Automorphisms:
+------------------
+Automorphism: Isomorphism T: V → V (from space to itself)
+
+Group structure: GL(V) = group of automorphisms of V
+- Composition as group operation
+- Identity transformation as identity element
+- Matrix representation: GL(n,ℝ) = invertible n×n matrices
+
+=======================================================
+
+5. CHANGE OF BASIS AND SIMILARITY TRANSFORMS
+============================================
+
+5.1 Change of Basis Matrix:
+---------------------------
+For vector space V with bases B = {v₁,...,vₙ} and C = {u₁,...,uₙ}:
+
+Change of basis matrix P = [u₁]ᴮ | [u₂]ᴮ | ... | [uₙ]ᴮ
+
+Coordinate transformation: [v]ᴮ = P[v]ᶜ
+
+Properties:
+- P is invertible
+- P⁻¹ transforms from B-coordinates to C-coordinates
+- [v]ᶜ = P⁻¹[v]ᴮ
+
+5.2 Matrix Similarity:
+---------------------
+Matrices A and B are similar if B = P⁻¹AP for some invertible P
+
+Interpretation: A and B represent same transformation in different bases
+
+Similarity invariants (properties preserved):
+- Determinant: det(A) = det(B)
+- Trace: tr(A) = tr(B)  
+- Characteristic polynomial
+- Eigenvalues (including multiplicities)
+- Rank
+
+5.3 Change of Basis for Linear Transformations:
+----------------------------------------------
+For T: V → V with basis change from B to C:
+[T]ᶜ = P⁻¹[T]ᴮP
+
+where P is change of basis matrix from C to B
+
+Goal: Choose basis C to make [T]ᶜ as simple as possible
+- Diagonal form (if T diagonalizable)
+- Jordan canonical form (general case)
+
+5.4 Diagonalization:
+-------------------
+T is diagonalizable if there exists basis C such that [T]ᶜ is diagonal
+
+Equivalently: Matrix A similar to diagonal matrix D
+
+Process:
+1. Find eigenvalues λ₁,...,λₙ of A
+2. Find eigenvectors v₁,...,vₙ (must be linearly independent)
+3. P = [v₁ | v₂ | ... | vₙ]
+4. D = P⁻¹AP = diag(λ₁,...,λₙ)
+
+Conditions for diagonalizability:
+- A has n linearly independent eigenvectors
+- Geometric multiplicity = algebraic multiplicity for each eigenvalue
+
+=======================================================
+
+6. COMPOSITE TRANSFORMATIONS AND FUNCTION SPACES
+=================================================
+
+6.1 Composition of Linear Transformations:
+------------------------------------------
+For T₁: U → V and T₂: V → W, composition T₂ ∘ T₁: U → W
+(T₂ ∘ T₁)(u) = T₂(T₁(u))
+
+Linearity: T₂ ∘ T₁ is linear if T₁ and T₂ are linear
+
+Matrix representation: [T₂ ∘ T₁] = [T₂][T₁]
+
+Properties:
+- Associativity: (T₃ ∘ T₂) ∘ T₁ = T₃ ∘ (T₂ ∘ T₁)
+- Generally not commutative: T₂ ∘ T₁ ≠ T₁ ∘ T₂
+
+6.2 Powers of Linear Transformations:
+------------------------------------
+For T: V → V:
+T⁰ = I (identity)
+T¹ = T
+T² = T ∘ T
+Tⁿ = T ∘ T ∘ ... ∘ T (n times)
+
+Matrix representation: [Tⁿ] = [T]ⁿ
+
+Applications:
+- Discrete dynamical systems: xₙ₊₁ = Txₙ
+- Markov chains: state transitions
+- Iterative algorithms
+
+6.3 Linear Functionals:
+----------------------
+Linear functional: Linear transformation f: V → ℝ
+
+Examples:
+- Inner product: f(v) = ⟨u,v⟩ for fixed u
+- Integration: f(p) = ∫₀¹ p(t)dt for polynomials p
+- Evaluation: f(p) = p(a) for polynomials p
+
+Dual space: V* = space of all linear functionals on V
+- dim(V*) = dim(V) for finite-dimensional V
+- V** ≅ V (double dual isomorphism)
+
+6.4 Bilinear and Quadratic Forms:
+---------------------------------
+Bilinear form: B: V × V → ℝ that is linear in each argument
+B(αu₁ + βu₂, v) = αB(u₁,v) + βB(u₂,v)
+B(u, αv₁ + βv₂) = αB(u,v₁) + βB(u,v₂)
+
+Matrix representation: B(u,v) = [u]ᵀ A [v] for some matrix A
+
+Quadratic form: Q(v) = B(v,v) for symmetric bilinear form B
+Q(v) = vᵀAv where A = Aᵀ
+
+Applications:
+- Inner products (positive definite quadratic forms)
+- Energy functions in physics
+- Loss functions in optimization
+
+=======================================================
+
+7. GEOMETRIC TRANSFORMATIONS IN 2D AND 3D
+==========================================
+
+7.1 2D Transformations:
+-----------------------
+Rotation by angle θ:
+R(θ) = [cos θ  -sin θ]
+       [sin θ   cos θ]
+
+Properties:
+- Preserves distances and angles
+- det(R) = 1 (orientation preserving)
+- R(θ)⁻¹ = R(-θ) = R(θ)ᵀ
+
+Reflection across line through origin with angle α:
+H(α) = [cos(2α)   sin(2α) ]
+       [sin(2α)  -cos(2α)]
+
+Properties:
+- Preserves distances
+- det(H) = -1 (orientation reversing)
+- H² = I (involution)
+
+Scaling by factors sx, sy:
+S = [sx  0 ]
+    [0   sy]
+
+Shear transformations:
+Horizontal: [1  k]  Vertical: [1  0]
+           [0  1]            [k  1]
+
+7.2 3D Transformations:
+----------------------
+Rotation about coordinate axes:
+Rx(θ) = [1   0      0   ]  (x-axis)
+        [0  cos θ -sin θ]
+        [0  sin θ  cos θ]
+
+Ry(θ) = [ cos θ  0  sin θ]  (y-axis)
+        [  0     1    0  ]
+        [-sin θ  0  cos θ]
+
+Rz(θ) = [cos θ -sin θ  0]  (z-axis)
+        [sin θ  cos θ  0]
+        [ 0      0     1]
+
+Rotation about arbitrary axis:
+Rodrigues' formula for rotation by θ about unit vector n:
+R = I + sin(θ)[n]× + (1-cos(θ))[n]×²
+
+where [n]× is skew-symmetric matrix of cross product
+
+7.3 Homogeneous Coordinates:
+----------------------------
+Represent 2D point (x,y) as (x,y,1) in 3D
+Represent 3D point (x,y,z) as (x,y,z,1) in 4D
+
+Advantages:
+- Translations become linear transformations
+- Projective transformations
+- Unified representation
+
+Translation in 2D:
+T = [1  0  tx]
+    [0  1  ty]
+    [0  0   1]
+
+Combines rotation, scaling, and translation:
+[R  t] where R is 2×2, t is translation vector
+[0  1]
+
+7.4 Projections:
+---------------
+Orthogonal projection onto subspace W:
+P: V → W where P² = P and im(P) = W
+
+Matrix formula: P = A(AᵀA)⁻¹Aᵀ
+where columns of A form basis for W
+
+Perspective projection (3D to 2D):
+Projects point (x,y,z) to (x/z, y/z) on plane z = 1
+
+=======================================================
+
+8. APPLICATIONS IN MACHINE LEARNING
+===================================
+
+8.1 Principal Component Analysis (PCA):
+---------------------------------------
+PCA finds orthogonal linear transformation to decorrelate data
+
+Process:
+1. Center data: X̃ = X - μ
+2. Compute covariance: C = X̃ᵀX̃/(n-1)
+3. Eigendecomposition: C = QΛQᵀ
+4. Transformation: Y = X̃Q
+
+Interpretation:
+- Columns of Q are principal components (eigenvectors)
+- Eigenvalues λᵢ represent variance along each component
+- Dimensionality reduction: Keep top k components
+
+8.2 Linear Discriminant Analysis (LDA):
+---------------------------------------
+Finds linear transformation to maximize class separability
+
+Objective: Maximize between-class variance / within-class variance
+
+Solution involves generalized eigenvalue problem:
+S⁻¹ᵨSᵦw = λw
+
+where Sᵨ = within-class scatter, Sᵦ = between-class scatter
+
+8.3 Independent Component Analysis (ICA):
+-----------------------------------------
+Finds linear transformation to maximize statistical independence
+
+Model: X = AS where S contains independent sources
+Goal: Find unmixing matrix W such that Y = WX approximates S
+
+Contrast with PCA:
+- PCA finds orthogonal transformation (uncorrelation)
+- ICA finds general linear transformation (independence)
+
+8.4 Neural Network Layers:
+--------------------------
+Each layer applies linear transformation followed by nonlinearity:
+z⁽ˡ⁾ = W⁽ˡ⁾a⁽ˡ⁻¹⁾ + b⁽ˡ⁾
+a⁽ˡ⁾ = σ(z⁽ˡ⁾)
+
+Linear transformation W⁽ˡ⁾:
+- Maps from previous layer space to current layer space
+- Learned through backpropagation
+- Composition of many linear transformations + nonlinearities
+
+8.5 Feature Transformations:
+----------------------------
+Standardization: z = (x - μ)/σ
+- Linear transformation to zero mean, unit variance
+- Matrix form: z = D⁻¹/²(x - μ) where D = diag(σ₁²,...,σₚ²)
+
+Whitening: Decorrelate and normalize features
+- PCA whitening: z = Λ⁻¹/²Qᵀ(x - μ)
+- ZCA whitening: z = QΛ⁻¹/²Qᵀ(x - μ)
+
+8.6 Kernel Methods:
+------------------
+Feature map φ: X → H (input space to feature space)
+Kernel function: k(x,y) = ⟨φ(x), φ(y)⟩
+
+Linear algorithms in feature space become nonlinear in input space
+Examples:
+- Polynomial kernel: k(x,y) = (xᵀy + c)ᵈ
+- RBF kernel: k(x,y) = exp(-γ||x-y||²)
+
+8.7 Dimensionality Reduction:
+----------------------------
+Goal: Find low-dimensional representation preserving important structure
+
+Linear methods:
+- PCA: Preserve variance
+- LDA: Preserve class discriminability  
+- Random projections: Preserve distances (Johnson-Lindenstrauss)
+
+Matrix perspective: Y = XW where W ∈ ℝᵖˣᵏ, k < p
+
+8.8 Data Augmentation:
+---------------------
+Apply transformations to increase dataset size
+
+Geometric transformations for images:
+- Rotation, scaling, translation
+- Reflection, shearing
+- Implemented as matrix operations on pixel coordinates
+
+Properties to preserve:
+- Label invariance: T(x) should have same label as x
+- Realistic variations: T(x) should be plausible
+
+8.9 Optimization Landscapes:
+----------------------------
+Loss function geometry characterized by Hessian matrix H
+
+Linear transformation of parameters: θ' = Aθ
+- Changes condition number: κ(A⁻ᵀHA⁻¹) vs κ(H)
+- Preconditioning: Choose A to improve conditioning
+
+Second-order methods use quadratic approximation:
+f(θ + δ) ≈ f(θ) + ∇f(θ)ᵀδ + ½δᵀHδ
+
+Newton direction: δ = -H⁻¹∇f(θ)
+- Linear transformation by H⁻¹
+
+Key Insights for ML:
+- Linear transformations are fundamental building blocks
+- Composition of linear maps enables complex transformations
+- Change of basis provides different perspectives on same data
+- Geometric understanding helps with interpretability
+- Matrix decompositions reveal structure in transformations
+- Most ML operations can be viewed through linear algebra lens
+
+=======================================================
+END OF DOCUMENT 

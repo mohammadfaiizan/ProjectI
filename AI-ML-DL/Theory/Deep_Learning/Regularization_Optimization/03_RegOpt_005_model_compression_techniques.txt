@@ -1,0 +1,1291 @@
+MODEL COMPRESSION TECHNIQUES - Efficient Deep Learning Deployment
+================================================================
+
+TABLE OF CONTENTS:
+1. Model Compression Fundamentals
+2. Network Pruning
+3. Quantization Techniques
+4. Knowledge Distillation
+5. Low-Rank Approximations
+6. Efficient Architecture Design
+7. Implementation and Practical Guidelines
+
+=======================================================
+
+1. MODEL COMPRESSION FUNDAMENTALS
+=================================
+
+1.1 Motivation for Model Compression:
+------------------------------------
+Deployment Constraints:
+Mobile devices with limited memory and compute
+Edge computing with power constraints
+Real-time applications requiring low latency
+
+Cost Reduction:
+Lower inference costs in cloud deployment
+Reduced energy consumption
+Smaller model storage requirements
+
+Performance Requirements:
+Maintain high accuracy with smaller models
+Balance compression ratio vs performance
+Meet specific latency and throughput targets
+
+Model Efficiency:
+Remove redundant parameters and computations
+Optimize memory access patterns
+Improve cache utilization
+
+1.2 Compression Metrics:
+-----------------------
+Compression Ratio:
+Original Size / Compressed Size
+Higher ratio indicates better compression
+
+Parameter Reduction:
+(Original Parameters - Compressed Parameters) / Original Parameters
+Percentage of parameters removed
+
+FLOPs Reduction:
+Floating Point Operations reduction
+Computational efficiency improvement
+
+Accuracy Degradation:
+Performance drop due to compression
+Acceptable loss depends on application
+
+Inference Speed:
+Wall-clock time improvement
+Latency and throughput measurements
+
+Memory Footprint:
+RAM usage during inference
+Storage requirements
+
+1.3 Compression Categories:
+--------------------------
+Parameter Reduction:
+Remove or merge parameters
+Pruning, low-rank factorization
+
+Precision Reduction:
+Use fewer bits per parameter
+Quantization, mixed precision
+
+Knowledge Transfer:
+Train smaller models with teacher guidance
+Knowledge distillation, student-teacher frameworks
+
+Architecture Optimization:
+Design efficient architectures
+MobileNets, EfficientNets, SqueezeNet
+
+1.4 Compression Pipeline:
+------------------------
+Pre-training:
+Train large, accurate teacher model
+Establish performance baseline
+
+Compression:
+Apply compression techniques
+Multiple techniques can be combined
+
+Fine-tuning:
+Recover accuracy after compression
+Adjust for compressed model behavior
+
+Validation:
+Verify performance on target hardware
+Measure actual speedup and efficiency
+
+=======================================================
+
+2. NETWORK PRUNING
+==================
+
+2.1 Pruning Fundamentals:
+------------------------
+Concept:
+Remove less important neurons or connections
+Reduce model size while preserving performance
+
+Types of Pruning:
+- Unstructured: Remove individual weights
+- Structured: Remove entire neurons/channels
+- Semi-structured: Block-wise or pattern-based
+
+Pruning Criteria:
+Magnitude-based, gradient-based, or information-theoretic
+Determine which parameters to remove
+
+2.2 Magnitude-Based Pruning:
+---------------------------
+Weight Magnitude:
+Remove weights with smallest absolute values
+Simple but effective heuristic
+
+Global vs Layer-wise:
+Global: Prune across all layers with single threshold
+Layer-wise: Different thresholds per layer
+
+```python
+import torch
+import torch.nn as nn
+import numpy as np
+
+def magnitude_pruning(model, sparsity_ratio):
+    """Global magnitude-based pruning"""
+    # Collect all weights
+    all_weights = []
+    for module in model.modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            all_weights.append(module.weight.data.abs().flatten())
+    
+    # Concatenate all weights
+    all_weights = torch.cat(all_weights)
+    
+    # Find threshold for desired sparsity
+    threshold = torch.quantile(all_weights, sparsity_ratio)
+    
+    # Apply pruning
+    for module in model.modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            mask = module.weight.data.abs() > threshold
+            module.weight.data *= mask.float()
+    
+    return model
+
+class MagnitudePruner:
+    def __init__(self, model, sparsity_ratio=0.5):
+        self.model = model
+        self.sparsity_ratio = sparsity_ratio
+        self.masks = {}
+    
+    def create_masks(self):
+        """Create pruning masks based on weight magnitudes"""
+        for name, module in self.model.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                weight = module.weight.data
+                weight_flat = weight.abs().flatten()
+                
+                # Find threshold for this layer
+                k = int(len(weight_flat) * self.sparsity_ratio)
+                if k > 0:
+                    threshold = torch.topk(weight_flat, k, largest=False)[0][-1]
+                    mask = weight.abs() > threshold
+                    self.masks[name] = mask
+    
+    def apply_masks(self):
+        """Apply pruning masks to model weights"""
+        for name, module in self.model.named_modules():
+            if name in self.masks:
+                module.weight.data *= self.masks[name].float()
+    
+    def get_sparsity(self):
+        """Calculate actual sparsity achieved"""
+        total_params = 0
+        pruned_params = 0
+        
+        for name, module in self.model.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                total_params += module.weight.numel()
+                pruned_params += (module.weight == 0).sum().item()
+        
+        return pruned_params / total_params
+```
+
+2.3 Structured Pruning:
+----------------------
+Channel Pruning:
+Remove entire output channels from convolutional layers
+Maintains regular tensor operations
+
+```python
+def channel_importance_score(conv_layer, method='l1_norm'):
+    """Calculate importance scores for each output channel"""
+    weight = conv_layer.weight.data  # Shape: [out_channels, in_channels, H, W]
+    
+    if method == 'l1_norm':
+        scores = torch.sum(torch.abs(weight), dim=(1, 2, 3))
+    elif method == 'l2_norm':
+        scores = torch.sum(weight ** 2, dim=(1, 2, 3))
+    elif method == 'geometric_median':
+        # More robust to outliers
+        scores = torch.zeros(weight.size(0))
+        for i in range(weight.size(0)):
+            channel_weight = weight[i].flatten()
+            distances = torch.cdist(channel_weight.unsqueeze(0), weight.view(weight.size(0), -1))
+            scores[i] = torch.median(distances)
+    
+    return scores
+
+class ChannelPruner:
+    def __init__(self, model, prune_ratio=0.5):
+        self.model = model
+        self.prune_ratio = prune_ratio
+        
+    def prune_channels(self, layer_name, num_channels_to_prune):
+        """Prune specified number of channels from a layer"""
+        layer = dict(self.model.named_modules())[layer_name]
+        
+        if not isinstance(layer, nn.Conv2d):
+            raise ValueError("Channel pruning only applies to Conv2d layers")
+        
+        # Calculate importance scores
+        scores = channel_importance_score(layer)
+        
+        # Find channels to prune (lowest scores)
+        _, indices_to_prune = torch.topk(scores, num_channels_to_prune, largest=False)
+        
+        # Create new layer with reduced channels
+        old_weight = layer.weight.data
+        old_bias = layer.bias.data if layer.bias is not None else None
+        
+        # Keep channels not in pruning list
+        keep_indices = [i for i in range(layer.out_channels) if i not in indices_to_prune]
+        
+        new_layer = nn.Conv2d(
+            layer.in_channels,
+            len(keep_indices),
+            layer.kernel_size,
+            layer.stride,
+            layer.padding,
+            bias=layer.bias is not None
+        )
+        
+        new_layer.weight.data = old_weight[keep_indices]
+        if old_bias is not None:
+            new_layer.bias.data = old_bias[keep_indices]
+        
+        return new_layer, keep_indices
+```
+
+2.4 Gradual Pruning:
+-------------------
+Progressive Sparsity:
+Gradually increase sparsity during training
+Allows model to adapt to reduced capacity
+
+```python
+class GradualPruner:
+    def __init__(self, model, final_sparsity=0.9, pruning_schedule='polynomial'):
+        self.model = model
+        self.final_sparsity = final_sparsity
+        self.pruning_schedule = pruning_schedule
+        self.current_step = 0
+        self.masks = {}
+        
+    def update_masks(self, step, total_steps):
+        """Update pruning masks according to schedule"""
+        if self.pruning_schedule == 'polynomial':
+            current_sparsity = self.final_sparsity * (1 - (1 - step/total_steps)**3)
+        elif self.pruning_schedule == 'exponential':
+            current_sparsity = self.final_sparsity * (1 - np.exp(-5 * step/total_steps))
+        else:  # linear
+            current_sparsity = self.final_sparsity * step / total_steps
+        
+        # Update masks for current sparsity level
+        for name, module in self.model.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                weight = module.weight.data
+                weight_flat = weight.abs().flatten()
+                
+                k = int(len(weight_flat) * current_sparsity)
+                if k > 0:
+                    threshold = torch.topk(weight_flat, k, largest=False)[0][-1]
+                    self.masks[name] = weight.abs() > threshold
+        
+        self.apply_masks()
+    
+    def apply_masks(self):
+        """Apply current masks to model weights"""
+        for name, module in self.model.named_modules():
+            if name in self.masks:
+                module.weight.data *= self.masks[name].float()
+```
+
+2.5 Lottery Ticket Hypothesis:
+-----------------------------
+Concept:
+Dense networks contain sparse subnetworks that can achieve comparable accuracy
+Find "winning tickets" through iterative pruning
+
+```python
+class LotteryTicketPruner:
+    def __init__(self, model, prune_ratio=0.2, num_iterations=5):
+        self.model = model
+        self.prune_ratio = prune_ratio
+        self.num_iterations = num_iterations
+        self.initial_weights = self.save_initial_weights()
+        
+    def save_initial_weights(self):
+        """Save initial random weights"""
+        initial_weights = {}
+        for name, param in self.model.named_parameters():
+            initial_weights[name] = param.data.clone()
+        return initial_weights
+    
+    def reset_weights(self):
+        """Reset weights to initial values"""
+        for name, param in self.model.named_parameters():
+            param.data.copy_(self.initial_weights[name])
+    
+    def iterative_pruning(self, train_function):
+        """Perform iterative magnitude pruning"""
+        for iteration in range(self.num_iterations):
+            print(f"Lottery ticket iteration {iteration + 1}")
+            
+            # Train the current network
+            train_function(self.model)
+            
+            # Prune based on final weights
+            self.magnitude_prune(self.prune_ratio)
+            
+            # Reset to initial weights (but keep pruning mask)
+            self.reset_weights()
+            
+            # Calculate current sparsity
+            sparsity = self.calculate_sparsity()
+            print(f"Current sparsity: {sparsity:.2%}")
+    
+    def magnitude_prune(self, ratio):
+        """Prune smallest magnitude weights"""
+        for module in self.model.modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                weight = module.weight.data
+                weight_flat = weight.abs().flatten()
+                
+                k = int(len(weight_flat) * ratio)
+                if k > 0:
+                    threshold = torch.topk(weight_flat, k, largest=False)[0][-1]
+                    mask = weight.abs() > threshold
+                    weight *= mask.float()
+```
+
+=======================================================
+
+3. QUANTIZATION TECHNIQUES
+==========================
+
+3.1 Quantization Fundamentals:
+------------------------------
+Concept:
+Reduce numerical precision of weights and activations
+Use fewer bits per parameter (FP32 → INT8)
+
+Benefits:
+- Reduced memory usage (4x for FP32→INT8)
+- Faster computation on specialized hardware
+- Lower power consumption
+
+Challenges:
+- Quantization error accumulation
+- Reduced model expressiveness
+- Hardware compatibility requirements
+
+3.2 Post-Training Quantization:
+------------------------------
+Static Quantization:
+Determine quantization parameters from calibration dataset
+No retraining required
+
+```python
+import torch.quantization as quantization
+
+def post_training_quantization(model, calibration_loader):
+    """Apply post-training quantization"""
+    # Prepare model for quantization
+    model.eval()
+    model.qconfig = quantization.get_default_qconfig('fbgemm')
+    model_prepared = quantization.prepare(model)
+    
+    # Calibrate with representative data
+    with torch.no_grad():
+        for data, _ in calibration_loader:
+            model_prepared(data)
+    
+    # Convert to quantized model
+    model_quantized = quantization.convert(model_prepared)
+    return model_quantized
+
+class SimpleQuantizer:
+    def __init__(self, bits=8):
+        self.bits = bits
+        self.scale = None
+        self.zero_point = None
+    
+    def calibrate(self, tensor):
+        """Determine quantization parameters"""
+        min_val = tensor.min()
+        max_val = tensor.max()
+        
+        # Calculate scale and zero point for symmetric quantization
+        self.scale = (max_val - min_val) / (2**self.bits - 1)
+        self.zero_point = torch.round(-min_val / self.scale)
+        
+    def quantize(self, tensor):
+        """Quantize tensor to specified bit width"""
+        if self.scale is None:
+            self.calibrate(tensor)
+        
+        quantized = torch.round(tensor / self.scale + self.zero_point)
+        quantized = torch.clamp(quantized, 0, 2**self.bits - 1)
+        return quantized.to(torch.uint8)
+    
+    def dequantize(self, quantized_tensor):
+        """Convert quantized tensor back to float"""
+        return self.scale * (quantized_tensor.float() - self.zero_point)
+```
+
+3.3 Quantization-Aware Training (QAT):
+--------------------------------------
+Fake Quantization:
+Simulate quantization during training
+Learn to be robust to quantization noise
+
+```python
+class FakeQuantize(nn.Module):
+    def __init__(self, bits=8, symmetric=True):
+        super().__init__()
+        self.bits = bits
+        self.symmetric = symmetric
+        self.scale = nn.Parameter(torch.tensor(1.0))
+        if not symmetric:
+            self.zero_point = nn.Parameter(torch.tensor(0.0))
+    
+    def forward(self, x):
+        if self.training:
+            # Fake quantization during training
+            if self.symmetric:
+                # Symmetric quantization
+                max_val = 2**(self.bits-1) - 1
+                quantized = torch.clamp(torch.round(x / self.scale), -max_val, max_val)
+                return quantized * self.scale
+            else:
+                # Asymmetric quantization
+                max_val = 2**self.bits - 1
+                quantized = torch.clamp(torch.round(x / self.scale + self.zero_point), 0, max_val)
+                return (quantized - self.zero_point) * self.scale
+        else:
+            return x
+
+class QuantizedLinear(nn.Module):
+    def __init__(self, in_features, out_features, bits=8):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.bits = bits
+        
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
+        self.bias = nn.Parameter(torch.zeros(out_features))
+        
+        self.weight_quantizer = FakeQuantize(bits)
+        self.activation_quantizer = FakeQuantize(bits)
+    
+    def forward(self, x):
+        quantized_weight = self.weight_quantizer(self.weight)
+        quantized_input = self.activation_quantizer(x)
+        
+        output = F.linear(quantized_input, quantized_weight, self.bias)
+        return output
+```
+
+3.4 Mixed Precision Quantization:
+---------------------------------
+Different Precision for Different Layers:
+Sensitive layers use higher precision
+Less critical layers use lower precision
+
+```python
+class MixedPrecisionModel(nn.Module):
+    def __init__(self, layer_precisions):
+        super().__init__()
+        self.layer_precisions = layer_precisions
+        
+        # Build layers with specified precisions
+        self.layers = nn.ModuleList()
+        for i, (layer_type, precision) in enumerate(layer_precisions):
+            if layer_type == 'linear':
+                layer = QuantizedLinear(128, 128, bits=precision)
+            elif layer_type == 'conv':
+                layer = QuantizedConv2d(64, 64, 3, bits=precision)
+            self.layers.append(layer)
+    
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+def sensitivity_analysis(model, dataloader, criterion):
+    """Analyze layer sensitivity to quantization"""
+    sensitivities = {}
+    
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
+            # Create quantized version of this layer
+            quantized_module = create_quantized_layer(module, bits=8)
+            
+            # Replace temporarily
+            original_module = replace_layer(model, name, quantized_module)
+            
+            # Evaluate performance
+            loss = evaluate_model(model, dataloader, criterion)
+            sensitivities[name] = loss
+            
+            # Restore original layer
+            replace_layer(model, name, original_module)
+    
+    return sensitivities
+```
+
+3.5 Binary and Ternary Networks:
+-------------------------------
+Extreme Quantization:
+1-bit (binary) or 2-bit (ternary) weights
+Maximum compression with significant accuracy trade-off
+
+```python
+class BinaryLinear(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
+        
+    def binarize_weights(self, weights):
+        """Binarize weights to {-1, +1}"""
+        return torch.sign(weights)
+    
+    def forward(self, x):
+        # Binarize weights
+        binary_weights = self.binarize_weights(self.weight)
+        
+        # Compute scaling factor
+        alpha = torch.mean(torch.abs(self.weight), dim=1, keepdim=True)
+        
+        # Apply binary weights with scaling
+        output = F.linear(x, binary_weights * alpha)
+        return output
+
+class TernaryLinear(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
+        
+    def ternarize_weights(self, weights):
+        """Ternarize weights to {-1, 0, +1}"""
+        threshold = 0.7 * torch.mean(torch.abs(weights), dim=1, keepdim=True)
+        ternary_weights = torch.zeros_like(weights)
+        ternary_weights[weights > threshold] = 1
+        ternary_weights[weights < -threshold] = -1
+        return ternary_weights
+    
+    def forward(self, x):
+        ternary_weights = self.ternarize_weights(self.weight)
+        
+        # Compute scaling factor for non-zero weights
+        mask = (ternary_weights != 0).float()
+        alpha = torch.sum(torch.abs(self.weight) * mask, dim=1, keepdim=True) / torch.sum(mask, dim=1, keepdim=True)
+        
+        output = F.linear(x, ternary_weights * alpha)
+        return output
+```
+
+=======================================================
+
+4. KNOWLEDGE DISTILLATION
+=========================
+
+4.1 Teacher-Student Framework:
+-----------------------------
+Concept:
+Large teacher model guides training of smaller student
+Transfer knowledge through soft targets
+
+Benefits:
+- Student learns from teacher's knowledge
+- Better than training student from scratch
+- Can use unlabeled data
+
+```python
+class KnowledgeDistillation:
+    def __init__(self, teacher_model, student_model, temperature=3, alpha=0.7):
+        self.teacher = teacher_model
+        self.student = student_model
+        self.temperature = temperature
+        self.alpha = alpha
+        
+        # Freeze teacher model
+        for param in self.teacher.parameters():
+            param.requires_grad = False
+        self.teacher.eval()
+    
+    def distillation_loss(self, student_logits, teacher_logits, targets):
+        """Compute knowledge distillation loss"""
+        # Soft target loss (knowledge distillation)
+        teacher_probs = F.softmax(teacher_logits / self.temperature, dim=1)
+        student_log_probs = F.log_softmax(student_logits / self.temperature, dim=1)
+        kd_loss = F.kl_div(student_log_probs, teacher_probs, reduction='batchmean')
+        kd_loss *= self.temperature ** 2
+        
+        # Hard target loss (standard cross-entropy)
+        ce_loss = F.cross_entropy(student_logits, targets)
+        
+        # Combined loss
+        total_loss = self.alpha * kd_loss + (1 - self.alpha) * ce_loss
+        return total_loss, kd_loss, ce_loss
+    
+    def train_step(self, data, targets, optimizer):
+        # Teacher inference (no gradients)
+        with torch.no_grad():
+            teacher_logits = self.teacher(data)
+        
+        # Student forward pass
+        student_logits = self.student(data)
+        
+        # Compute distillation loss
+        total_loss, kd_loss, ce_loss = self.distillation_loss(
+            student_logits, teacher_logits, targets
+        )
+        
+        # Backward pass
+        optimizer.zero_grad()
+        total_loss.backward()
+        optimizer.step()
+        
+        return total_loss.item(), kd_loss.item(), ce_loss.item()
+```
+
+4.2 Feature-Based Distillation:
+------------------------------
+Intermediate Layer Matching:
+Match feature representations at intermediate layers
+Learn hierarchical knowledge
+
+```python
+class FeatureDistillation:
+    def __init__(self, teacher_model, student_model, feature_layers):
+        self.teacher = teacher_model
+        self.student = student_model
+        self.feature_layers = feature_layers
+        
+        # Adaptation layers to match dimensions
+        self.adaptation_layers = nn.ModuleDict()
+        for layer_name in feature_layers:
+            teacher_dim = self.get_feature_dim(teacher_model, layer_name)
+            student_dim = self.get_feature_dim(student_model, layer_name)
+            
+            if teacher_dim != student_dim:
+                self.adaptation_layers[layer_name] = nn.Linear(student_dim, teacher_dim)
+    
+    def get_features(self, model, x, layer_names):
+        """Extract features from specified layers"""
+        features = {}
+        hooks = []
+        
+        def hook_fn(name):
+            def hook(module, input, output):
+                features[name] = output
+            return hook
+        
+        # Register hooks
+        for name, module in model.named_modules():
+            if name in layer_names:
+                hooks.append(module.register_forward_hook(hook_fn(name)))
+        
+        # Forward pass
+        _ = model(x)
+        
+        # Remove hooks
+        for hook in hooks:
+            hook.remove()
+        
+        return features
+    
+    def feature_loss(self, student_features, teacher_features):
+        """Compute feature matching loss"""
+        total_loss = 0
+        
+        for layer_name in self.feature_layers:
+            student_feat = student_features[layer_name]
+            teacher_feat = teacher_features[layer_name]
+            
+            # Adapt student features if necessary
+            if layer_name in self.adaptation_layers:
+                student_feat = self.adaptation_layers[layer_name](student_feat)
+            
+            # L2 loss between features
+            loss = F.mse_loss(student_feat, teacher_feat)
+            total_loss += loss
+        
+        return total_loss / len(self.feature_layers)
+```
+
+4.3 Attention Transfer:
+----------------------
+Transfer Attention Maps:
+Student learns to focus on same regions as teacher
+Spatial attention in CNNs
+
+```python
+class AttentionTransfer:
+    def __init__(self, beta=1000):
+        self.beta = beta
+    
+    def attention_map(self, feature_map):
+        """Compute attention map from feature map"""
+        # Sum across channels and normalize
+        attention = torch.sum(feature_map.pow(2), dim=1, keepdim=True)
+        attention = F.normalize(attention.view(attention.size(0), -1), p=2, dim=1)
+        return attention.view(attention.size(0), 1, feature_map.size(2), feature_map.size(3))
+    
+    def attention_loss(self, student_features, teacher_features):
+        """Compute attention transfer loss"""
+        total_loss = 0
+        
+        for s_feat, t_feat in zip(student_features, teacher_features):
+            s_attention = self.attention_map(s_feat)
+            t_attention = self.attention_map(t_feat)
+            
+            loss = F.mse_loss(s_attention, t_attention)
+            total_loss += loss
+        
+        return self.beta * total_loss
+```
+
+4.4 Progressive Knowledge Distillation:
+--------------------------------------
+Multi-Step Distillation:
+Chain of teacher-student relationships
+Gradual compression through multiple stages
+
+```python
+class ProgressiveDistillation:
+    def __init__(self, models, temperatures=None, alphas=None):
+        self.models = models  # List from largest to smallest
+        self.temperatures = temperatures or [3] * (len(models) - 1)
+        self.alphas = alphas or [0.7] * (len(models) - 1)
+        
+        # Only the final student needs gradients
+        for model in self.models[:-1]:
+            for param in model.parameters():
+                param.requires_grad = False
+            model.eval()
+    
+    def train_stage(self, stage, dataloader, optimizer, epochs):
+        """Train one stage of progressive distillation"""
+        teacher = self.models[stage]
+        student = self.models[stage + 1]
+        
+        kd = KnowledgeDistillation(teacher, student, 
+                                  self.temperatures[stage], 
+                                  self.alphas[stage])
+        
+        for epoch in range(epochs):
+            for data, targets in dataloader:
+                loss, kd_loss, ce_loss = kd.train_step(data, targets, optimizer)
+                
+                if epoch % 10 == 0:
+                    print(f"Stage {stage}, Epoch {epoch}: Total={loss:.4f}, KD={kd_loss:.4f}, CE={ce_loss:.4f}")
+    
+    def train_progressive(self, dataloader, optimizers, epochs_per_stage):
+        """Train all stages progressively"""
+        for stage in range(len(self.models) - 1):
+            print(f"Training stage {stage}: {self.models[stage].__class__.__name__} -> {self.models[stage+1].__class__.__name__}")
+            self.train_stage(stage, dataloader, optimizers[stage], epochs_per_stage)
+```
+
+=======================================================
+
+5. LOW-RANK APPROXIMATIONS
+==========================
+
+5.1 Matrix Factorization:
+-------------------------
+Concept:
+Decompose weight matrices into low-rank factors
+W ≈ UV^T where U and V have smaller dimensions
+
+Singular Value Decomposition (SVD):
+W = UΣV^T, keep top-k singular values
+Optimal low-rank approximation in Frobenius norm
+
+```python
+def svd_decomposition(weight_matrix, rank_ratio=0.5):
+    """Decompose weight matrix using SVD"""
+    U, S, V = torch.svd(weight_matrix)
+    
+    # Keep top singular values
+    rank = int(rank_ratio * min(weight_matrix.shape))
+    U_reduced = U[:, :rank]
+    S_reduced = S[:rank]
+    V_reduced = V[:, :rank]
+    
+    return U_reduced, S_reduced, V_reduced
+
+class LowRankLinear(nn.Module):
+    def __init__(self, in_features, out_features, rank_ratio=0.5):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        
+        # Calculate rank
+        self.rank = int(rank_ratio * min(in_features, out_features))
+        
+        # Low-rank decomposition: W = UV^T
+        self.U = nn.Parameter(torch.randn(out_features, self.rank))
+        self.V = nn.Parameter(torch.randn(in_features, self.rank))
+        self.bias = nn.Parameter(torch.zeros(out_features))
+        
+        self.init_weights()
+    
+    def init_weights(self):
+        """Initialize weights using He initialization"""
+        nn.init.kaiming_normal_(self.U)
+        nn.init.kaiming_normal_(self.V)
+    
+    def forward(self, x):
+        # Reconstruct weight matrix and apply
+        weight = torch.mm(self.U, self.V.t())
+        return F.linear(x, weight, self.bias)
+    
+    @classmethod
+    def from_linear(cls, linear_layer, rank_ratio=0.5):
+        """Create low-rank version of existing linear layer"""
+        low_rank_layer = cls(linear_layer.in_features, 
+                            linear_layer.out_features, 
+                            rank_ratio)
+        
+        # Decompose existing weights
+        U, S, V = svd_decomposition(linear_layer.weight.data, rank_ratio)
+        
+        # Set factorized weights
+        low_rank_layer.U.data = U * torch.sqrt(S).unsqueeze(0)
+        low_rank_layer.V.data = V * torch.sqrt(S).unsqueeze(0)
+        
+        if linear_layer.bias is not None:
+            low_rank_layer.bias.data = linear_layer.bias.data
+        
+        return low_rank_layer
+```
+
+5.2 Tucker Decomposition:
+------------------------
+For Convolutional Layers:
+Decompose 4D convolution tensors
+Separate spatial and channel dimensions
+
+```python
+def tucker_decomposition_conv(conv_layer, rank_ratios):
+    """Apply Tucker decomposition to convolutional layer"""
+    weight = conv_layer.weight.data  # [out_ch, in_ch, H, W]
+    
+    # Reshape for Tucker decomposition
+    out_ch, in_ch, H, W = weight.shape
+    
+    # Mode-wise ranks
+    rank_out = int(rank_ratios[0] * out_ch)
+    rank_in = int(rank_ratios[1] * in_ch)
+    rank_h = int(rank_ratios[2] * H) if len(rank_ratios) > 2 else H
+    rank_w = int(rank_ratios[3] * W) if len(rank_ratios) > 3 else W
+    
+    # Perform Tucker decomposition (simplified)
+    # In practice, would use tensorly or similar library
+    
+    # Create factor matrices
+    U_out = torch.randn(out_ch, rank_out)
+    U_in = torch.randn(in_ch, rank_in)
+    U_h = torch.randn(H, rank_h)
+    U_w = torch.randn(W, rank_w)
+    
+    # Core tensor
+    core = torch.randn(rank_out, rank_in, rank_h, rank_w)
+    
+    return U_out, U_in, U_h, U_w, core
+
+class TuckerConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, rank_ratios):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
+        
+        # Calculate ranks
+        self.rank_out = int(rank_ratios[0] * out_channels)
+        self.rank_in = int(rank_ratios[1] * in_channels)
+        self.rank_h = int(rank_ratios[2] * self.kernel_size[0]) if len(rank_ratios) > 2 else self.kernel_size[0]
+        self.rank_w = int(rank_ratios[3] * self.kernel_size[1]) if len(rank_ratios) > 3 else self.kernel_size[1]
+        
+        # Factor matrices
+        self.U_out = nn.Parameter(torch.randn(out_channels, self.rank_out))
+        self.U_in = nn.Parameter(torch.randn(in_channels, self.rank_in))
+        self.U_h = nn.Parameter(torch.randn(self.kernel_size[0], self.rank_h))
+        self.U_w = nn.Parameter(torch.randn(self.kernel_size[1], self.rank_w))
+        
+        # Core tensor
+        self.core = nn.Parameter(torch.randn(self.rank_out, self.rank_in, self.rank_h, self.rank_w))
+    
+    def forward(self, x):
+        # Reconstruct weight tensor
+        # This is a simplified version - full implementation requires tensor operations
+        weight = self.reconstruct_weight()
+        return F.conv2d(x, weight)
+    
+    def reconstruct_weight(self):
+        """Reconstruct full weight tensor from factors"""
+        # Tensor multiplication to reconstruct weight
+        # Simplified implementation
+        return self.core  # In practice, would multiply with all factor matrices
+```
+
+=======================================================
+
+6. EFFICIENT ARCHITECTURE DESIGN
+================================
+
+6.1 MobileNet Architecture:
+---------------------------
+Depthwise Separable Convolutions:
+Split standard convolution into depthwise and pointwise
+Reduce parameters and computation
+
+```python
+class DepthwiseSeparableConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super().__init__()
+        
+        # Depthwise convolution
+        self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size,
+                                  stride=stride, padding=padding, groups=in_channels)
+        
+        # Pointwise convolution
+        self.pointwise = nn.Conv2d(in_channels, out_channels, 1)
+        
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        
+    def forward(self, x):
+        x = F.relu6(self.bn1(self.depthwise(x)))
+        x = F.relu6(self.bn2(self.pointwise(x)))
+        return x
+
+class MobileNetBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride=1, expansion_factor=6):
+        super().__init__()
+        self.stride = stride
+        self.use_residual = stride == 1 and in_channels == out_channels
+        
+        hidden_channels = in_channels * expansion_factor
+        
+        layers = []
+        
+        # Expansion layer
+        if expansion_factor != 1:
+            layers.extend([
+                nn.Conv2d(in_channels, hidden_channels, 1, bias=False),
+                nn.BatchNorm2d(hidden_channels),
+                nn.ReLU6(inplace=True)
+            ])
+        
+        # Depthwise layer
+        layers.extend([
+            nn.Conv2d(hidden_channels, hidden_channels, 3, stride=stride, 
+                     padding=1, groups=hidden_channels, bias=False),
+            nn.BatchNorm2d(hidden_channels),
+            nn.ReLU6(inplace=True),
+            
+            # Pointwise layer
+            nn.Conv2d(hidden_channels, out_channels, 1, bias=False),
+            nn.BatchNorm2d(out_channels)
+        ])
+        
+        self.conv = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        result = self.conv(x)
+        if self.use_residual:
+            result += x
+        return result
+```
+
+6.2 EfficientNet Architecture:
+------------------------------
+Compound Scaling:
+Scale depth, width, and resolution together
+Balanced scaling for efficiency
+
+```python
+class EfficientNetBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, 
+                 expand_ratio, se_ratio=0.25):
+        super().__init__()
+        self.stride = stride
+        self.use_residual = stride == 1 and in_channels == out_channels
+        
+        # Expansion phase
+        expanded_channels = in_channels * expand_ratio
+        self.expand_conv = nn.Conv2d(in_channels, expanded_channels, 1, bias=False) if expand_ratio != 1 else None
+        self.expand_bn = nn.BatchNorm2d(expanded_channels) if expand_ratio != 1 else None
+        
+        # Depthwise convolution
+        self.depthwise_conv = nn.Conv2d(expanded_channels, expanded_channels, kernel_size,
+                                       stride=stride, padding=kernel_size//2, 
+                                       groups=expanded_channels, bias=False)
+        self.depthwise_bn = nn.BatchNorm2d(expanded_channels)
+        
+        # Squeeze-and-Excitation
+        se_channels = max(1, int(in_channels * se_ratio))
+        self.se_reduce = nn.Conv2d(expanded_channels, se_channels, 1)
+        self.se_expand = nn.Conv2d(se_channels, expanded_channels, 1)
+        
+        # Output phase
+        self.project_conv = nn.Conv2d(expanded_channels, out_channels, 1, bias=False)
+        self.project_bn = nn.BatchNorm2d(out_channels)
+    
+    def forward(self, x):
+        identity = x
+        
+        # Expansion
+        if self.expand_conv is not None:
+            x = F.relu6(self.expand_bn(self.expand_conv(x)))
+        
+        # Depthwise
+        x = F.relu6(self.depthwise_bn(self.depthwise_conv(x)))
+        
+        # Squeeze-and-Excitation
+        se = F.adaptive_avg_pool2d(x, 1)
+        se = F.relu(self.se_reduce(se))
+        se = torch.sigmoid(self.se_expand(se))
+        x = x * se
+        
+        # Output
+        x = self.project_bn(self.project_conv(x))
+        
+        # Residual connection
+        if self.use_residual:
+            x = x + identity
+        
+        return x
+```
+
+6.3 Neural Architecture Search (NAS):
+-------------------------------------
+Automated Architecture Design:
+Search for optimal architectures
+Balance accuracy and efficiency
+
+```python
+class NASSearchSpace(nn.Module):
+    def __init__(self, operations):
+        super().__init__()
+        self.operations = nn.ModuleList(operations)
+        self.architecture_weights = nn.Parameter(torch.randn(len(operations)))
+    
+    def forward(self, x):
+        # Weighted combination of operations
+        weights = F.softmax(self.architecture_weights, dim=0)
+        
+        output = 0
+        for weight, op in zip(weights, self.operations):
+            output += weight * op(x)
+        
+        return output
+    
+    def get_architecture(self):
+        """Get the most likely architecture"""
+        weights = F.softmax(self.architecture_weights, dim=0)
+        best_op_idx = torch.argmax(weights)
+        return best_op_idx.item()
+
+class EfficiencyAwareNAS:
+    def __init__(self, search_space, efficiency_weight=0.5):
+        self.search_space = search_space
+        self.efficiency_weight = efficiency_weight
+    
+    def compute_efficiency_loss(self, model, target_flops):
+        """Compute efficiency loss based on FLOPs"""
+        current_flops = self.compute_flops(model)
+        efficiency_loss = abs(current_flops - target_flops) / target_flops
+        return efficiency_loss
+    
+    def multi_objective_loss(self, accuracy_loss, model, target_flops):
+        """Combine accuracy and efficiency losses"""
+        efficiency_loss = self.compute_efficiency_loss(model, target_flops)
+        total_loss = (1 - self.efficiency_weight) * accuracy_loss + self.efficiency_weight * efficiency_loss
+        return total_loss
+```
+
+=======================================================
+
+7. IMPLEMENTATION AND PRACTICAL GUIDELINES
+==========================================
+
+7.1 Compression Pipeline:
+-------------------------
+```python
+class ModelCompressionPipeline:
+    def __init__(self, original_model, target_compression=4):
+        self.original_model = original_model
+        self.target_compression = target_compression
+        self.compressed_model = None
+        
+    def compress(self, methods=['pruning', 'quantization'], dataloader=None):
+        """Apply multiple compression techniques"""
+        model = deepcopy(self.original_model)
+        
+        for method in methods:
+            if method == 'pruning':
+                model = self.apply_pruning(model, dataloader)
+            elif method == 'quantization':
+                model = self.apply_quantization(model, dataloader)
+            elif method == 'distillation':
+                model = self.apply_distillation(model, dataloader)
+        
+        self.compressed_model = model
+        return model
+    
+    def apply_pruning(self, model, dataloader, sparsity=0.5):
+        """Apply magnitude-based pruning"""
+        pruner = MagnitudePruner(model, sparsity)
+        pruner.create_masks()
+        pruner.apply_masks()
+        
+        # Fine-tune after pruning
+        if dataloader:
+            self.fine_tune(model, dataloader, epochs=10)
+        
+        return model
+    
+    def apply_quantization(self, model, dataloader):
+        """Apply post-training quantization"""
+        if dataloader:
+            return post_training_quantization(model, dataloader)
+        return model
+    
+    def evaluate_compression(self, test_dataloader):
+        """Evaluate compression results"""
+        if self.compressed_model is None:
+            raise ValueError("Model not compressed yet")
+        
+        # Calculate compression metrics
+        original_size = self.model_size(self.original_model)
+        compressed_size = self.model_size(self.compressed_model)
+        compression_ratio = original_size / compressed_size
+        
+        # Evaluate accuracy
+        original_acc = self.evaluate_accuracy(self.original_model, test_dataloader)
+        compressed_acc = self.evaluate_accuracy(self.compressed_model, test_dataloader)
+        accuracy_drop = original_acc - compressed_acc
+        
+        return {
+            'compression_ratio': compression_ratio,
+            'original_accuracy': original_acc,
+            'compressed_accuracy': compressed_acc,
+            'accuracy_drop': accuracy_drop,
+            'original_size_mb': original_size / (1024**2),
+            'compressed_size_mb': compressed_size / (1024**2)
+        }
+```
+
+7.2 Hardware-Aware Optimization:
+-------------------------------
+```python
+class HardwareAwareCompressiong:
+    def __init__(self, target_hardware='mobile'):
+        self.target_hardware = target_hardware
+        self.hardware_constraints = self.get_hardware_constraints()
+    
+    def get_hardware_constraints(self):
+        """Get constraints for target hardware"""
+        if self.target_hardware == 'mobile':
+            return {
+                'max_model_size_mb': 50,
+                'max_inference_time_ms': 100,
+                'preferred_precision': 'int8',
+                'supports_pruning': True
+            }
+        elif self.target_hardware == 'edge':
+            return {
+                'max_model_size_mb': 10,
+                'max_inference_time_ms': 50,
+                'preferred_precision': 'int4',
+                'supports_pruning': True
+            }
+        else:
+            return {}
+    
+    def optimize_for_hardware(self, model, validation_data):
+        """Optimize model for specific hardware"""
+        compressed_model = model
+        
+        # Apply compression based on hardware constraints
+        if self.hardware_constraints.get('supports_pruning'):
+            compressed_model = self.apply_structured_pruning(compressed_model)
+        
+        # Quantize to target precision
+        target_precision = self.hardware_constraints.get('preferred_precision', 'fp32')
+        if target_precision == 'int8':
+            compressed_model = self.apply_int8_quantization(compressed_model)
+        elif target_precision == 'int4':
+            compressed_model = self.apply_int4_quantization(compressed_model)
+        
+        # Verify constraints
+        if not self.meets_constraints(compressed_model):
+            # Apply more aggressive compression
+            compressed_model = self.aggressive_compression(compressed_model)
+        
+        return compressed_model
+    
+    def meets_constraints(self, model):
+        """Check if model meets hardware constraints"""
+        model_size = self.model_size(model) / (1024**2)  # MB
+        inference_time = self.measure_inference_time(model)  # ms
+        
+        size_ok = model_size <= self.hardware_constraints.get('max_model_size_mb', float('inf'))
+        time_ok = inference_time <= self.hardware_constraints.get('max_inference_time_ms', float('inf'))
+        
+        return size_ok and time_ok
+```
+
+7.3 Best Practices:
+------------------
+Selection Guidelines:
+1. Start with less aggressive techniques
+2. Combine multiple compression methods
+3. Consider target deployment environment
+4. Balance compression ratio vs accuracy
+
+Implementation Strategy:
+1. Establish baseline performance
+2. Apply compression incrementally
+3. Fine-tune after each compression step
+4. Validate on target hardware
+
+Quality Assurance:
+1. Test on diverse datasets
+2. Monitor for edge case failures
+3. Verify numerical stability
+4. Profile inference performance
+
+Deployment Considerations:
+1. Convert to deployment format (TensorRT, CoreML)
+2. Test on actual target devices
+3. Monitor real-world performance
+4. Plan for model updates
+
+7.4 Success Guidelines:
+----------------------
+1. Understand compression trade-offs
+2. Choose appropriate techniques for your use case
+3. Implement systematic evaluation procedures
+4. Consider hardware-specific optimizations
+5. Maintain model quality throughout compression
+6. Test extensively on target deployment platform
+7. Monitor performance in production
+8. Document compression choices and rationale
+
+=======================================================
+END OF DOCUMENT 

@@ -1,0 +1,264 @@
+VECTORS AND VECTOR SPACES - Linear Algebra Fundamentals
+=======================================================
+
+TABLE OF CONTENTS:
+1. Vector Definitions and Notation
+2. Vector Operations
+3. Vector Spaces (Linear Spaces)
+4. Subspaces
+5. Linear Combinations and Span
+6. Linear Independence
+7. Basis and Dimension
+8. Applications in Machine Learning
+
+=======================================================
+
+1. VECTOR DEFINITIONS AND NOTATION
+===================================
+
+Definition:
+A vector is an ordered collection of real numbers (scalars) that represents 
+a point in n-dimensional space or a direction and magnitude.
+
+Mathematical Notation:
+- Vector: v = [v₁, v₂, ..., vₙ]ᵀ (column vector)
+- Row vector: v = [v₁, v₂, ..., vₙ]
+- Zero vector: 0 = [0, 0, ..., 0]ᵀ
+- Unit vectors: eᵢ (has 1 in position i, 0 elsewhere)
+
+Types of Vectors:
+- Geometric vectors: Position, velocity, force
+- Abstract vectors: Feature vectors, probability distributions
+- Special vectors: Sparse vectors, one-hot vectors
+
+Vector Spaces:
+Common vector spaces in ML:
+- ℝⁿ: n-dimensional real space
+- ℂⁿ: n-dimensional complex space
+- Feature space: Input vectors for ML models
+- Embedding space: Lower-dimensional representations
+
+=======================================================
+
+2. VECTOR OPERATIONS
+====================
+
+2.1 Basic Operations:
+---------------------
+Addition: u + v = [u₁ + v₁, u₂ + v₂, ..., uₙ + vₙ]ᵀ
+Scalar multiplication: αv = [αv₁, αv₂, ..., αvₙ]ᵀ
+
+Properties:
+- Commutative: u + v = v + u
+- Associative: (u + v) + w = u + (v + w)
+- Distributive: α(u + v) = αu + αv
+
+2.2 Inner Product (Dot Product):
+--------------------------------
+u · v = u₁v₁ + u₂v₂ + ... + uₙvₙ = Σᵢ uᵢvᵢ
+
+Matrix form: u · v = uᵀv
+
+Properties:
+- Commutative: u · v = v · u
+- Distributive: u · (v + w) = u · v + u · w
+- Bilinear: (αu) · v = α(u · v)
+
+2.3 Vector Norms:
+-----------------
+L₁ norm (Manhattan): ||v||₁ = Σᵢ |vᵢ|
+L₂ norm (Euclidean): ||v||₂ = √(Σᵢ vᵢ²) = √(v · v)
+L∞ norm (Maximum): ||v||∞ = maxᵢ |vᵢ|
+Lₚ norm (General): ||v||ₚ = (Σᵢ |vᵢ|ᵖ)^(1/p)
+
+Unit vector: û = v/||v||₂
+
+2.4 Distance Metrics:
+--------------------
+Euclidean distance: d(u,v) = ||u - v||₂
+Manhattan distance: d(u,v) = ||u - v||₁
+Cosine similarity: sim(u,v) = (u·v)/(||u||₂||v||₂)
+
+=======================================================
+
+3. VECTOR SPACES (LINEAR SPACES)
+================================
+
+Definition:
+A vector space V over field F is a set with two operations:
+- Vector addition: V × V → V
+- Scalar multiplication: F × V → V
+
+Axioms (8 required properties):
+1. Closure under addition: u, v ∈ V ⟹ u + v ∈ V
+2. Commutativity: u + v = v + u
+3. Associativity: (u + v) + w = u + (v + w)
+4. Zero element: ∃ 0 ∈ V such that v + 0 = v ∀v ∈ V
+5. Additive inverse: ∀v ∈ V, ∃(-v) such that v + (-v) = 0
+6. Closure under scalar multiplication: α ∈ F, v ∈ V ⟹ αv ∈ V
+7. Distributivity: α(u + v) = αu + αv, (α + β)v = αv + βv
+8. Scalar multiplication properties: α(βv) = (αβ)v, 1v = v
+
+Examples of Vector Spaces:
+- ℝⁿ with standard operations
+- Function spaces: C[a,b] (continuous functions)
+- Matrix spaces: ℝᵐˣⁿ
+- Polynomial spaces: Pₙ (polynomials of degree ≤ n)
+
+=======================================================
+
+4. SUBSPACES
+============
+
+Definition:
+A subset S ⊆ V is a subspace if:
+1. 0 ∈ S (contains zero vector)
+2. Closed under addition: u, v ∈ S ⟹ u + v ∈ S
+3. Closed under scalar multiplication: v ∈ S, α ∈ F ⟹ αv ∈ S
+
+Important Subspaces:
+- Trivial subspace: {0}
+- Hyperplanes: {x ∈ ℝⁿ : aᵀx = 0} for some a ≠ 0
+- Column space: Col(A) = {Ax : x ∈ ℝⁿ}
+- Null space: Null(A) = {x : Ax = 0}
+- Row space: Row(A) = Col(Aᵀ)
+
+Subspace Operations:
+- Intersection: S₁ ∩ S₂ is always a subspace
+- Sum: S₁ + S₂ = {s₁ + s₂ : s₁ ∈ S₁, s₂ ∈ S₂}
+- Direct sum: S₁ ⊕ S₂ when S₁ ∩ S₂ = {0}
+
+=======================================================
+
+5. LINEAR COMBINATIONS AND SPAN
+===============================
+
+Linear Combination:
+Given vectors v₁, v₂, ..., vₖ and scalars α₁, α₂, ..., αₖ:
+w = α₁v₁ + α₂v₂ + ... + αₖvₖ
+
+Span:
+Span{v₁, v₂, ..., vₖ} = {α₁v₁ + α₂v₂ + ... + αₖvₖ : αᵢ ∈ ℝ}
+
+Properties:
+- Span is always a subspace
+- Span{v₁, v₂, ..., vₖ} is the smallest subspace containing all vᵢ
+- Adding linearly dependent vectors doesn't change span
+
+Spanning Set:
+S spans V if Span(S) = V
+- Every vector in V can be written as linear combination of vectors in S
+
+=======================================================
+
+6. LINEAR INDEPENDENCE
+=====================
+
+Definition:
+Vectors v₁, v₂, ..., vₖ are linearly independent if:
+α₁v₁ + α₂v₂ + ... + αₖvₖ = 0 ⟹ α₁ = α₂ = ... = αₖ = 0
+
+Equivalently:
+- No vector can be written as linear combination of others
+- Removing any vector changes the span
+- The matrix [v₁ v₂ ... vₖ] has linearly independent columns
+
+Linear Dependence:
+Vectors are linearly dependent if ∃ scalars αᵢ (not all zero) such that:
+α₁v₁ + α₂v₂ + ... + αₖvₖ = 0
+
+Tests for Linear Independence:
+1. Matrix rank: rank([v₁ v₂ ... vₖ]) = k
+2. Determinant: det([v₁ v₂ ... vₖ]) ≠ 0 (square case)
+3. Null space: only trivial solution to homogeneous system
+
+=======================================================
+
+7. BASIS AND DIMENSION
+=====================
+
+Basis:
+A set B = {v₁, v₂, ..., vₖ} is a basis for V if:
+1. B spans V: Span(B) = V
+2. B is linearly independent
+
+Properties:
+- Every vector in V has unique representation as linear combination of basis vectors
+- All bases of finite-dimensional space have same number of vectors
+
+Standard Bases:
+- Standard basis for ℝⁿ: {e₁, e₂, ..., eₙ} where eᵢ has 1 in position i
+- Canonical basis for Pₙ: {1, x, x², ..., xⁿ}
+
+Dimension:
+dim(V) = number of vectors in any basis of V
+
+Dimension Properties:
+- dim(ℝⁿ) = n
+- dim({0}) = 0
+- If dim(V) = n, then:
+  * Any n linearly independent vectors form a basis
+  * Any n vectors that span V form a basis
+  * Any linearly independent set can be extended to a basis
+
+Rank-Nullity Theorem:
+For matrix A ∈ ℝᵐˣⁿ:
+rank(A) + nullity(A) = n
+where rank(A) = dim(Col(A)), nullity(A) = dim(Null(A))
+
+=======================================================
+
+8. APPLICATIONS IN MACHINE LEARNING
+===================================
+
+8.1 Feature Vectors:
+-------------------
+- Data points represented as vectors in feature space
+- Each dimension corresponds to a feature/attribute
+- High-dimensional spaces common in ML
+
+8.2 Dimensionality Reduction:
+----------------------------
+- PCA finds principal subspace (lower-dimensional)
+- Project data onto subspace spanned by top eigenvectors
+- Preserve maximum variance in reduced dimensions
+
+8.3 Linear Models:
+-----------------
+- Linear regression: y = Xβ + ε
+- Feature space ℝⁿ, parameter space ℝᵖ
+- Solution lies in column space of design matrix X
+
+8.4 Neural Networks:
+-------------------
+- Each layer performs linear transformation: z = Wx + b
+- Activation space at each layer is vector space
+- Weight matrices map between vector spaces
+
+8.5 Optimization:
+----------------
+- Gradient vectors point in direction of steepest increase
+- Subgradients for non-differentiable functions
+- Constraint sets often define subspaces
+
+8.6 Distance and Similarity:
+---------------------------
+- k-NN uses distance metrics in feature space
+- Cosine similarity for text/document vectors
+- Kernel methods use inner products in feature space
+
+8.7 Regularization:
+------------------
+- L1 norm promotes sparsity (feature selection)
+- L2 norm penalizes large weights (ridge regression)
+- Constraints define feasible subspaces
+
+Key Takeaways for ML Practitioners:
+- Understand your feature space dimensions and structure
+- Linear independence crucial for model identifiability
+- Basis choice affects computational efficiency
+- Vector norms provide different notions of "size"
+- Subspaces arise naturally in dimensionality reduction
+
+=======================================================
+END OF DOCUMENT 
