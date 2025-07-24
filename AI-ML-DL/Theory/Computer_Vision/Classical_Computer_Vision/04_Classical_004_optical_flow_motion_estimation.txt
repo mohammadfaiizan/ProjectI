@@ -1,0 +1,1190 @@
+OPTICAL FLOW AND MOTION ESTIMATION
+===================================
+
+Table of Contents:
+1. Introduction to Optical Flow
+2. Mathematical Foundations
+3. Lucas-Kanade Method
+4. Horn-Schunck Method
+5. Feature-Based Motion Estimation
+6. Dense Optical Flow Methods
+7. Object Tracking
+8. Motion Segmentation
+9. Motion Compensation
+10. Python Implementation Examples
+11. Applications and Performance Analysis
+12. Modern Deep Learning Approaches
+
+================================================================================
+1. INTRODUCTION TO OPTICAL FLOW
+================================================================================
+
+1.1 Optical Flow Definition
+---------------------------
+Optical flow is the pattern of apparent motion of objects, surfaces, and edges in a visual scene caused by the relative motion between an observer and scene.
+
+**Mathematical Definition:**
+Given two consecutive frames I(x,y,t) and I(x,y,t+δt), optical flow is the velocity field:
+v(x,y) = (u(x,y), v(x,y))
+
+where u and v are horizontal and vertical velocity components.
+
+**Physical Interpretation:**
+- Represents 2D projection of 3D motion
+- Apparent motion ≠ true 3D motion
+- Affected by lighting changes, occlusions, noise
+
+1.2 Applications of Optical Flow
+--------------------------------
+**Motion Analysis:**
+- Object tracking and surveillance
+- Activity recognition and gesture analysis
+- Gait analysis and biometrics
+- Sports analysis and performance evaluation
+
+**Computer Vision:**
+- Structure from motion
+- Visual odometry and SLAM
+- Video stabilization
+- Frame interpolation and super-resolution
+
+**Medical Imaging:**
+- Cardiac motion analysis
+- Respiratory motion tracking
+- Blood flow visualization
+- Surgical planning and guidance
+
+**Computational Photography:**
+- Motion blur removal
+- Video compression and coding
+- Background subtraction
+- Motion-based segmentation
+
+1.3 Challenges in Optical Flow
+------------------------------
+**Aperture Problem:**
+- Cannot determine motion perpendicular to edges
+- Requires additional constraints
+- Solved by combining local and global information
+
+**Illumination Changes:**
+- Brightness constancy assumption violated
+- Shadows, reflections, and specularities
+- Robust estimation techniques needed
+
+**Large Displacements:**
+- Coarse-to-fine estimation
+- Feature-based matching
+- Hierarchical approaches
+
+**Occlusions and Discontinuities:**
+- Objects appearing/disappearing
+- Depth discontinuities
+- Multiple motion layers
+
+================================================================================
+2. MATHEMATICAL FOUNDATIONS
+================================================================================
+
+2.1 Brightness Constancy Constraint
+-----------------------------------
+**Basic Assumption:**
+Intensity of corresponding points remains constant:
+I(x,y,t) = I(x+u,y+v,t+1)
+
+**Taylor Expansion:**
+I(x+u,y+v,t+1) ≈ I(x,y,t) + ∂I/∂x·u + ∂I/∂y·v + ∂I/∂t
+
+**Optical Flow Constraint Equation:**
+∂I/∂x·u + ∂I/∂y·v + ∂I/∂t = 0
+
+or in vector form: ∇I·v + I_t = 0
+
+where ∇I = (I_x, I_y) is the spatial gradient
+
+2.2 Aperture Problem
+--------------------
+**Problem Statement:**
+- One equation, two unknowns (u, v)
+- Infinite solutions along constraint line
+- Normal flow: component perpendicular to gradient
+
+**Normal Flow:**
+v_n = -I_t / |∇I|
+
+**Solutions:**
+- Additional constraints (smoothness)
+- Feature-based methods
+- Multi-scale approaches
+
+2.3 Smoothness Constraints
+--------------------------
+**Spatial Smoothness:**
+Assume neighboring pixels have similar motion:
+E_smooth = ∫∫(|∇u|² + |∇v|²) dx dy
+
+**Total Energy Function:**
+E_total = E_data + λE_smooth
+
+where λ controls smoothness vs. data fidelity trade-off
+
+**Variational Formulation:**
+Minimize energy functional using calculus of variations
+Results in Euler-Lagrange equations
+
+================================================================================
+3. LUCAS-KANADE METHOD
+================================================================================
+
+3.1 Lucas-Kanade Assumptions
+----------------------------
+**Local Assumptions:**
+1. Brightness constancy: pixel intensities unchanged
+2. Temporal persistence: small motion between frames
+3. Spatial coherence: neighboring pixels have similar motion
+
+**Window-Based Approach:**
+- Consider small window around each pixel
+- Assume constant motion within window
+- Solve overdetermined system
+
+3.2 Lucas-Kanade Derivation
+---------------------------
+**For window W around pixel (x₀,y₀):**
+For each pixel (xᵢ,yᵢ) in window:
+I_x(xᵢ,yᵢ)·u + I_y(xᵢ,yᵢ)·v = -I_t(xᵢ,yᵢ)
+
+**Matrix Form:**
+[I_x₁  I_y₁] [u]   [-I_t₁]
+[I_x₂  I_y₂] [v] = [-I_t₂]
+[  ⋮    ⋮ ]       [  ⋮ ]
+[I_xₙ  I_yₙ]       [-I_tₙ]
+
+A·v = b
+
+**Least Squares Solution:**
+v = (AᵀA)⁻¹Aᵀb
+
+where AᵀA = [∑I_x²   ∑I_xI_y]
+             [∑I_xI_y  ∑I_y²]
+
+3.3 Implementation Details
+--------------------------
+**Gradient Computation:**
+- Sobel, Scharr, or simple difference operators
+- Gaussian derivatives for noise reduction
+- Multi-scale gradient estimation
+
+**Window Selection:**
+- Typically 5×5 to 15×15 windows
+- Gaussian weighting for center emphasis
+- Adaptive window sizes
+
+**Matrix Conditioning:**
+- Check eigenvalues of AᵀA
+- Reject poorly conditioned systems
+- Harris corner response for feature selection
+
+3.4 Pyramidal Lucas-Kanade
+--------------------------
+**Multi-Scale Approach:**
+1. Build image pyramids for both frames
+2. Start with coarsest level
+3. Propagate solution to finer levels
+4. Refine estimate at each level
+
+**Benefits:**
+- Handle large displacements
+- Improve convergence
+- Reduce computational cost
+- Better noise robustness
+
+**Implementation:**
+```
+for level L from coarsest to finest:
+    if L == coarsest:
+        initialize v = 0
+    else:
+        v = 2 * v_previous_level  # upsample
+    
+    for iterations:
+        compute gradients at level L
+        solve Lucas-Kanade system
+        update v
+```
+
+================================================================================
+4. HORN-SCHUNCK METHOD
+================================================================================
+
+4.1 Horn-Schunck Formulation
+-----------------------------
+**Global Energy Minimization:**
+E = ∫∫[(∇I·v + I_t)² + λ²(|∇u|² + |∇v|²)] dx dy
+
+**First Term:** Data fidelity (brightness constancy)
+**Second Term:** Smoothness constraint
+**λ:** Regularization parameter
+
+4.2 Euler-Lagrange Equations
+-----------------------------
+**Variational Optimization:**
+∂E/∂u = 0 and ∂E/∂v = 0
+
+**Resulting PDEs:**
+(I_x² + λ²∇²)u + I_xI_y·v = -I_xI_t
+I_xI_y·u + (I_y² + λ²∇²)v = -I_yI_t
+
+where ∇² is the Laplacian operator
+
+4.3 Iterative Solution
+----------------------
+**Jacobi Iteration:**
+u^(k+1) = ū^k - (I_x(I_xū^k + I_yv̄^k + I_t))/(λ² + I_x² + I_y²)
+v^(k+1) = v̄^k - (I_y(I_xū^k + I_yv̄^k + I_t))/(λ² + I_x² + I_y²)
+
+where ū^k, v̄^k are spatial averages of neighbors
+
+**Gauss-Seidel Iteration:**
+- Use updated values immediately
+- Faster convergence
+- Different iteration order affects result
+
+4.4 Boundary Conditions
+-----------------------
+**Neumann Boundary Conditions:**
+∂u/∂n = 0 and ∂v/∂n = 0 at image boundaries
+
+**Implementation:**
+- Zero-gradient at boundaries
+- Periodic boundary conditions
+- Reflective boundaries
+
+================================================================================
+5. FEATURE-BASED MOTION ESTIMATION
+================================================================================
+
+5.1 Feature Detection and Tracking
+----------------------------------
+**Good Features to Track:**
+- Harris corners with strong eigenvalues
+- SIFT/SURF keypoints
+- FAST corners
+- Shi-Tomasi corner detector
+
+**Quality Measures:**
+min(λ₁, λ₂) > threshold  (Shi-Tomasi)
+det(M) - k·trace²(M) > threshold  (Harris)
+
+where M is structure tensor
+
+5.2 Kanade-Lucas-Tomasi (KLT) Tracker
+-------------------------------------
+**KLT Algorithm:**
+1. Detect good features in first frame
+2. Track features using Lucas-Kanade
+3. Check tracking quality
+4. Update feature set
+
+**Feature Quality Assessment:**
+- Residual error after tracking
+- Bidirectional consistency
+- Similarity of feature windows
+
+**Template Update:**
+- Fixed template vs. adaptive
+- Drift accumulation issues
+- Template matching vs. differential methods
+
+5.3 Multi-Frame Tracking
+------------------------
+**Temporal Consistency:**
+- Use motion models (constant velocity, acceleration)
+- Kalman filtering for prediction
+- Handle temporary occlusions
+
+**Track Management:**
+- Birth: detect new features
+- Death: remove lost features
+- Merge: combine duplicate tracks
+- Split: handle track confusion
+
+================================================================================
+6. DENSE OPTICAL FLOW METHODS
+================================================================================
+
+6.1 Coarse-to-Fine Estimation
+-----------------------------
+**Pyramid Construction:**
+- Gaussian pyramids with 1/2 downsampling
+- Typically 3-5 levels
+- Balance between efficiency and accuracy
+
+**Warping Strategy:**
+1. Estimate flow at coarse level
+2. Warp second image using current flow estimate
+3. Compute residual flow between first image and warped image
+4. Upsample total flow to next level
+
+6.2 Robust Estimation
+---------------------
+**Robust Loss Functions:**
+- L1 norm: |∇I·v + I_t|
+- Huber function: smooth L1
+- Lorentzian: 1/2 log(1 + s²/σ²)
+- Charbonnier: √(s² + ε²)
+
+**Benefits:**
+- Reduce influence of outliers
+- Handle occlusions better
+- Preserve motion boundaries
+
+6.3 TV-L1 Optical Flow
+----------------------
+**Energy Functional:**
+E = ∫[ρ(I₂(x+u) - I₁(x)) + λ(|∇u| + |∇v|)] dx
+
+where ρ is robust data term and λ controls regularization
+
+**Total Variation Regularization:**
+- Preserves discontinuities
+- Piecewise constant solutions
+- Better motion boundary preservation
+
+**Dual Formulation:**
+- Primal-dual optimization
+- Efficient numerical schemes
+- GPU implementations available
+
+6.4 Occlusion Handling
+----------------------
+**Occlusion Detection:**
+- Forward-backward consistency check
+- Left-right disparity validation
+- Motion discontinuity analysis
+
+**Occlusion-Aware Energy:**
+E = ∫[ψ(x)·ρ(I₂(x+u) - I₁(x)) + λ(|∇u| + |∇v|)] dx
+
+where ψ(x) is occlusion mask
+
+================================================================================
+7. OBJECT TRACKING
+================================================================================
+
+7.1 Template-Based Tracking
+---------------------------
+**Mean Shift Tracking:**
+- Density-based mode seeking
+- Color histogram representation
+- Bhattacharyya distance for similarity
+- Scale and orientation adaptation
+
+**CAMShift (Continuously Adaptive Mean Shift):**
+- Adaptive window size
+- Orientation estimation
+- Elliptical window shape
+- Real-time performance
+
+7.2 Particle Filter Tracking
+----------------------------
+**Sequential Monte Carlo:**
+- Multiple hypotheses representation
+- Prediction and update steps
+- Resampling for efficiency
+- Handle multi-modal distributions
+
+**State Space Model:**
+x_t = f(x_{t-1}) + w_t     (dynamics)
+z_t = h(x_t) + v_t         (observation)
+
+where w_t, v_t are process and measurement noise
+
+7.3 Correlation Filter Tracking
+-------------------------------
+**MOSSE (Minimum Output Sum of Squared Error):**
+- Frequency domain correlation
+- Fast Fourier Transform implementation
+- Adaptive filter updates
+- Robust to illumination changes
+
+**Kernelized Correlation Filters (KCF):**
+- Kernel trick for non-linear features
+- Circular correlation assumption
+- Efficient training and detection
+- Multi-scale extensions
+
+7.4 Deep Learning Tracking
+--------------------------
+**Siamese Networks:**
+- Learning similarity functions
+- End-to-end training
+- Template and search region matching
+- Real-time performance
+
+**Online Learning:**
+- Adaptive appearance models
+- Incremental learning
+- Forgetting mechanisms
+- Balance stability vs. adaptability
+
+================================================================================
+8. MOTION SEGMENTATION
+================================================================================
+
+8.1 Two-Frame Motion Segmentation
+---------------------------------
+**Motion Clustering:**
+- Group pixels with similar motion
+- K-means in motion space
+- Gaussian mixture models
+- Spectral clustering methods
+
+**Motion Boundaries:**
+- Detect discontinuities in flow field
+- Gradient-based edge detection
+- Morphological operations
+- Active contours for refinement
+
+8.2 Multi-Frame Segmentation
+----------------------------
+**Trajectory Clustering:**
+- Group long-term trajectories
+- Subspace clustering methods
+- Spectral clustering on trajectories
+- Handle missing data
+
+**Layer-Based Models:**
+- Multiple motion layers
+- Parametric motion models
+- EM algorithm for estimation
+- Occlusion reasoning
+
+8.3 Dense Trajectories
+----------------------
+**Extraction:**
+- Dense sampling of feature points
+- Track using optical flow
+- Remove camera motion
+- Descriptor computation along tracks
+
+**Applications:**
+- Action recognition
+- Video analysis
+- Anomaly detection
+- Behavior understanding
+
+================================================================================
+9. MOTION COMPENSATION
+================================================================================
+
+9.1 Block Matching
+------------------
+**Algorithm:**
+1. Divide frame into blocks
+2. Search for best match in reference frame
+3. Minimize matching cost (SAD, SSD, MAD)
+4. Vector quantization for compression
+
+**Search Strategies:**
+- Full search: exhaustive but expensive
+- Three-step search: logarithmic reduction
+- Diamond search: diamond-shaped patterns
+- Hexagonal search: hexagonal patterns
+
+9.2 Global Motion Estimation
+----------------------------
+**Parametric Models:**
+- Translation: 2 parameters
+- Euclidean: 3 parameters (translation + rotation)
+- Similarity: 4 parameters (+ scale)
+- Affine: 6 parameters
+- Homography: 8 parameters
+
+**Robust Estimation:**
+- RANSAC for outlier rejection
+- Least median of squares
+- M-estimators
+- Iterative reweighting
+
+9.3 Video Compression Applications
+----------------------------------
+**Motion-Compensated Prediction:**
+- P-frames and B-frames
+- Variable block sizes
+- Sub-pixel motion estimation
+- Rate-distortion optimization
+
+**Standards:**
+- MPEG-1/2/4
+- H.264/AVC
+- H.265/HEVC
+- AV1 codec
+
+================================================================================
+10. PYTHON IMPLEMENTATION EXAMPLES
+================================================================================
+
+```python
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from scipy import ndimage
+from sklearn.cluster import KMeans
+import time
+
+class OpticalFlowEstimator:
+    """Optical flow estimation implementations"""
+    
+    def __init__(self):
+        self.pyramids_levels = 4
+        self.window_size = 15
+        self.max_corners = 1000
+        
+    def lucas_kanade_optical_flow(self, prev_frame, curr_frame, prev_pts):
+        """
+        Lucas-Kanade optical flow with pyramids
+        """
+        # Convert to grayscale if needed
+        if len(prev_frame.shape) == 3:
+            prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY)
+            curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_RGB2GRAY)
+        else:
+            prev_gray = prev_frame
+            curr_gray = curr_frame
+        
+        # Parameters for Lucas-Kanade
+        lk_params = dict(winSize=(self.window_size, self.window_size),
+                        maxLevel=self.pyramids_levels,
+                        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+        
+        # Calculate optical flow
+        next_pts, status, error = cv2.calcOpticalFlowPyrLK(
+            prev_gray, curr_gray, prev_pts, None, **lk_params)
+        
+        # Filter good points
+        good_new = next_pts[status == 1]
+        good_old = prev_pts[status == 1]
+        
+        return good_new, good_old, status, error
+    
+    def horn_schunck_optical_flow(self, prev_frame, curr_frame, 
+                                  alpha=0.001, iterations=100):
+        """
+        Horn-Schunck global optical flow method
+        """
+        if len(prev_frame.shape) == 3:
+            prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY).astype(np.float32)
+            curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_RGB2GRAY).astype(np.float32)
+        else:
+            prev_gray = prev_frame.astype(np.float32)
+            curr_gray = curr_frame.astype(np.float32)
+        
+        # Compute image gradients
+        kernel_x = np.array([[-1, 1], [-1, 1]]) * 0.25
+        kernel_y = np.array([[-1, -1], [1, 1]]) * 0.25
+        kernel_t = np.array([[1, 1], [1, 1]]) * 0.25
+        
+        fx = cv2.filter2D(prev_gray, -1, kernel_x) + cv2.filter2D(curr_gray, -1, kernel_x)
+        fy = cv2.filter2D(prev_gray, -1, kernel_y) + cv2.filter2D(curr_gray, -1, kernel_y)
+        ft = cv2.filter2D(prev_gray, -1, -kernel_t) + cv2.filter2D(curr_gray, -1, kernel_t)
+        
+        # Initialize flow
+        u = np.zeros_like(prev_gray)
+        v = np.zeros_like(prev_gray)
+        
+        # Averaging kernel
+        kernel = np.array([[1/12, 1/6, 1/12],
+                          [1/6, 0, 1/6],
+                          [1/12, 1/6, 1/12]], dtype=np.float32)
+        
+        # Iterative solution
+        for i in range(iterations):
+            # Compute local averages
+            u_avg = cv2.filter2D(u, -1, kernel)
+            v_avg = cv2.filter2D(v, -1, kernel)
+            
+            # Compute flow updates
+            denominator = alpha**2 + fx**2 + fy**2
+            u = u_avg - fx * (fx * u_avg + fy * v_avg + ft) / denominator
+            v = v_avg - fy * (fx * u_avg + fy * v_avg + ft) / denominator
+        
+        return u, v
+    
+    def dense_optical_flow_farneback(self, prev_frame, curr_frame):
+        """
+        Farneback method for dense optical flow
+        """
+        if len(prev_frame.shape) == 3:
+            prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY)
+            curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_RGB2GRAY)
+        else:
+            prev_gray = prev_frame
+            curr_gray = curr_frame
+        
+        # Farneback optical flow
+        flow = cv2.calcOpticalFlowFarneback(
+            prev_gray, curr_gray, None, 
+            pyr_scale=0.5, levels=3, winsize=15,
+            iterations=3, poly_n=5, poly_sigma=1.2, flags=0)
+        
+        return flow
+    
+    def detect_good_features(self, frame, max_corners=None):
+        """
+        Detect good features for tracking
+        """
+        if max_corners is None:
+            max_corners = self.max_corners
+        
+        if len(frame.shape) == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = frame
+        
+        # Parameters for Shi-Tomasi corner detection
+        feature_params = dict(maxCorners=max_corners,
+                             qualityLevel=0.01,
+                             minDistance=10,
+                             blockSize=7)
+        
+        corners = cv2.goodFeaturesToTrack(gray, mask=None, **feature_params)
+        return corners
+
+class ObjectTracker:
+    """Object tracking implementations"""
+    
+    def __init__(self):
+        self.tracks = []
+        self.track_id = 0
+        self.max_track_length = 30
+        
+    def mean_shift_tracking(self, frame, track_window, term_criteria=None):
+        """
+        Mean Shift tracking implementation
+        """
+        if term_criteria is None:
+            term_criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
+        
+        # Convert to HSV for better color tracking
+        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+        
+        # Extract region of interest
+        x, y, w, h = track_window
+        roi = hsv[y:y+h, x:x+w]
+        
+        # Calculate histogram
+        roi_hist = cv2.calcHist([roi], [0], None, [180], [0, 180])
+        cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
+        
+        # Calculate back projection
+        dst = cv2.calcBackProject([hsv], [0], roi_hist, [0, 180], 1)
+        
+        # Apply mean shift
+        ret, track_window = cv2.meanShift(dst, track_window, term_criteria)
+        
+        return track_window, dst
+    
+    def camshift_tracking(self, frame, track_window, term_criteria=None):
+        """
+        CAMShift tracking implementation
+        """
+        if term_criteria is None:
+            term_criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
+        
+        # Convert to HSV
+        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+        
+        # Extract region of interest
+        x, y, w, h = track_window
+        roi = hsv[y:y+h, x:x+w]
+        
+        # Calculate histogram
+        roi_hist = cv2.calcHist([roi], [0], None, [180], [0, 180])
+        cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
+        
+        # Calculate back projection
+        dst = cv2.calcBackProject([hsv], [0], roi_hist, [0, 180], 1)
+        
+        # Apply CAMShift
+        ret, track_window = cv2.CamShift(dst, track_window, term_criteria)
+        
+        return ret, dst
+    
+    def particle_filter_tracking(self, frame, prev_state, n_particles=100):
+        """
+        Simple particle filter implementation
+        """
+        # State: [x, y, vx, vy]
+        if prev_state is None:
+            # Initialize particles randomly
+            h, w = frame.shape[:2]
+            particles = np.random.rand(n_particles, 4)
+            particles[:, 0] *= w  # x
+            particles[:, 1] *= h  # y
+            particles[:, 2] = 0   # vx
+            particles[:, 3] = 0   # vy
+        else:
+            # Predict particles
+            particles = prev_state + np.random.normal(0, 5, (n_particles, 4))
+        
+        # Update particles (simplified - just keep them in bounds)
+        h, w = frame.shape[:2]
+        particles[:, 0] = np.clip(particles[:, 0], 0, w-1)
+        particles[:, 1] = np.clip(particles[:, 1], 0, h-1)
+        
+        # Weight particles (simplified - uniform weights)
+        weights = np.ones(n_particles) / n_particles
+        
+        # Resample particles
+        indices = np.random.choice(n_particles, n_particles, p=weights)
+        particles = particles[indices]
+        
+        # Estimate state
+        estimated_state = np.mean(particles, axis=0)
+        
+        return estimated_state, particles
+
+class MotionAnalysis:
+    """Motion analysis and segmentation"""
+    
+    def __init__(self):
+        pass
+    
+    def compute_flow_magnitude_angle(self, flow):
+        """
+        Compute magnitude and angle of optical flow
+        """
+        magnitude = np.sqrt(flow[:, :, 0]**2 + flow[:, :, 1]**2)
+        angle = np.arctan2(flow[:, :, 1], flow[:, :, 0])
+        return magnitude, angle
+    
+    def motion_segmentation_kmeans(self, flow, n_clusters=3):
+        """
+        Motion segmentation using K-means clustering
+        """
+        # Reshape flow for clustering
+        h, w, _ = flow.shape
+        flow_reshaped = flow.reshape(-1, 2)
+        
+        # Remove zero motion vectors
+        motion_mask = np.sqrt(flow_reshaped[:, 0]**2 + flow_reshaped[:, 1]**2) > 1
+        flow_filtered = flow_reshaped[motion_mask]
+        
+        if len(flow_filtered) > 0:
+            # Apply K-means clustering
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            labels_filtered = kmeans.fit_predict(flow_filtered)
+            
+            # Map back to original shape
+            labels = np.zeros(h * w, dtype=int)
+            labels[motion_mask] = labels_filtered
+            labels = labels.reshape(h, w)
+        else:
+            labels = np.zeros((h, w), dtype=int)
+        
+        return labels
+    
+    def detect_motion_boundaries(self, flow, threshold=1.0):
+        """
+        Detect motion boundaries using flow discontinuities
+        """
+        # Compute flow magnitude
+        magnitude = np.sqrt(flow[:, :, 0]**2 + flow[:, :, 1]**2)
+        
+        # Compute gradients of flow magnitude
+        grad_x = cv2.Sobel(magnitude, cv2.CV_64F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(magnitude, cv2.CV_64F, 0, 1, ksize=3)
+        
+        # Compute gradient magnitude
+        gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+        
+        # Threshold to get boundaries
+        boundaries = gradient_magnitude > threshold
+        
+        return boundaries.astype(np.uint8) * 255
+    
+    def stabilize_video_frame(self, prev_frame, curr_frame):
+        """
+        Simple video stabilization using global motion estimation
+        """
+        # Detect features in previous frame
+        prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY)
+        curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_RGB2GRAY)
+        
+        # Detect good features
+        feature_params = dict(maxCorners=200, qualityLevel=0.01, 
+                             minDistance=30, blockSize=7)
+        prev_pts = cv2.goodFeaturesToTrack(prev_gray, mask=None, **feature_params)
+        
+        if prev_pts is not None:
+            # Track features
+            lk_params = dict(winSize=(15, 15), maxLevel=2,
+                           criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+            
+            curr_pts, status, error = cv2.calcOpticalFlowPyrLK(
+                prev_gray, curr_gray, prev_pts, None, **lk_params)
+            
+            # Filter good matches
+            good_prev = prev_pts[status == 1]
+            good_curr = curr_pts[status == 1]
+            
+            if len(good_prev) > 4:
+                # Estimate affine transformation
+                transform_matrix = cv2.estimateAffinePartial2D(good_curr, good_prev)[0]
+                
+                if transform_matrix is not None:
+                    # Apply transformation to stabilize
+                    h, w = curr_frame.shape[:2]
+                    stabilized = cv2.warpAffine(curr_frame, transform_matrix, (w, h))
+                    return stabilized
+        
+        return curr_frame
+
+def demonstrate_optical_flow():
+    """Demonstrate optical flow methods"""
+    
+    # Create test video sequence
+    frames = create_test_video_sequence()
+    
+    flow_estimator = OpticalFlowEstimator()
+    
+    # Demonstrate different methods
+    prev_frame = frames[0]
+    curr_frame = frames[1]
+    
+    # 1. Lucas-Kanade sparse optical flow
+    print("Computing Lucas-Kanade optical flow...")
+    start_time = time.time()
+    
+    # Detect good features
+    prev_pts = flow_estimator.detect_good_features(prev_frame)
+    
+    if prev_pts is not None:
+        next_pts, good_old, status, error = flow_estimator.lucas_kanade_optical_flow(
+            prev_frame, curr_frame, prev_pts)
+        
+        lk_time = time.time() - start_time
+        print(f"Lucas-Kanade time: {lk_time:.3f}s, Tracked {len(next_pts)} features")
+    
+    # 2. Horn-Schunck dense optical flow
+    print("Computing Horn-Schunck optical flow...")
+    start_time = time.time()
+    
+    u, v = flow_estimator.horn_schunck_optical_flow(prev_frame, curr_frame)
+    hs_flow = np.stack([u, v], axis=2)
+    
+    hs_time = time.time() - start_time
+    print(f"Horn-Schunck time: {hs_time:.3f}s")
+    
+    # 3. Farneback dense optical flow
+    print("Computing Farneback optical flow...")
+    start_time = time.time()
+    
+    farneback_flow = flow_estimator.dense_optical_flow_farneback(prev_frame, curr_frame)
+    
+    farneback_time = time.time() - start_time
+    print(f"Farneback time: {farneback_time:.3f}s")
+    
+    # Visualize results
+    visualize_optical_flow_results(prev_frame, curr_frame, 
+                                  prev_pts, next_pts, hs_flow, farneback_flow)
+
+def demonstrate_object_tracking():
+    """Demonstrate object tracking methods"""
+    
+    # Create test sequence
+    frames = create_test_video_sequence()
+    tracker = ObjectTracker()
+    
+    # Initialize tracking window (manually set for demo)
+    track_window = (50, 50, 100, 100)  # x, y, w, h
+    
+    # Track through sequence
+    for i, frame in enumerate(frames[1:3]):  # Track for a few frames
+        print(f"Tracking frame {i+1}")
+        
+        # Mean Shift tracking
+        track_window, backproj = tracker.mean_shift_tracking(frame, track_window)
+        
+        # Draw tracking result
+        x, y, w, h = track_window
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+    
+    print("Object tracking demonstration completed")
+
+def create_test_video_sequence():
+    """Create synthetic video sequence for testing"""
+    frames = []
+    
+    for i in range(5):
+        # Create base frame
+        frame = np.ones((240, 320, 3), dtype=np.uint8) * 128
+        
+        # Add moving object
+        center_x = 50 + i * 20
+        center_y = 100 + i * 10
+        cv2.circle(frame, (center_x, center_y), 30, (255, 0, 0), -1)
+        
+        # Add background texture
+        for _ in range(50):
+            x = np.random.randint(0, 320)
+            y = np.random.randint(0, 240)
+            cv2.circle(frame, (x, y), 3, (np.random.randint(0, 255),
+                                         np.random.randint(0, 255),
+                                         np.random.randint(0, 255)), -1)
+        
+        frames.append(frame)
+    
+    return frames
+
+def visualize_optical_flow_results(prev_frame, curr_frame, prev_pts, next_pts, 
+                                  hs_flow, farneback_flow):
+    """Visualize optical flow results"""
+    
+    plt.figure(figsize=(15, 10))
+    
+    # Original frames
+    plt.subplot(2, 3, 1)
+    plt.imshow(cv2.cvtColor(prev_frame, cv2.COLOR_BGR2RGB))
+    plt.title('Previous Frame')
+    plt.axis('off')
+    
+    plt.subplot(2, 3, 2)
+    plt.imshow(cv2.cvtColor(curr_frame, cv2.COLOR_BGR2RGB))
+    plt.title('Current Frame')
+    plt.axis('off')
+    
+    # Lucas-Kanade sparse flow
+    plt.subplot(2, 3, 3)
+    flow_image = prev_frame.copy()
+    if prev_pts is not None and next_pts is not None:
+        for i, (old, new) in enumerate(zip(prev_pts, next_pts)):
+            a, b = new.ravel().astype(int)
+            c, d = old.ravel().astype(int)
+            cv2.arrowedLine(flow_image, (c, d), (a, b), (0, 255, 0), 2)
+            cv2.circle(flow_image, (a, b), 3, (0, 0, 255), -1)
+    
+    plt.imshow(cv2.cvtColor(flow_image, cv2.COLOR_BGR2RGB))
+    plt.title('Lucas-Kanade Flow')
+    plt.axis('off')
+    
+    # Horn-Schunck flow magnitude
+    plt.subplot(2, 3, 4)
+    hs_magnitude = np.sqrt(hs_flow[:, :, 0]**2 + hs_flow[:, :, 1]**2)
+    plt.imshow(hs_magnitude, cmap='jet')
+    plt.title('Horn-Schunck Magnitude')
+    plt.colorbar()
+    plt.axis('off')
+    
+    # Farneback flow magnitude
+    plt.subplot(2, 3, 5)
+    farneback_magnitude = np.sqrt(farneback_flow[:, :, 0]**2 + farneback_flow[:, :, 1]**2)
+    plt.imshow(farneback_magnitude, cmap='jet')
+    plt.title('Farneback Magnitude')
+    plt.colorbar()
+    plt.axis('off')
+    
+    # Flow field visualization (Farneback)
+    plt.subplot(2, 3, 6)
+    step = 20
+    y, x = np.mgrid[step//2:farneback_flow.shape[0]:step, 
+                   step//2:farneback_flow.shape[1]:step]
+    u = farneback_flow[::step, ::step, 0]
+    v = farneback_flow[::step, ::step, 1]
+    
+    plt.imshow(cv2.cvtColor(curr_frame, cv2.COLOR_BGR2RGB))
+    plt.quiver(x, y, u, v, color='red', scale=50, alpha=0.7)
+    plt.title('Flow Field Visualization')
+    plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+# Example usage
+if __name__ == "__main__":
+    print("Demonstrating Optical Flow Methods...")
+    demonstrate_optical_flow()
+    
+    print("\nDemonstrating Object Tracking...")
+    demonstrate_object_tracking()
+```
+
+================================================================================
+11. APPLICATIONS AND PERFORMANCE ANALYSIS
+================================================================================
+
+11.1 Video Surveillance
+-----------------------
+**Motion Detection:**
+- Background subtraction
+- Activity recognition
+- Intrusion detection
+- Crowd analysis
+
+**Performance Requirements:**
+- Real-time processing (25-30 fps)
+- Low false alarm rates
+- Robust to environmental changes
+- Multi-camera synchronization
+
+11.2 Autonomous Vehicles
+-----------------------
+**Applications:**
+- Ego-motion estimation
+- Obstacle detection and tracking
+- Lane departure warning
+- Time-to-collision estimation
+
+**Challenges:**
+- High-speed motion
+- Complex urban environments
+- Weather conditions
+- Computational constraints
+
+11.3 Medical Imaging
+--------------------
+**Cardiac Motion Analysis:**
+- Wall motion assessment
+- Strain analysis
+- Ejection fraction calculation
+- Valve tracking
+
+**Respiratory Motion:**
+- Lung function analysis
+- Tumor tracking in radiotherapy
+- Breathing pattern analysis
+- Motion compensation in MRI
+
+11.4 Performance Metrics
+------------------------
+**Accuracy Metrics:**
+- Endpoint error: ||v_true - v_estimated||
+- Angular error: arccos(v_true · v_estimated)
+- Interpolation error for ground truth
+- Outlier percentage
+
+**Efficiency Metrics:**
+- Processing time per frame
+- Memory usage
+- GPU vs. CPU performance
+- Real-time capability
+
+**Robustness Metrics:**
+- Performance under noise
+- Illumination robustness
+- Motion discontinuity handling
+- Occlusion tolerance
+
+================================================================================
+12. MODERN DEEP LEARNING APPROACHES
+================================================================================
+
+12.1 CNN-Based Optical Flow
+---------------------------
+**FlowNet Architecture:**
+- End-to-end learning of optical flow
+- Correlation layers for matching
+- Encoder-decoder structure
+- Multi-scale refinement
+
+**FlowNet 2.0 Improvements:**
+- Stacked networks for refinement
+- Small displacement networks
+- Fusion of multiple estimates
+- Better performance on small motions
+
+**PWC-Net:**
+- Pyramid, Warping, and Cost volume
+- Coarse-to-fine estimation
+- Feature pyramids from CNNs
+- Efficient architecture design
+
+12.2 Unsupervised Learning
+--------------------------
+**Self-Supervised Flow:**
+- Photometric loss functions
+- Occlusion-aware training
+- Smoothness regularization
+- Bidirectional consistency
+
+**Advantages:**
+- No ground truth required
+- Large-scale training data
+- Domain adaptation capability
+- Real-world applicability
+
+12.3 Recurrent Networks for Tracking
+------------------------------------
+**LSTM-Based Tracking:**
+- Temporal state modeling
+- Long-term dependencies
+- Occlusion handling
+- Multi-object tracking
+
+**Attention Mechanisms:**
+- Focus on relevant regions
+- Adaptive feature selection
+- Spatial attention maps
+- Channel attention
+
+12.4 Transformer-Based Methods
+------------------------------
+**Flow Estimation:**
+- Self-attention for correspondence
+- Global context modeling
+- Position encoding for spatial relationships
+- Multi-head attention mechanisms
+
+**Object Tracking:**
+- Transformer trackers (STARK, TransT)
+- Template-search attention
+- Feature fusion mechanisms
+- End-to-end learning
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Optical flow and motion estimation are fundamental techniques in computer vision with wide-ranging applications. Key insights:
+
+**Classical Methods:**
+- Lucas-Kanade: sparse, feature-based, local optimization
+- Horn-Schunck: dense, global optimization, smooth flow fields
+- Block matching: efficient, suitable for compression applications
+- Feature tracking: robust, handles large motions well
+
+**Modern Developments:**
+- Deep learning methods achieve superior accuracy
+- End-to-end learning eliminates hand-crafted features
+- Unsupervised approaches reduce annotation requirements
+- Real-time implementations enable practical applications
+
+**Applications:**
+- Video analysis and surveillance
+- Autonomous systems and robotics
+- Medical imaging and diagnostics
+- Computational photography and effects
+
+**Future Directions:**
+- Integration with semantic understanding
+- Multi-modal fusion (RGB-D, event cameras)
+- Efficient architectures for mobile deployment
+- Uncertainty estimation and confidence measures
+
+The field continues to evolve with advances in deep learning, offering new opportunities for robust and accurate motion analysis in challenging real-world scenarios.
+
+================================================================================
+REFERENCES AND FURTHER READING
+================================================================================
+
+1. Lucas, B.D. & Kanade, T. "An Iterative Image Registration Technique" (1981)
+2. Horn, B.K.P. & Schunck, B.G. "Determining Optical Flow" (1981)
+3. Shi, J. & Tomasi, C. "Good Features to Track" (1994)
+4. Farneback, G. "Two-Frame Motion Estimation Based on Polynomial Expansion" (2003)
+5. Comaniciu, D. et al. "Kernel-Based Object Tracking" (2003)
+6. Bradski, G.R. "Computer Vision Face Tracking For Use in a Perceptual User Interface" (1998)
+7. Brox, T. et al. "High Accuracy Optical Flow Estimation" (2004)
+8. Dosovitskiy, A. et al. "FlowNet: Learning Optical Flow with CNNs" (2015)
+9. Sun, D. et al. "PWC-Net: CNNs for Optical Flow Using Pyramid, Warping, and Cost Volume" (2018)
+10. Bertinetto, L. et al. "Fully-Convolutional Siamese Networks for Object Tracking" (2016) 

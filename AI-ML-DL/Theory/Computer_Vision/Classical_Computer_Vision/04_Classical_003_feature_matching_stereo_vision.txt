@@ -1,0 +1,1266 @@
+FEATURE MATCHING AND STEREO VISION
+===================================
+
+Table of Contents:
+1. Introduction to Feature Matching
+2. Local Feature Descriptors
+3. Feature Correspondence and Matching
+4. Robust Matching Techniques
+5. Stereo Vision Fundamentals
+6. Epipolar Geometry
+7. Stereo Correspondence and Matching
+8. 3D Reconstruction from Stereo
+9. Multi-View Geometry
+10. Python Implementation Examples
+11. Applications and Performance Evaluation
+12. Advanced Topics and Modern Approaches
+
+================================================================================
+1. INTRODUCTION TO FEATURE MATCHING
+================================================================================
+
+1.1 Feature Matching Overview
+-----------------------------
+Feature matching is the process of identifying corresponding points or regions across different images:
+- **Point Correspondence:** Find same 3D point in multiple images
+- **Object Recognition:** Match features between template and query image
+- **Structure from Motion:** Establish correspondences across image sequence
+- **Visual SLAM:** Track features for simultaneous localization and mapping
+
+**Applications:**
+- Image stitching and panoramas
+- 3D reconstruction
+- Object recognition and tracking
+- Visual odometry and navigation
+- Augmented reality
+
+1.2 Challenges in Feature Matching
+----------------------------------
+**Geometric Variations:**
+- Scale changes: objects at different distances
+- Rotation: viewpoint changes
+- Perspective distortion: 3D to 2D projection effects
+- Affine transformation: non-uniform scaling
+
+**Photometric Variations:**
+- Illumination changes: lighting direction and intensity
+- Exposure differences: camera settings
+- Seasonal/weather changes: outdoor scenes
+- Shadows and reflections
+
+**Structural Challenges:**
+- Partial occlusion: objects blocking each other
+- Repetitive patterns: ambiguous correspondences
+- Motion blur: camera or object movement
+- Noise and compression artifacts
+
+1.3 Feature Matching Pipeline
+-----------------------------
+**Step 1: Feature Detection**
+- Identify interest points (corners, blobs, edges)
+- Ensure repeatability across images
+- Scale and rotation invariance
+
+**Step 2: Feature Description**
+- Compute distinctive descriptors for each feature
+- Invariant to transformations
+- Discriminative for matching
+
+**Step 3: Feature Matching**
+- Compare descriptors between images
+- Find correspondences based on similarity
+- Handle multiple matches and ambiguity
+
+**Step 4: Geometric Verification**
+- Use geometric constraints to filter matches
+- RANSAC for robust estimation
+- Fundamental/homography matrix estimation
+
+================================================================================
+2. LOCAL FEATURE DESCRIPTORS
+================================================================================
+
+2.1 Scale-Invariant Feature Transform (SIFT)
+---------------------------------------------
+**SIFT Overview:**
+SIFT provides scale and rotation-invariant features with distinctive descriptors.
+
+**Detection Process:**
+1. **Scale-space extrema detection**
+   - Difference of Gaussians (DoG): D(x,y,σ) = L(x,y,kσ) - L(x,y,σ)
+   - Find local extrema across scale space
+   - Typically use 3-4 scales per octave
+
+2. **Keypoint localization**
+   - Sub-pixel accuracy using quadratic interpolation
+   - Remove low-contrast points
+   - Eliminate edge responses using Hessian matrix
+
+3. **Orientation assignment**
+   - Compute gradient magnitude and orientation
+   - Create orientation histogram (36 bins)
+   - Assign dominant orientation(s) to keypoint
+
+4. **Descriptor computation**
+   - 16×16 neighborhood around keypoint
+   - Divide into 4×4 subregions
+   - 8-bin orientation histogram per subregion
+   - Final descriptor: 128 dimensions
+
+**SIFT Properties:**
+- Scale invariant: detected at characteristic scale
+- Rotation invariant: canonical orientation
+- Illumination robust: gradient-based
+- Distinctive: high-dimensional descriptor
+
+2.2 Speeded-Up Robust Features (SURF)
+--------------------------------------
+**SURF Improvements over SIFT:**
+- Faster computation using integral images
+- Determinant of Hessian for detection
+- Wavelet-based descriptor
+- 64 or 128-dimensional descriptor
+
+**Detection:**
+- Hessian matrix approximation: H = [Lxx Lxy; Lxy Lyy]
+- Fast convolution using box filters
+- Scale space using increasing filter sizes
+
+**Description:**
+- Haar wavelet responses in x and y directions
+- 4×4 subregions with 4 descriptors each
+- Sum and absolute sum of responses
+- Sign of Laplacian for fast matching
+
+2.3 Oriented FAST and Rotated BRIEF (ORB)
+------------------------------------------
+**ORB Design Goals:**
+- Real-time performance
+- Rotation invariance
+- Resistance to noise
+- Good matching performance
+
+**FAST Corner Detection:**
+- Compare pixel intensities in circular pattern
+- Reject if fewer than N contiguous pixels differ
+- Harris corner measure for ranking
+
+**BRIEF Descriptor:**
+- Binary descriptor using intensity comparisons
+- 128-512 bit descriptor
+- Fast Hamming distance matching
+
+**ORB Enhancements:**
+- Oriented FAST: add orientation estimation
+- Rotated BRIEF: rotate sampling pattern
+- 256-bit descriptor typical
+
+2.4 Other Important Descriptors
+-------------------------------
+**Local Binary Patterns (LBP):**
+- Simple binary encoding
+- Texture-based description
+- Rotation invariant variants
+- Computationally efficient
+
+**BRISK (Binary Robust Invariant Scalable Keypoints):**
+- Scale and rotation invariant
+- Binary descriptor
+- FAST-based detection with scale space
+- 512-bit descriptor
+
+**AKAZE (Accelerated-KAZE):**
+- Nonlinear scale space
+- Modified Local Difference Binary (M-LDB) descriptor
+- Better performance on texture-rich regions
+- Scale and rotation invariant
+
+================================================================================
+3. FEATURE CORRESPONDENCE AND MATCHING
+================================================================================
+
+3.1 Descriptor Matching Strategies
+----------------------------------
+**Brute-Force Matching:**
+- Compare every descriptor in first image with every descriptor in second
+- Compute distance for all pairs: O(mn) complexity
+- Find minimum distance as best match
+- Simple but computationally expensive
+
+**Nearest Neighbor Search:**
+- K-d trees for low-dimensional descriptors (≤ 10D)
+- FLANN (Fast Library for Approximate Nearest Neighbors)
+- Locality Sensitive Hashing (LSH) for binary descriptors
+- Approximate methods for high-dimensional data
+
+**Distance Metrics:**
+- L2 (Euclidean) distance: √Σ(xi - yi)²
+- L1 (Manhattan) distance: Σ|xi - yi|
+- Hamming distance: count of differing bits (binary descriptors)
+- Cosine similarity: dot product of normalized vectors
+
+3.2 Matching Quality Assessment
+-------------------------------
+**Ratio Test:**
+- Compare distances to first and second nearest neighbors
+- Reject if ratio > threshold (typically 0.7-0.8)
+- Filters ambiguous matches
+- Proposed by Lowe for SIFT matching
+
+**Cross-Check:**
+- Match from A→B and B→A
+- Keep only bidirectional matches
+- Reduces false matches
+- Higher precision, lower recall
+
+**Distance Threshold:**
+- Reject matches with distance > threshold
+- Threshold depends on descriptor type
+- Adaptive thresholding based on distribution
+
+3.3 Multiple View Matching
+---------------------------
+**Sequential Matching:**
+- Match consecutive image pairs
+- Propagate matches through sequence
+- Risk of drift accumulation
+- Suitable for video sequences
+
+**Exhaustive Matching:**
+- Match all possible image pairs
+- Higher computational cost: O(n²)
+- More robust to loops and revisits
+- Better for unordered image collections
+
+**Hierarchical Matching:**
+- Build vocabulary tree from descriptors
+- Fast approximate matching
+- Scalable to large image databases
+- Trade-off between speed and accuracy
+
+================================================================================
+4. ROBUST MATCHING TECHNIQUES
+================================================================================
+
+4.1 RANSAC (Random Sample Consensus)
+-------------------------------------
+**RANSAC Algorithm:**
+1. Randomly select minimal sample (e.g., 4 points for homography)
+2. Compute model parameters from sample
+3. Count inliers (points fitting model within threshold)
+4. If inlier count > threshold, recompute model with all inliers
+5. Repeat for fixed number of iterations
+6. Return best model (highest inlier count)
+
+**RANSAC Parameters:**
+- Sample size: minimum points to estimate model
+- Distance threshold: maximum allowed reprojection error
+- Iterations: ensure high probability of success
+- Inlier threshold: minimum inlier count for valid model
+
+**RANSAC Iterations:**
+N = log(1-p) / log(1-(1-ε)^s)
+where p = desired probability of success (0.99)
+      ε = outlier ratio
+      s = sample size
+
+4.2 RANSAC Variants
+-------------------
+**MSAC (M-estimator Sample Consensus):**
+- Use robust loss function instead of counting inliers
+- Smoother cost function
+- Better parameter estimation
+
+**MLESAC (Maximum Likelihood Estimation SAC):**
+- Probabilistic model for inliers/outliers
+- Likelihood-based scoring
+- Better handling of noise
+
+**Progressive Sample Consensus (PROSAC):**
+- Use match quality to guide sampling
+- Sample from higher-quality matches first
+- Faster convergence for good data
+
+**LO-RANSAC (Locally Optimized RANSAC):**
+- Local optimization of promising models
+- Inner RANSAC for model refinement
+- Better final model quality
+
+4.3 Graph-Based Matching
+-------------------------
+**Spectral Matching:**
+- Model correspondences as graph matching problem
+- Use eigenvectors of affinity matrix
+- Handle geometric constraints
+- Globally optimal solutions possible
+
+**Graduated Assignment:**
+- Optimize assignment matrix iteratively
+- Soft assignment → hard assignment
+- Incorporate geometric constraints
+- Handle one-to-one correspondence
+
+**Integer Programming:**
+- Formulate as optimization problem
+- Binary variables for correspondences
+- Linear/quadratic constraints
+- Guarantees for optimal solutions
+
+================================================================================
+5. STEREO VISION FUNDAMENTALS
+================================================================================
+
+5.1 Binocular Stereo System
+----------------------------
+**Stereo Setup:**
+- Two cameras separated by baseline B
+- Parallel optical axes (rectified geometry)
+- Same focal length f and intrinsic parameters
+- Synchronized image capture
+
+**Depth from Disparity:**
+Given corresponding points (xl, yl) and (xr, yr):
+- Disparity: d = xl - xr
+- Depth: Z = f × B / d
+- Higher disparity → closer object
+- Disparity inversely related to depth
+
+**Stereo Constraints:**
+- Corresponding points lie on same scanline (after rectification)
+- Disparity decreases with distance
+- Ordering constraint: relative order preserved
+- Uniqueness: one-to-one correspondence
+
+5.2 Camera Models and Calibration
+----------------------------------
+**Pinhole Camera Model:**
+[u]   [fx  0  cx] [X]
+[v] = [ 0 fy  cy] [Y]
+[1]   [ 0  0   1] [Z]
+
+where (fx, fy) = focal lengths, (cx, cy) = principal point
+
+**Stereo Camera Parameters:**
+- Intrinsic parameters: K_left, K_right
+- Extrinsic parameters: R (rotation), t (translation)
+- Baseline: B = ||t||
+- Rectification: align epipolar lines horizontally
+
+**Calibration Process:**
+1. Capture calibration patterns (checkerboards)
+2. Detect corner correspondences
+3. Estimate intrinsic parameters for each camera
+4. Estimate relative pose between cameras
+5. Compute rectification transformations
+
+5.3 Stereo Rectification
+------------------------
+**Rectification Goals:**
+- Make epipolar lines horizontal
+- Same y-coordinates for corresponding points
+- Simplify stereo matching to 1D search
+- Minimize image distortion
+
+**Rectification Algorithm:**
+1. Compute essential matrix: E = [t]×R
+2. Find epipole positions in both images
+3. Compute rectification rotations
+4. Apply homography transformations
+5. Generate rectified image pair
+
+================================================================================
+6. EPIPOLAR GEOMETRY
+================================================================================
+
+6.1 Fundamental Matrix
+----------------------
+**Epipolar Constraint:**
+For corresponding points p1 = [u1, v1, 1]ᵀ and p2 = [u2, v2, 1]ᵀ:
+p2ᵀ F p1 = 0
+
+where F is the 3×3 fundamental matrix
+
+**Properties of F:**
+- Rank 2 (det(F) = 0)
+- 7 degrees of freedom
+- Relates image coordinates directly
+- Independent of camera intrinsics
+
+**Epipolar Lines:**
+- Line in image 2 corresponding to point in image 1: l2 = F p1
+- Line in image 1 corresponding to point in image 2: l1 = Fᵀ p2
+- Corresponding point must lie on epipolar line
+
+6.2 Essential Matrix
+--------------------
+**Essential Matrix Definition:**
+E = [t]×R = K2ᵀ F K1
+
+where K1, K2 are camera intrinsic matrices
+
+**Properties of E:**
+- 5 degrees of freedom
+- Two equal singular values, one zero
+- Relates normalized image coordinates
+- Encodes relative camera pose
+
+**Decomposition:**
+From E, recover R and t (up to scale):
+- SVD: E = U Σ Vᵀ
+- Two possible rotations and translations
+- Use additional point to resolve ambiguity
+
+6.3 Homography
+--------------
+**Planar Scenes:**
+For points on plane π: H relates corresponding points
+p2 = H p1
+
+**Homography Estimation:**
+- Minimum 4 point correspondences
+- Direct Linear Transformation (DLT)
+- Normalized DLT for better numerical stability
+- 8 degrees of freedom
+
+**Applications:**
+- Image rectification
+- Plane detection and tracking
+- Augmented reality registration
+- Image mosaicking
+
+================================================================================
+7. STEREO CORRESPONDENCE AND MATCHING
+================================================================================
+
+7.1 Block Matching Algorithms
+------------------------------
+**Sum of Squared Differences (SSD):**
+SSD(d) = ΣΣ[Il(x+i,y+j) - Ir(x-d+i,y+j)]²
+
+**Normalized Cross-Correlation (NCC):**
+NCC(d) = ΣΣ[Il(x+i,y+j) × Ir(x-d+i,y+j)] / √(ΣIl² × ΣIr²)
+
+**Sum of Absolute Differences (SAD):**
+SAD(d) = ΣΣ|Il(x+i,y+j) - Ir(x-d+i,y+j)|
+
+**Census Transform:**
+- Binary descriptor based on intensity comparisons
+- Robust to illumination changes
+- Hamming distance for matching
+- Good performance in textured regions
+
+7.2 Dynamic Programming
+-----------------------
+**Scanline Optimization:**
+- Treat each scanline independently
+- Dynamic programming for optimal path
+- Ordering constraint enforcement
+- Occlusion handling
+
+**Energy Function:**
+E = Σ C(p,dp) + Σ P1[|dp - dq| = 1] + Σ P2[|dp - dq| > 1]
+
+where C(p,dp) = matching cost
+      P1, P2 = smoothness penalties
+
+**Viterbi Algorithm:**
+- Forward pass: compute minimum cost paths
+- Backward pass: traceback optimal disparities
+- Handle occlusions and ordering violations
+
+7.3 Global Optimization Methods
+-------------------------------
+**Graph Cuts:**
+- Model stereo as energy minimization
+- α-expansion and α-β-swap algorithms
+- Handle smoothness constraints
+- Near-optimal solutions
+
+**Belief Propagation:**
+- Message passing on factor graphs
+- Iterative cost aggregation
+- Good performance on textured regions
+- Computationally intensive
+
+**Semi-Global Matching (SGM):**
+- Aggregate costs along multiple paths
+- Fast approximation to global optimization
+- Real-time capable implementations
+- Good balance of quality and speed
+
+================================================================================
+8. 3D RECONSTRUCTION FROM STEREO
+================================================================================
+
+8.1 Triangulation
+-----------------
+**Linear Triangulation:**
+Given corresponding points p1, p2 and camera matrices P1, P2:
+
+Solve: p1 × (P1 X) = 0
+       p2 × (P2 X) = 0
+
+where X is the 3D point
+
+**Mid-Point Method:**
+- Find closest points on two rays
+- Average for 3D position
+- Simple but not optimal
+
+**Optimal Triangulation:**
+- Minimize reprojection error
+- Corrected correspondences
+- Iterative refinement
+- Higher accuracy
+
+8.2 Dense Reconstruction
+------------------------
+**Disparity to Depth Conversion:**
+For rectified stereo with baseline B and focal length f:
+Z(x,y) = f × B / d(x,y)
+
+**Point Cloud Generation:**
+X = (x - cx) × Z / fx
+Y = (y - cy) × Z / fy
+Z = depth value
+
+**Mesh Generation:**
+- Delaunay triangulation
+- Poisson surface reconstruction
+- Marching cubes for voxel data
+- Surface smoothing and filtering
+
+8.3 Quality Assessment
+----------------------
+**Disparity Quality:**
+- Left-right consistency check
+- Peak sharpness in matching cost
+- Texture strength analysis
+- Confidence measures
+
+**3D Point Validation:**
+- Reprojection error thresholds
+- Statistical outlier removal
+- Neighborhood consistency
+- Range validation
+
+================================================================================
+9. MULTI-VIEW GEOMETRY
+================================================================================
+
+9.1 Three-View Geometry
+-----------------------
+**Trifocal Tensor:**
+- Generalization of fundamental matrix
+- Relates three views simultaneously
+- 18 degrees of freedom
+- Trilinear constraints
+
+**Applications:**
+- Three-view reconstruction
+- View synthesis
+- Camera motion estimation
+- Point track validation
+
+9.2 Bundle Adjustment
+---------------------
+**Problem Formulation:**
+Minimize reprojection error across all views:
+min Σᵢⱼ ||πᵢ(Xⱼ) - xᵢⱼ||²
+
+where πᵢ projects 3D point Xⱼ to image i
+
+**Sparse Bundle Adjustment:**
+- Levenberg-Marquardt optimization
+- Exploit sparse structure
+- Schur complement for efficiency
+- Real-time capable versions
+
+**Robust Bundle Adjustment:**
+- Handle outliers in correspondences
+- Robust loss functions (Huber, Cauchy)
+- Iterative reweighting
+- RANSAC-based approaches
+
+9.3 Structure from Motion (SfM)
+-------------------------------
+**Sequential SfM:**
+1. Initialize with two-view reconstruction
+2. Add views incrementally
+3. Triangulate new points
+4. Bundle adjustment refinement
+5. Loop detection and closure
+
+**Global SfM:**
+- Estimate all camera poses simultaneously
+- Rotation averaging
+- Translation averaging
+- Robust to initialization
+
+**Incremental vs. Global:**
+- Incremental: more robust, slower
+- Global: faster, requires good initialization
+- Hybrid approaches combine benefits
+
+================================================================================
+10. PYTHON IMPLEMENTATION EXAMPLES
+================================================================================
+
+```python
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from sklearn.cluster import DBSCAN
+import os
+
+class FeatureMatcher:
+    """Feature detection and matching implementation"""
+    
+    def __init__(self, detector_type='SIFT', matcher_type='BF'):
+        self.detector_type = detector_type
+        self.matcher_type = matcher_type
+        self.detector = self._create_detector()
+        self.matcher = self._create_matcher()
+    
+    def _create_detector(self):
+        """Create feature detector based on type"""
+        if self.detector_type == 'SIFT':
+            return cv2.SIFT_create()
+        elif self.detector_type == 'SURF':
+            return cv2.xfeatures2d.SURF_create() if hasattr(cv2, 'xfeatures2d') else None
+        elif self.detector_type == 'ORB':
+            return cv2.ORB_create()
+        elif self.detector_type == 'AKAZE':
+            return cv2.AKAZE_create()
+        else:
+            raise ValueError(f"Unknown detector type: {self.detector_type}")
+    
+    def _create_matcher(self):
+        """Create feature matcher based on type"""
+        if self.matcher_type == 'BF':
+            if self.detector_type == 'ORB':
+                return cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            else:
+                return cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+        elif self.matcher_type == 'FLANN':
+            if self.detector_type == 'ORB':
+                FLANN_INDEX_LSH = 6
+                index_params = dict(algorithm=FLANN_INDEX_LSH,
+                                  table_number=6,
+                                  key_size=12,
+                                  multi_probe_level=1)
+            else:
+                FLANN_INDEX_KDTREE = 1
+                index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+            
+            search_params = dict(checks=50)
+            return cv2.FlannBasedMatcher(index_params, search_params)
+        else:
+            raise ValueError(f"Unknown matcher type: {self.matcher_type}")
+    
+    def detect_and_describe(self, image):
+        """Detect keypoints and compute descriptors"""
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image
+        
+        keypoints, descriptors = self.detector.detectAndCompute(gray, None)
+        return keypoints, descriptors
+    
+    def match_features(self, desc1, desc2, ratio_threshold=0.7):
+        """Match features between two descriptor sets"""
+        if self.matcher_type == 'BF' and hasattr(self.matcher, 'match'):
+            matches = self.matcher.match(desc1, desc2)
+            matches = sorted(matches, key=lambda x: x.distance)
+            return matches
+        else:
+            # For FLANN or ratio test
+            raw_matches = self.matcher.knnMatch(desc1, desc2, k=2)
+            matches = []
+            
+            for m in raw_matches:
+                if len(m) == 2 and m[0].distance < ratio_threshold * m[1].distance:
+                    matches.append(m[0])
+            
+            return matches
+    
+    def filter_matches_homography(self, kp1, kp2, matches, 
+                                 reproj_threshold=5.0, confidence=0.99):
+        """Filter matches using homography with RANSAC"""
+        if len(matches) < 4:
+            return [], None
+        
+        # Extract matched points
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+        
+        # Find homography with RANSAC
+        homography, mask = cv2.findHomography(src_pts, dst_pts, 
+                                            cv2.RANSAC, reproj_threshold,
+                                            confidence=confidence)
+        
+        # Filter matches
+        matches_filtered = [matches[i] for i in range(len(matches)) if mask[i]]
+        
+        return matches_filtered, homography
+    
+    def filter_matches_fundamental(self, kp1, kp2, matches,
+                                  reproj_threshold=1.0, confidence=0.99):
+        """Filter matches using fundamental matrix with RANSAC"""
+        if len(matches) < 8:
+            return [], None
+        
+        # Extract matched points
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in matches])
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches])
+        
+        # Find fundamental matrix with RANSAC
+        fundamental_matrix, mask = cv2.findFundamentalMat(
+            src_pts, dst_pts, cv2.FM_RANSAC, 
+            reproj_threshold, confidence)
+        
+        # Filter matches
+        mask = mask.ravel()
+        matches_filtered = [matches[i] for i in range(len(matches)) if mask[i]]
+        
+        return matches_filtered, fundamental_matrix
+
+class StereoVision:
+    """Stereo vision implementation"""
+    
+    def __init__(self):
+        self.camera_matrix_left = None
+        self.camera_matrix_right = None
+        self.dist_coeffs_left = None
+        self.dist_coeffs_right = None
+        self.R = None
+        self.T = None
+        self.R1 = None
+        self.R2 = None
+        self.P1 = None
+        self.P2 = None
+        self.Q = None
+        self.roi1 = None
+        self.roi2 = None
+    
+    def calibrate_stereo(self, calibration_images_left, calibration_images_right,
+                        pattern_size=(9, 6), square_size=1.0):
+        """Calibrate stereo camera system"""
+        
+        # Prepare object points
+        pattern_points = np.zeros((pattern_size[0] * pattern_size[1], 3), np.float32)
+        pattern_points[:, :2] = np.mgrid[0:pattern_size[0], 0:pattern_size[1]].T.reshape(-1, 2)
+        pattern_points *= square_size
+        
+        object_points = []
+        image_points_left = []
+        image_points_right = []
+        
+        for img_left, img_right in zip(calibration_images_left, calibration_images_right):
+            gray_left = cv2.cvtColor(img_left, cv2.COLOR_RGB2GRAY)
+            gray_right = cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY)
+            
+            # Find chessboard corners
+            ret_left, corners_left = cv2.findChessboardCorners(gray_left, pattern_size)
+            ret_right, corners_right = cv2.findChessboardCorners(gray_right, pattern_size)
+            
+            if ret_left and ret_right:
+                # Refine corner positions
+                corners_left = cv2.cornerSubPix(gray_left, corners_left, (11, 11), (-1, -1),
+                                              (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+                corners_right = cv2.cornerSubPix(gray_right, corners_right, (11, 11), (-1, -1),
+                                               (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+                
+                object_points.append(pattern_points)
+                image_points_left.append(corners_left)
+                image_points_right.append(corners_right)
+        
+        image_size = gray_left.shape[::-1]
+        
+        # Calibrate individual cameras
+        ret_left, self.camera_matrix_left, self.dist_coeffs_left, _, _ = \
+            cv2.calibrateCamera(object_points, image_points_left, image_size, None, None)
+        
+        ret_right, self.camera_matrix_right, self.dist_coeffs_right, _, _ = \
+            cv2.calibrateCamera(object_points, image_points_right, image_size, None, None)
+        
+        # Stereo calibration
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-5)
+        
+        ret, _, _, _, _, self.R, self.T, E, F = cv2.stereoCalibrate(
+            object_points, image_points_left, image_points_right,
+            self.camera_matrix_left, self.dist_coeffs_left,
+            self.camera_matrix_right, self.dist_coeffs_right,
+            image_size, criteria=criteria,
+            flags=cv2.CALIB_FIX_INTRINSIC)
+        
+        # Stereo rectification
+        self.R1, self.R2, self.P1, self.P2, self.Q, self.roi1, self.roi2 = \
+            cv2.stereoRectify(self.camera_matrix_left, self.dist_coeffs_left,
+                             self.camera_matrix_right, self.dist_coeffs_right,
+                             image_size, self.R, self.T)
+        
+        return ret
+    
+    def rectify_images(self, img_left, img_right):
+        """Rectify stereo image pair"""
+        
+        # Generate rectification maps
+        map1_left, map2_left = cv2.initUndistortRectifyMap(
+            self.camera_matrix_left, self.dist_coeffs_left, self.R1, self.P1,
+            img_left.shape[:2][::-1], cv2.CV_16SC2)
+        
+        map1_right, map2_right = cv2.initUndistortRectifyMap(
+            self.camera_matrix_right, self.dist_coeffs_right, self.R2, self.P2,
+            img_right.shape[:2][::-1], cv2.CV_16SC2)
+        
+        # Apply rectification
+        img_left_rect = cv2.remap(img_left, map1_left, map2_left, cv2.INTER_LINEAR)
+        img_right_rect = cv2.remap(img_right, map1_right, map2_right, cv2.INTER_LINEAR)
+        
+        return img_left_rect, img_right_rect
+    
+    def compute_disparity(self, img_left, img_right, method='SGBM'):
+        """Compute disparity map from rectified stereo pair"""
+        
+        if len(img_left.shape) == 3:
+            gray_left = cv2.cvtColor(img_left, cv2.COLOR_RGB2GRAY)
+            gray_right = cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY)
+        else:
+            gray_left = img_left
+            gray_right = img_right
+        
+        if method == 'BM':
+            # Block Matching
+            stereo = cv2.StereoBM_create(numDisparities=16*5, blockSize=15)
+            disparity = stereo.compute(gray_left, gray_right)
+        
+        elif method == 'SGBM':
+            # Semi-Global Block Matching
+            window_size = 3
+            min_disp = 0
+            num_disp = 16*5
+            
+            stereo = cv2.StereoSGBM_create(
+                minDisparity=min_disp,
+                numDisparities=num_disp,
+                blockSize=window_size,
+                P1=8 * 3 * window_size**2,
+                P2=32 * 3 * window_size**2,
+                disp12MaxDiff=1,
+                uniquenessRatio=15,
+                speckleWindowSize=0,
+                speckleRange=2,
+                preFilterCap=63,
+                mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
+            )
+            
+            disparity = stereo.compute(gray_left, gray_right).astype(np.float32) / 16.0
+        
+        return disparity
+    
+    def disparity_to_depth(self, disparity):
+        """Convert disparity to depth using Q matrix"""
+        if self.Q is None:
+            raise ValueError("Stereo system not calibrated")
+        
+        # Reproject to 3D
+        points_3d = cv2.reprojectImageTo3D(disparity, self.Q)
+        
+        # Extract depth (Z coordinate)
+        depth = points_3d[:, :, 2]
+        
+        # Handle invalid disparities
+        depth[disparity <= 0] = 0
+        
+        return depth, points_3d
+
+class EpipolarGeometry:
+    """Epipolar geometry utilities"""
+    
+    @staticmethod
+    def compute_fundamental_matrix(pts1, pts2, method=cv2.FM_8POINT):
+        """Compute fundamental matrix from point correspondences"""
+        F, mask = cv2.findFundamentalMat(pts1, pts2, method)
+        return F, mask
+    
+    @staticmethod
+    def compute_essential_matrix(pts1, pts2, K1, K2):
+        """Compute essential matrix from point correspondences"""
+        # Normalize points
+        pts1_norm = cv2.undistortPoints(pts1.reshape(-1, 1, 2), K1, None).reshape(-1, 2)
+        pts2_norm = cv2.undistortPoints(pts2.reshape(-1, 1, 2), K2, None).reshape(-1, 2)
+        
+        E, mask = cv2.findEssentialMat(pts1_norm, pts2_norm, np.eye(3))
+        return E, mask
+    
+    @staticmethod
+    def decompose_essential_matrix(E):
+        """Decompose essential matrix to rotation and translation"""
+        U, S, Vt = np.linalg.svd(E)
+        
+        # Ensure proper rotation matrix
+        if np.linalg.det(U) < 0:
+            U[:, -1] *= -1
+        if np.linalg.det(Vt) < 0:
+            Vt[-1, :] *= -1
+        
+        W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+        
+        # Two possible rotations
+        R1 = U @ W @ Vt
+        R2 = U @ W.T @ Vt
+        
+        # Translation (up to scale)
+        t = U[:, 2]
+        
+        return [(R1, t), (R1, -t), (R2, t), (R2, -t)]
+    
+    @staticmethod
+    def triangulate_points(pts1, pts2, P1, P2):
+        """Triangulate 3D points from correspondences"""
+        points_4d = cv2.triangulatePoints(P1, P2, pts1.T, pts2.T)
+        points_3d = points_4d[:3] / points_4d[3]
+        return points_3d.T
+
+def demonstrate_feature_matching():
+    """Demonstrate feature matching pipeline"""
+    
+    # Create test images or load real images
+    img1 = create_test_image_1()
+    img2 = create_test_image_2()
+    
+    # Initialize feature matcher
+    matcher = FeatureMatcher(detector_type='SIFT', matcher_type='FLANN')
+    
+    # Detect and describe features
+    kp1, desc1 = matcher.detect_and_describe(img1)
+    kp2, desc2 = matcher.detect_and_describe(img2)
+    
+    print(f"Found {len(kp1)} features in image 1")
+    print(f"Found {len(kp2)} features in image 2")
+    
+    # Match features
+    matches = matcher.match_features(desc1, desc2)
+    print(f"Found {len(matches)} raw matches")
+    
+    # Filter matches using homography
+    matches_filtered, homography = matcher.filter_matches_homography(kp1, kp2, matches)
+    print(f"After RANSAC filtering: {len(matches_filtered)} matches")
+    
+    # Visualize matches
+    img_matches = cv2.drawMatches(img1, kp1, img2, kp2, matches_filtered, None,
+                                 flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    
+    plt.figure(figsize=(15, 8))
+    plt.subplot(2, 2, 1)
+    plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
+    plt.title('Image 1')
+    plt.axis('off')
+    
+    plt.subplot(2, 2, 2)
+    plt.imshow(cv2.cvtColor(img2, cv2.COLOR_BGR2RGB))
+    plt.title('Image 2')
+    plt.axis('off')
+    
+    plt.subplot(2, 1, 2)
+    plt.imshow(cv2.cvtColor(img_matches, cv2.COLOR_BGR2RGB))
+    plt.title(f'Feature Matches ({len(matches_filtered)} matches)')
+    plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+def demonstrate_stereo_vision():
+    """Demonstrate stereo vision pipeline"""
+    
+    # Create or load stereo image pair
+    img_left, img_right = create_stereo_pair()
+    
+    # Initialize stereo vision
+    stereo = StereoVision()
+    
+    # For demonstration, assume calibration is done
+    # In practice, you would call stereo.calibrate_stereo() with calibration images
+    
+    # Compute disparity
+    disparity = stereo.compute_disparity(img_left, img_right, method='SGBM')
+    
+    # Normalize disparity for visualization
+    disparity_norm = cv2.normalize(disparity, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+    
+    # Visualize results
+    plt.figure(figsize=(15, 5))
+    
+    plt.subplot(1, 3, 1)
+    plt.imshow(cv2.cvtColor(img_left, cv2.COLOR_BGR2RGB))
+    plt.title('Left Image')
+    plt.axis('off')
+    
+    plt.subplot(1, 3, 2)
+    plt.imshow(cv2.cvtColor(img_right, cv2.COLOR_BGR2RGB))
+    plt.title('Right Image')
+    plt.axis('off')
+    
+    plt.subplot(1, 3, 3)
+    plt.imshow(disparity_norm, cmap='jet')
+    plt.title('Disparity Map')
+    plt.colorbar()
+    plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+def create_test_image_1():
+    """Create first test image"""
+    img = np.ones((400, 600, 3), dtype=np.uint8) * 128
+    
+    # Add some features
+    cv2.rectangle(img, (100, 100), (200, 200), (255, 0, 0), -1)
+    cv2.circle(img, (400, 150), 50, (0, 255, 0), -1)
+    cv2.ellipse(img, (300, 300), (80, 40), 45, 0, 360, (0, 0, 255), -1)
+    
+    # Add noise and texture
+    noise = np.random.normal(0, 20, img.shape)
+    img = np.clip(img + noise, 0, 255).astype(np.uint8)
+    
+    return img
+
+def create_test_image_2():
+    """Create second test image (transformed version of first)"""
+    img1 = create_test_image_1()
+    
+    # Apply transformation (rotation + translation)
+    center = (img1.shape[1]//2, img1.shape[0]//2)
+    angle = 15
+    scale = 0.9
+    
+    M = cv2.getRotationMatrix2D(center, angle, scale)
+    M[0, 2] += 50  # translation
+    M[1, 2] += 30
+    
+    img2 = cv2.warpAffine(img1, M, (img1.shape[1], img1.shape[0]))
+    
+    return img2
+
+def create_stereo_pair():
+    """Create synthetic stereo image pair"""
+    # Create base image
+    img = np.ones((300, 400, 3), dtype=np.uint8) * 128
+    
+    # Add objects at different depths
+    cv2.rectangle(img, (50, 50), (150, 150), (255, 0, 0), -1)
+    cv2.circle(img, (300, 100), 40, (0, 255, 0), -1)
+    cv2.rectangle(img, (200, 200), (350, 250), (0, 0, 255), -1)
+    
+    # Create right image by shifting objects based on depth
+    img_left = img.copy()
+    img_right = img.copy()
+    
+    # Simulate different disparities for different depths
+    # Closer objects have larger disparity (more shift)
+    
+    # Red rectangle (close) - shift by 20 pixels
+    roi = img_left[50:150, 50:150]
+    img_right[50:150, 30:130] = roi
+    img_right[50:150, 130:150] = 128  # Fill gap
+    
+    # Green circle (medium distance) - shift by 10 pixels
+    mask = np.zeros(img.shape[:2], dtype=np.uint8)
+    cv2.circle(mask, (300, 100), 40, 255, -1)
+    img_right[mask > 0] = 128  # Clear original position
+    cv2.circle(img_right, (290, 100), 40, (0, 255, 0), -1)  # Draw at new position
+    
+    # Blue rectangle (far) - shift by 5 pixels
+    roi = img_left[200:250, 200:350]
+    img_right[200:250, 195:345] = roi
+    img_right[200:250, 345:350] = 128  # Fill gap
+    
+    return img_left, img_right
+
+# Example usage
+if __name__ == "__main__":
+    print("Demonstrating Feature Matching...")
+    demonstrate_feature_matching()
+    
+    print("\nDemonstrating Stereo Vision...")
+    demonstrate_stereo_vision()
+```
+
+================================================================================
+11. APPLICATIONS AND PERFORMANCE EVALUATION
+================================================================================
+
+11.1 Applications
+-----------------
+**Autonomous Navigation:**
+- Visual odometry for robot/vehicle localization
+- Obstacle detection and avoidance
+- Path planning in 3D environments
+- SLAM (Simultaneous Localization and Mapping)
+
+**3D Reconstruction:**
+- Cultural heritage documentation
+- Medical imaging and surgery planning
+- Industrial inspection and quality control
+- Reverse engineering
+
+**Augmented Reality:**
+- Marker-less tracking
+- Environment mapping
+- Occlusion handling
+- Real-time pose estimation
+
+**Surveillance and Security:**
+- Multi-camera tracking
+- 3D scene understanding
+- Intrusion detection
+- Crowd analysis
+
+11.2 Performance Metrics
+------------------------
+**Accuracy Metrics:**
+- Reprojection error: ||π(X) - x||
+- 3D reconstruction error: ||X_true - X_estimated||
+- Relative pose error
+- Scale drift in monocular systems
+
+**Efficiency Metrics:**
+- Processing time per frame
+- Memory usage
+- Real-time capability
+- Scalability with image size
+
+**Robustness Metrics:**
+- Performance under illumination changes
+- Handling of occlusions
+- Noise sensitivity
+- Failure detection and recovery
+
+11.3 Benchmarks and Datasets
+-----------------------------
+**Feature Matching:**
+- Oxford VGG datasets
+- HPatches benchmark
+- ETH3D dataset
+- KITTI stereo/flow
+
+**Stereo Vision:**
+- Middlebury stereo datasets
+- KITTI stereo benchmark
+- ETH3D high-res multi-view
+- SceneFlow synthetic dataset
+
+**Multi-View Reconstruction:**
+- DTU multi-view dataset
+- Tanks and Temples benchmark
+- BlendedMVS dataset
+- PhotoTourism datasets
+
+================================================================================
+12. ADVANCED TOPICS AND MODERN APPROACHES
+================================================================================
+
+12.1 Deep Learning for Feature Matching
+---------------------------------------
+**Learned Descriptors:**
+- HardNet: metric learning for patch descriptors
+- SOSNet: second-order similarity regularization
+- D2-Net: joint detection and description
+- SuperPoint: self-supervised interest point detection
+
+**End-to-End Matching:**
+- SuperGlue: graph neural network for matching
+- LoFTR: detector-free local feature matching
+- DKM: dual-softmax matching
+- Efficient attention mechanisms
+
+**Advantages:**
+- Better performance on challenging scenarios
+- Learned from large datasets
+- End-to-end optimization
+- Robustness to domain changes
+
+12.2 Learning-Based Stereo
+--------------------------
+**CNN-Based Disparity Estimation:**
+- DispNet: end-to-end disparity prediction
+- PSMNet: pyramid stereo matching network
+- GwcNet: group-wise correlation stereo network
+- Real-time architectures
+
+**Self-Supervised Learning:**
+- Monodepth: unsupervised single image depth
+- Stereo training without ground truth
+- Photometric loss functions
+- Geometric consistency constraints
+
+12.3 Neural Radiance Fields (NeRF)
+----------------------------------
+**Volumetric Scene Representation:**
+- Continuous scene representation
+- Novel view synthesis
+- High-quality 3D reconstruction
+- Handling of complex lighting effects
+
+**Applications:**
+- 3D content creation
+- Virtual reality
+- Digital twins
+- Scientific visualization
+
+12.4 Real-Time Systems
+---------------------
+**SLAM Systems:**
+- ORB-SLAM: feature-based SLAM
+- DSO: direct sparse odometry
+- DPVO: deep patch visual odometry
+- Kimera: metric-semantic SLAM
+
+**Mobile Platforms:**
+- ARCore/ARKit implementations
+- Embedded vision processors
+- Edge computing optimizations
+- Power-efficient algorithms
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Feature matching and stereo vision are fundamental components of modern computer vision systems. Key insights:
+
+**Feature Matching:**
+- Robust descriptors (SIFT, SURF, ORB) enable reliable correspondences
+- Geometric verification (RANSAC, homography, fundamental matrix) filters outliers
+- Deep learning approaches show superior performance on challenging data
+- Real-time applications require careful algorithm selection
+
+**Stereo Vision:**
+- Calibrated stereo systems provide accurate depth estimation
+- Epipolar geometry constrains correspondence search
+- Global optimization methods improve reconstruction quality
+- Integration with learning-based approaches shows promise
+
+**Modern Trends:**
+- Shift from hand-crafted to learned features
+- End-to-end optimization of matching pipelines
+- Integration with semantic understanding
+- Real-time deployment on mobile platforms
+
+These techniques continue to evolve with advances in deep learning, enabling new applications in autonomous systems, augmented reality, and 3D content creation.
+
+================================================================================
+REFERENCES AND FURTHER READING
+================================================================================
+
+1. Lowe, D.G. "Distinctive Image Features from Scale-Invariant Keypoints" (2004)
+2. Bay, H. et al. "SURF: Speeded Up Robust Features" (2006)
+3. Rublee, E. et al. "ORB: An Efficient Alternative to SIFT or SURF" (2011)
+4. Hartley, R. & Zisserman, A. "Multiple View Geometry in Computer Vision" (2003)
+5. Fischler, M.A. & Bolles, R.C. "Random Sample Consensus" (1981)
+6. Hirschmuller, H. "Stereo Processing by Semiglobal Matching" (2008)
+7. Scharstein, D. & Szeliski, R. "A Taxonomy and Evaluation of Dense Two-Frame Stereo" (2002)
+8. DeTone, D. et al. "SuperPoint: Self-Supervised Interest Point Detection" (2018)
+9. Sarlin, P.E. et al. "SuperGlue: Learning Feature Matching" (2020)
+10. Mur-Artal, R. et al. "ORB-SLAM: A Versatile and Accurate Monocular SLAM System" (2015) 

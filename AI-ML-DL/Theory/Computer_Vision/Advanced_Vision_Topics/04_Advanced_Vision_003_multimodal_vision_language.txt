@@ -1,0 +1,779 @@
+"""
+MULTIMODAL VISION-LANGUAGE UNDERSTANDING
+========================================
+
+This comprehensive guide covers vision-language models, cross-modal learning,
+and applications like image captioning and visual question answering.
+
+TABLE OF CONTENTS:
+1. Vision-Language Foundation Models
+2. CLIP and Contrastive Learning
+3. Image Captioning Models
+4. Visual Question Answering (VQA)
+5. Cross-Modal Retrieval
+6. Vision-Language Transformers
+7. Multimodal Fusion Techniques
+8. Advanced Applications
+
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+from transformers import CLIPModel, CLIPProcessor, BlipProcessor, BlipForConditionalGeneration
+import numpy as np
+from typing import List, Tuple, Dict, Optional
+import math
+
+# =============================================================================
+# 1. VISION-LANGUAGE FOUNDATION MODELS
+# =============================================================================
+
+class VisionLanguageFoundation:
+    """
+    Foundation models for vision-language understanding.
+    These models learn joint representations of visual and textual information.
+    """
+    
+    def __init__(self):
+        # Key architectures
+        self.architectures = {
+            'CLIP': 'Contrastive Language-Image Pre-training',
+            'ALIGN': 'Large-scale noisy text-image pairs',
+            'BLIP': 'Bootstrapping Language-Image Pre-training',
+            'ALBEF': 'Align before Fuse',
+            'VinVL': 'Vision and Language understanding',
+            'UNITER': 'Universal Image-Text Representation',
+            'ViLBERT': 'Vision-and-Language BERT',
+            'LXMERT': 'Learning Cross-Modality Encoder Representations'
+        }
+    
+    def get_model_comparison(self):
+        """Compare different vision-language models."""
+        return {
+            'CLIP': {
+                'strength': 'Zero-shot transfer, scalable',
+                'weakness': 'Limited fine-grained understanding',
+                'use_case': 'Image classification, retrieval'
+            },
+            'BLIP': {
+                'strength': 'Bootstrapped learning, versatile',
+                'weakness': 'Computational overhead',
+                'use_case': 'Captioning, VQA'
+            },
+            'ViLBERT': {
+                'strength': 'Strong cross-modal reasoning',
+                'weakness': 'Requires object detection',
+                'use_case': 'VQA, referring expressions'
+            }
+        }
+
+# =============================================================================
+# 2. CLIP AND CONTRASTIVE LEARNING
+# =============================================================================
+
+class CLIPModel(nn.Module):
+    """
+    Simplified CLIP implementation for understanding contrastive learning.
+    """
+    
+    def __init__(self, embed_dim=512, image_resolution=224, vocab_size=49408):
+        super().__init__()
+        
+        # Vision encoder (simplified)
+        self.visual = nn.Sequential(
+            nn.Conv2d(3, 64, 7, stride=2, padding=3),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((7, 7)),
+            nn.Flatten(),
+            nn.Linear(64 * 7 * 7, embed_dim)
+        )
+        
+        # Text encoder (simplified)
+        self.token_embedding = nn.Embedding(vocab_size, 512)
+        self.text_transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=512, nhead=8),
+            num_layers=6
+        )
+        self.text_projection = nn.Linear(512, embed_dim)
+        
+        # Learnable temperature parameter
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        
+    def encode_image(self, image):
+        return F.normalize(self.visual(image), dim=-1)
+    
+    def encode_text(self, text):
+        x = self.token_embedding(text)
+        x = self.text_transformer(x.permute(1, 0, 2))
+        x = self.text_projection(x[0])  # Take [CLS] token
+        return F.normalize(x, dim=-1)
+    
+    def forward(self, image, text):
+        image_features = self.encode_image(image)
+        text_features = self.encode_text(text)
+        
+        # Compute similarity
+        logit_scale = self.logit_scale.exp()
+        logits_per_image = logit_scale * image_features @ text_features.t()
+        logits_per_text = logits_per_image.t()
+        
+        return logits_per_image, logits_per_text
+
+class ContrastiveLoss(nn.Module):
+    """Contrastive loss for CLIP-style training."""
+    
+    def __init__(self, temperature=0.07):
+        super().__init__()
+        self.temperature = temperature
+    
+    def forward(self, logits_per_image, logits_per_text):
+        batch_size = logits_per_image.shape[0]
+        labels = torch.arange(batch_size, device=logits_per_image.device)
+        
+        loss_i = F.cross_entropy(logits_per_image / self.temperature, labels)
+        loss_t = F.cross_entropy(logits_per_text / self.temperature, labels)
+        
+        return (loss_i + loss_t) / 2
+
+# =============================================================================
+# 3. IMAGE CAPTIONING MODELS
+# =============================================================================
+
+class ImageCaptioningModel(nn.Module):
+    """
+    Encoder-decoder model for image captioning.
+    """
+    
+    def __init__(self, vocab_size, embed_dim=512, hidden_dim=512):
+        super().__init__()
+        
+        # Image encoder (CNN backbone)
+        self.image_encoder = nn.Sequential(
+            nn.Conv2d(3, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((14, 14)),
+            nn.Flatten(),
+            nn.Linear(64 * 14 * 14, embed_dim)
+        )
+        
+        # Text decoder (LSTM)
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.lstm = nn.LSTM(embed_dim, hidden_dim, batch_first=True)
+        self.output_projection = nn.Linear(hidden_dim, vocab_size)
+        
+        # Attention mechanism
+        self.attention = nn.MultiheadAttention(hidden_dim, 8, batch_first=True)
+        
+    def forward(self, images, captions=None, max_length=20):
+        batch_size = images.size(0)
+        
+        # Encode images
+        image_features = self.image_encoder(images)  # (batch_size, embed_dim)
+        
+        if self.training and captions is not None:
+            # Teacher forcing during training
+            embedded = self.embedding(captions)
+            lstm_out, _ = self.lstm(embedded)
+            
+            # Apply attention
+            attended_out, _ = self.attention(lstm_out, 
+                                           image_features.unsqueeze(1).repeat(1, lstm_out.size(1), 1),
+                                           image_features.unsqueeze(1).repeat(1, lstm_out.size(1), 1))
+            
+            output = self.output_projection(attended_out)
+            return output
+        else:
+            # Inference mode - autoregressive generation
+            return self.generate(image_features, max_length)
+    
+    def generate(self, image_features, max_length):
+        batch_size = image_features.size(0)
+        device = image_features.device
+        
+        # Start with <BOS> token
+        outputs = torch.zeros(batch_size, max_length, dtype=torch.long, device=device)
+        outputs[:, 0] = 1  # Assume <BOS> token is 1
+        
+        hidden = None
+        
+        for t in range(1, max_length):
+            embedded = self.embedding(outputs[:, t-1:t])
+            lstm_out, hidden = self.lstm(embedded, hidden)
+            
+            # Apply attention
+            attended_out, _ = self.attention(lstm_out,
+                                           image_features.unsqueeze(1),
+                                           image_features.unsqueeze(1))
+            
+            logits = self.output_projection(attended_out)
+            predicted = logits.argmax(dim=-1)
+            outputs[:, t] = predicted.squeeze(1)
+        
+        return outputs
+
+class ShowAttendTellModel(nn.Module):
+    """
+    Show, Attend and Tell model with visual attention.
+    """
+    
+    def __init__(self, vocab_size, embed_dim=512, hidden_dim=512, feature_dim=2048):
+        super().__init__()
+        
+        # CNN features (assume pre-extracted)
+        self.feature_projection = nn.Linear(feature_dim, hidden_dim)
+        
+        # LSTM decoder
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.lstm_cell = nn.LSTMCell(embed_dim + hidden_dim, hidden_dim)
+        
+        # Attention mechanism
+        self.attention = nn.Linear(hidden_dim, feature_dim)
+        self.context_vector = nn.Linear(feature_dim, 1)
+        
+        # Output layer
+        self.output = nn.Linear(hidden_dim, vocab_size)
+        
+    def forward(self, features, captions=None):
+        batch_size, num_features, feature_dim = features.shape
+        
+        # Project features
+        projected_features = self.feature_projection(features)
+        
+        if captions is not None:
+            seq_length = captions.size(1)
+            outputs = torch.zeros(batch_size, seq_length, vocab_size, device=features.device)
+            
+            # Initialize hidden states
+            h = torch.zeros(batch_size, hidden_dim, device=features.device)
+            c = torch.zeros(batch_size, hidden_dim, device=features.device)
+            
+            for t in range(seq_length):
+                # Attention weights
+                attention_weights = self.compute_attention(h, projected_features)
+                context = (attention_weights.unsqueeze(2) * projected_features).sum(1)
+                
+                # LSTM step
+                if t == 0:
+                    lstm_input = torch.cat([self.embedding(captions[:, t]), context], 1)
+                else:
+                    lstm_input = torch.cat([self.embedding(captions[:, t]), context], 1)
+                
+                h, c = self.lstm_cell(lstm_input, (h, c))
+                outputs[:, t, :] = self.output(h)
+            
+            return outputs
+        
+    def compute_attention(self, hidden, features):
+        attention_scores = torch.tanh(self.attention(hidden.unsqueeze(1)) + features)
+        attention_weights = F.softmax(self.context_vector(attention_scores).squeeze(2), dim=1)
+        return attention_weights
+
+# =============================================================================
+# 4. VISUAL QUESTION ANSWERING (VQA)
+# =============================================================================
+
+class VQAModel(nn.Module):
+    """
+    Visual Question Answering model with multimodal fusion.
+    """
+    
+    def __init__(self, vocab_size, answer_vocab_size, embed_dim=512, hidden_dim=1024):
+        super().__init__()
+        
+        # Image encoder
+        self.image_encoder = nn.Sequential(
+            nn.Conv2d(3, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((7, 7)),
+            nn.Flatten(),
+            nn.Linear(64 * 7 * 7, embed_dim)
+        )
+        
+        # Question encoder
+        self.question_embedding = nn.Embedding(vocab_size, embed_dim)
+        self.question_lstm = nn.LSTM(embed_dim, hidden_dim//2, bidirectional=True, batch_first=True)
+        
+        # Multimodal fusion
+        self.fusion = nn.Sequential(
+            nn.Linear(embed_dim + hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(hidden_dim, hidden_dim//2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim//2, answer_vocab_size)
+        )
+        
+    def forward(self, images, questions, question_lengths):
+        # Encode images
+        image_features = self.image_encoder(images)
+        
+        # Encode questions
+        embedded_questions = self.question_embedding(questions)
+        
+        # Pack padded sequence for LSTM
+        packed_questions = nn.utils.rnn.pack_padded_sequence(
+            embedded_questions, question_lengths, batch_first=True, enforce_sorted=False
+        )
+        
+        packed_output, (hidden, _) = self.question_lstm(packed_questions)
+        
+        # Take the last hidden state
+        question_features = hidden[-1]  # Last layer, forward direction
+        
+        # Multimodal fusion
+        fused_features = torch.cat([image_features, question_features], dim=1)
+        answer_scores = self.fusion(fused_features)
+        
+        return answer_scores
+
+class AttentionVQA(nn.Module):
+    """
+    VQA model with attention mechanism.
+    """
+    
+    def __init__(self, vocab_size, answer_vocab_size, embed_dim=512, hidden_dim=1024):
+        super().__init__()
+        
+        # Image processing (assume pre-extracted features)
+        self.image_projection = nn.Linear(2048, hidden_dim)
+        
+        # Question processing
+        self.question_embedding = nn.Embedding(vocab_size, embed_dim)
+        self.question_gru = nn.GRU(embed_dim, hidden_dim, batch_first=True)
+        
+        # Attention mechanism
+        self.attention = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1)
+        )
+        
+        # Answer prediction
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(hidden_dim, answer_vocab_size)
+        )
+    
+    def forward(self, image_features, questions):
+        batch_size = image_features.size(0)
+        num_regions = image_features.size(1)
+        
+        # Project image features
+        projected_images = self.image_projection(image_features)
+        
+        # Process questions
+        embedded_questions = self.question_embedding(questions)
+        _, question_hidden = self.question_gru(embedded_questions)
+        question_features = question_hidden.squeeze(0)
+        
+        # Compute attention weights
+        attention_input = projected_images + question_features.unsqueeze(1)
+        attention_weights = F.softmax(self.attention(attention_input).squeeze(2), dim=1)
+        
+        # Weighted image features
+        attended_image = (attention_weights.unsqueeze(2) * projected_images).sum(1)
+        
+        # Combine image and question features
+        combined_features = torch.cat([attended_image, question_features], dim=1)
+        answer_scores = self.classifier(combined_features)
+        
+        return answer_scores, attention_weights
+
+# =============================================================================
+# 5. CROSS-MODAL RETRIEVAL
+# =============================================================================
+
+class CrossModalRetrieval:
+    """
+    Methods for cross-modal retrieval between images and text.
+    """
+    
+    def __init__(self, model):
+        self.model = model
+    
+    def image_to_text_retrieval(self, query_image, text_database, top_k=5):
+        """Retrieve most relevant texts for a given image."""
+        with torch.no_grad():
+            query_features = self.model.encode_image(query_image.unsqueeze(0))
+            text_features = torch.stack([self.model.encode_text(text) for text in text_database])
+            
+            similarities = torch.cosine_similarity(query_features, text_features)
+            top_indices = similarities.topk(top_k).indices
+            
+            return [(text_database[i], similarities[i].item()) for i in top_indices]
+    
+    def text_to_image_retrieval(self, query_text, image_database, top_k=5):
+        """Retrieve most relevant images for a given text."""
+        with torch.no_grad():
+            query_features = self.model.encode_text(query_text)
+            image_features = torch.stack([self.model.encode_image(img) for img in image_database])
+            
+            similarities = torch.cosine_similarity(query_features.unsqueeze(0), image_features)
+            top_indices = similarities.topk(top_k).indices
+            
+            return [(image_database[i], similarities[i].item()) for i in top_indices]
+
+# =============================================================================
+# 6. VISION-LANGUAGE TRANSFORMERS
+# =============================================================================
+
+class VisionLanguageTransformer(nn.Module):
+    """
+    Unified transformer for vision-language understanding.
+    """
+    
+    def __init__(self, vocab_size, d_model=768, nhead=12, num_layers=12):
+        super().__init__()
+        
+        # Text embeddings
+        self.text_embedding = nn.Embedding(vocab_size, d_model)
+        self.text_position_embedding = nn.Embedding(512, d_model)
+        
+        # Image patch embeddings
+        self.image_patch_embedding = nn.Conv2d(3, d_model, kernel_size=16, stride=16)
+        self.image_position_embedding = nn.Embedding(196, d_model)  # 14x14 patches
+        
+        # Modality type embeddings
+        self.modality_embedding = nn.Embedding(2, d_model)  # 0: text, 1: image
+        
+        # Transformer
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=d_model * 4,
+                dropout=0.1
+            ),
+            num_layers=num_layers
+        )
+        
+        # Task-specific heads
+        self.mlm_head = nn.Linear(d_model, vocab_size)  # Masked language modeling
+        self.itm_head = nn.Linear(d_model, 2)  # Image-text matching
+        
+    def forward(self, text_input=None, image_input=None, attention_mask=None):
+        embeddings = []
+        
+        if text_input is not None:
+            batch_size, seq_len = text_input.shape
+            text_emb = self.text_embedding(text_input)
+            text_pos = self.text_position_embedding(torch.arange(seq_len, device=text_input.device))
+            text_mod = self.modality_embedding(torch.zeros(seq_len, device=text_input.device, dtype=torch.long))
+            
+            text_embeddings = text_emb + text_pos + text_mod
+            embeddings.append(text_embeddings)
+        
+        if image_input is not None:
+            batch_size, c, h, w = image_input.shape
+            # Extract patches
+            image_patches = self.image_patch_embedding(image_input)  # (batch, d_model, 14, 14)
+            image_patches = image_patches.flatten(2).transpose(1, 2)  # (batch, 196, d_model)
+            
+            num_patches = image_patches.size(1)
+            image_pos = self.image_position_embedding(torch.arange(num_patches, device=image_input.device))
+            image_mod = self.modality_embedding(torch.ones(num_patches, device=image_input.device, dtype=torch.long))
+            
+            image_embeddings = image_patches + image_pos + image_mod
+            embeddings.append(image_embeddings)
+        
+        # Concatenate all embeddings
+        if embeddings:
+            combined_embeddings = torch.cat(embeddings, dim=1)
+            
+            # Transform
+            output = self.transformer(combined_embeddings.transpose(0, 1)).transpose(0, 1)
+            
+            return output
+        
+        return None
+
+# =============================================================================
+# 7. MULTIMODAL FUSION TECHNIQUES
+# =============================================================================
+
+class MultimodalFusion:
+    """
+    Different strategies for fusing vision and language information.
+    """
+    
+    @staticmethod
+    def early_fusion(image_features, text_features):
+        """Concatenate features early in the pipeline."""
+        return torch.cat([image_features, text_features], dim=-1)
+    
+    @staticmethod
+    def late_fusion(image_logits, text_logits, alpha=0.5):
+        """Combine predictions from separate modalities."""
+        return alpha * image_logits + (1 - alpha) * text_logits
+    
+    @staticmethod
+    def attention_fusion(image_features, text_features, hidden_dim=512):
+        """Use attention to weight different modalities."""
+        # Compute attention weights
+        image_attention = torch.softmax(torch.sum(image_features, dim=-1), dim=-1)
+        text_attention = torch.softmax(torch.sum(text_features, dim=-1), dim=-1)
+        
+        # Weighted combination
+        fused = (image_attention.unsqueeze(-1) * image_features + 
+                text_attention.unsqueeze(-1) * text_features)
+        
+        return fused
+
+class CoAttentionNetwork(nn.Module):
+    """
+    Co-attention network for parallel attention on image and text.
+    """
+    
+    def __init__(self, image_dim, text_dim, hidden_dim):
+        super().__init__()
+        
+        self.image_linear = nn.Linear(image_dim, hidden_dim)
+        self.text_linear = nn.Linear(text_dim, hidden_dim)
+        
+        # Co-attention layers
+        self.W_b = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.W_v = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.W_q = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        
+        self.w_hv = nn.Linear(hidden_dim, 1, bias=False)
+        self.w_hq = nn.Linear(hidden_dim, 1, bias=False)
+        
+    def forward(self, image_features, text_features):
+        # Project to common space
+        V = torch.tanh(self.image_linear(image_features))  # (batch, num_regions, hidden)
+        Q = torch.tanh(self.text_linear(text_features))    # (batch, num_words, hidden)
+        
+        # Co-attention computation
+        C = torch.tanh(self.W_b(V).unsqueeze(2) + self.W_q(Q).unsqueeze(1))  # (batch, num_regions, num_words, hidden)
+        
+        # Attention weights
+        H_v = self.w_hv(C).squeeze(-1)  # (batch, num_regions, num_words)
+        H_q = self.w_hq(C).squeeze(-1)  # (batch, num_regions, num_words)
+        
+        # Attended features
+        a_v = F.softmax(H_v.max(2)[0], dim=1)  # (batch, num_regions)
+        a_q = F.softmax(H_q.max(1)[0], dim=1)  # (batch, num_words)
+        
+        v_att = (a_v.unsqueeze(2) * V).sum(1)  # (batch, hidden)
+        q_att = (a_q.unsqueeze(2) * Q).sum(1)  # (batch, hidden)
+        
+        return v_att, q_att
+
+# =============================================================================
+# 8. ADVANCED APPLICATIONS
+# =============================================================================
+
+class VisualGrounding(nn.Module):
+    """
+    Model for visual grounding - localizing objects mentioned in text.
+    """
+    
+    def __init__(self, vocab_size, feature_dim=2048, hidden_dim=512):
+        super().__init__()
+        
+        # Text encoder
+        self.text_embedding = nn.Embedding(vocab_size, hidden_dim)
+        self.text_lstm = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
+        
+        # Visual features projection
+        self.visual_projection = nn.Linear(feature_dim, hidden_dim)
+        
+        # Grounding network
+        self.grounding_net = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+        
+    def forward(self, visual_features, text_input):
+        # Encode text
+        text_embedded = self.text_embedding(text_input)
+        _, (text_hidden, _) = self.text_lstm(text_embedded)
+        text_features = text_hidden.squeeze(0)
+        
+        # Project visual features
+        visual_proj = self.visual_projection(visual_features)
+        
+        # Compute grounding scores for each region
+        batch_size, num_regions, _ = visual_proj.shape
+        text_expanded = text_features.unsqueeze(1).expand(-1, num_regions, -1)
+        
+        combined = torch.cat([visual_proj, text_expanded], dim=-1)
+        grounding_scores = self.grounding_net(combined).squeeze(-1)
+        
+        return grounding_scores
+
+class ImageTextMatching(nn.Module):
+    """
+    Model for determining if an image and text are related.
+    """
+    
+    def __init__(self, image_dim=2048, text_dim=768, hidden_dim=512):
+        super().__init__()
+        
+        self.image_projection = nn.Linear(image_dim, hidden_dim)
+        self.text_projection = nn.Linear(text_dim, hidden_dim)
+        
+        self.fusion_layer = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, 2)  # Binary classification
+        )
+        
+    def forward(self, image_features, text_features):
+        image_proj = self.image_projection(image_features)
+        text_proj = self.text_projection(text_features)
+        
+        # Element-wise multiplication and concatenation
+        fused = torch.cat([
+            image_proj * text_proj,
+            torch.cat([image_proj, text_proj], dim=-1)
+        ], dim=-1)
+        
+        matching_scores = self.fusion_layer(fused)
+        return matching_scores
+
+# =============================================================================
+# EVALUATION METRICS
+# =============================================================================
+
+class VisionLanguageMetrics:
+    """
+    Evaluation metrics for vision-language tasks.
+    """
+    
+    @staticmethod
+    def bleu_score(references, candidates):
+        """BLEU score for caption evaluation."""
+        from nltk.translate.bleu_score import corpus_bleu
+        return corpus_bleu(references, candidates)
+    
+    @staticmethod
+    def rouge_score(references, candidates):
+        """ROUGE score for caption evaluation."""
+        # Simplified ROUGE-L implementation
+        def lcs_length(x, y):
+            m, n = len(x), len(y)
+            dp = [[0] * (n + 1) for _ in range(m + 1)]
+            
+            for i in range(1, m + 1):
+                for j in range(1, n + 1):
+                    if x[i-1] == y[j-1]:
+                        dp[i][j] = dp[i-1][j-1] + 1
+                    else:
+                        dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+            
+            return dp[m][n]
+        
+        scores = []
+        for ref, cand in zip(references, candidates):
+            lcs_len = lcs_length(ref, cand)
+            precision = lcs_len / len(cand) if len(cand) > 0 else 0
+            recall = lcs_len / len(ref) if len(ref) > 0 else 0
+            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+            scores.append(f1)
+        
+        return sum(scores) / len(scores)
+    
+    @staticmethod
+    def retrieval_metrics(similarities, ground_truth):
+        """Compute retrieval metrics (Recall@K)."""
+        k_values = [1, 5, 10]
+        metrics = {}
+        
+        for k in k_values:
+            top_k_indices = similarities.topk(k, dim=-1).indices
+            hits = sum([gt in top_k_indices[i] for i, gt in enumerate(ground_truth)])
+            metrics[f'R@{k}'] = hits / len(ground_truth)
+        
+        return metrics
+
+# =============================================================================
+# PRACTICAL USAGE EXAMPLES
+# =============================================================================
+
+def example_clip_usage():
+    """Example of using CLIP for zero-shot classification."""
+    # Load pre-trained CLIP
+    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    
+    # Example image and text
+    image = torch.randn(1, 3, 224, 224)  # Dummy image
+    text_candidates = ["a cat", "a dog", "a bird", "a car"]
+    
+    # Process inputs
+    text_tokens = processor(text=text_candidates, return_tensors="pt", padding=True)
+    image_input = processor(images=image, return_tensors="pt")
+    
+    # Get predictions
+    with torch.no_grad():
+        outputs = model(**image_input, **text_tokens)
+        logits_per_image = outputs.logits_per_image
+        probs = logits_per_image.softmax(dim=-1)
+    
+    # Print results
+    for i, candidate in enumerate(text_candidates):
+        print(f"{candidate}: {probs[0][i]:.3f}")
+
+def example_captioning_usage():
+    """Example of using BLIP for image captioning."""
+    # Load pre-trained BLIP
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+    
+    # Dummy image
+    image = torch.randn(1, 3, 384, 384)
+    
+    # Process and generate caption
+    inputs = processor(images=image, return_tensors="pt")
+    
+    with torch.no_grad():
+        generated_ids = model.generate(**inputs, max_length=50)
+        caption = processor.decode(generated_ids[0], skip_special_tokens=True)
+    
+    print(f"Generated caption: {caption}")
+
+if __name__ == "__main__":
+    print("Vision-Language Understanding - Advanced Topics")
+    print("=" * 50)
+    
+    # Example usage
+    example_clip_usage()
+    example_captioning_usage()
+    
+    # Print model architectures
+    foundation = VisionLanguageFoundation()
+    comparison = foundation.get_model_comparison()
+    
+    print("\nModel Comparison:")
+    for model, details in comparison.items():
+        print(f"\n{model}:")
+        for key, value in details.items():
+            print(f"  {key}: {value}")
+
+"""
+SUMMARY:
+========
+
+This module covers comprehensive vision-language understanding:
+
+1. **Foundation Models**: CLIP, BLIP, ViLBERT architectures
+2. **Contrastive Learning**: CLIP implementation and training
+3. **Image Captioning**: Encoder-decoder and attention models
+4. **Visual QA**: Multimodal fusion for question answering
+5. **Cross-Modal Retrieval**: Image-text matching and search
+6. **Advanced Fusion**: Co-attention and multimodal techniques
+7. **Applications**: Visual grounding, image-text matching
+8. **Evaluation**: BLEU, ROUGE, retrieval metrics
+
+Key concepts include contrastive learning, attention mechanisms,
+multimodal fusion strategies, and zero-shot transfer capabilities.
+""" 

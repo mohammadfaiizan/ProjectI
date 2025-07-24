@@ -1,0 +1,1590 @@
+IMAGE TRANSFORMATIONS AND GEOMETRY - Geometric Image Processing
+==============================================================
+
+TABLE OF CONTENTS:
+1. Geometric Transformation Fundamentals
+2. Affine Transformations
+3. Perspective Transformations and Homography
+4. Image Warping and Interpolation
+5. Camera Geometry and Calibration
+6. Stereo Vision and Depth Estimation
+7. Implementation and Practical Guidelines
+
+=======================================================
+
+1. GEOMETRIC TRANSFORMATION FUNDAMENTALS
+========================================
+
+1.1 Transformation Categories:
+-----------------------------
+Rigid Transformations:
+- Translation: x' = x + tx, y' = y + ty
+- Rotation: Preserve distances and angles
+- 3 degrees of freedom (2 translation + 1 rotation)
+
+Similarity Transformations:
+- Rigid + uniform scaling
+- Preserve angles, not distances
+- 4 degrees of freedom
+
+Affine Transformations:
+- Linear transformations + translation
+- Preserve parallelism
+- 6 degrees of freedom
+
+Perspective Transformations:
+- Most general linear transformation
+- 8 degrees of freedom (projective)
+
+```python
+import numpy as np
+import cv2
+from scipy import ndimage
+import matplotlib.pyplot as plt
+
+def create_test_pattern():
+    """Create a test pattern for transformation demonstrations"""
+    image = np.zeros((200, 200), dtype=np.uint8)
+    
+    # Add grid pattern
+    for i in range(0, 200, 20):
+        cv2.line(image, (i, 0), (i, 200), 100, 1)
+        cv2.line(image, (0, i), (200, i), 100, 1)
+    
+    # Add some geometric shapes
+    cv2.rectangle(image, (50, 50), (100, 100), 255, 2)
+    cv2.circle(image, (150, 150), 30, 200, -1)
+    cv2.line(image, (20, 180), (180, 20), 255, 2)
+    
+    return image
+
+# Create test pattern
+test_pattern = create_test_pattern()
+print(f"Test pattern created with shape: {test_pattern.shape}")
+```
+
+1.2 Homogeneous Coordinates:
+----------------------------
+2D Point Representation:
+Cartesian: (x, y)
+Homogeneous: [x, y, 1]ᵀ or [wx, wy, w]ᵀ
+
+Advantages:
+- Unified representation for all transformations
+- Matrix multiplication for composition
+- Handle points at infinity
+
+Conversion:
+Homogeneous to Cartesian: (x/w, y/w)
+Cartesian to Homogeneous: [x, y, 1]ᵀ
+
+```python
+def cartesian_to_homogeneous(points):
+    """Convert 2D points to homogeneous coordinates"""
+    if points.ndim == 1:
+        points = points.reshape(1, -1)
+    
+    ones = np.ones((points.shape[0], 1))
+    return np.hstack([points, ones])
+
+def homogeneous_to_cartesian(points):
+    """Convert homogeneous coordinates to 2D points"""
+    if points.shape[1] == 3:
+        # Normalize by w coordinate
+        points_2d = points[:, :2] / points[:, 2:3]
+        return points_2d
+    return points
+
+def apply_transformation_matrix(points, transformation_matrix):
+    """Apply transformation matrix to points"""
+    # Convert to homogeneous if needed
+    if points.shape[1] == 2:
+        points_h = cartesian_to_homogeneous(points)
+    else:
+        points_h = points
+    
+    # Apply transformation
+    transformed_h = (transformation_matrix @ points_h.T).T
+    
+    # Convert back to Cartesian
+    transformed = homogeneous_to_cartesian(transformed_h)
+    
+    return transformed
+
+# Test coordinate conversion
+test_points = np.array([[10, 20], [50, 60], [100, 150]])
+homogeneous_points = cartesian_to_homogeneous(test_points)
+back_to_cartesian = homogeneous_to_cartesian(homogeneous_points)
+
+print("Original points:", test_points)
+print("Homogeneous:", homogeneous_points)
+print("Back to Cartesian:", back_to_cartesian)
+print("Conversion error:", np.max(np.abs(test_points - back_to_cartesian)))
+```
+
+1.3 Transformation Composition:
+------------------------------
+Sequential Transformations:
+T_combined = T_n × T_{n-1} × ... × T_2 × T_1
+
+Order Matters:
+Matrix multiplication is not commutative
+Rightmost transformation applied first
+
+Common Compositions:
+1. Translate to origin
+2. Apply transformation
+3. Translate back
+
+```python
+def create_translation_matrix(tx, ty):
+    """Create 2D translation matrix"""
+    return np.array([
+        [1, 0, tx],
+        [0, 1, ty],
+        [0, 0, 1]
+    ], dtype=np.float32)
+
+def create_rotation_matrix(angle_degrees):
+    """Create 2D rotation matrix"""
+    angle_rad = np.radians(angle_degrees)
+    cos_a, sin_a = np.cos(angle_rad), np.sin(angle_rad)
+    
+    return np.array([
+        [cos_a, -sin_a, 0],
+        [sin_a,  cos_a, 0],
+        [0,      0,     1]
+    ], dtype=np.float32)
+
+def create_scaling_matrix(sx, sy):
+    """Create 2D scaling matrix"""
+    return np.array([
+        [sx, 0,  0],
+        [0,  sy, 0],
+        [0,  0,  1]
+    ], dtype=np.float32)
+
+def rotate_around_point(angle_degrees, center_x, center_y):
+    """Create rotation matrix around specific point"""
+    # Translate to origin -> Rotate -> Translate back
+    T1 = create_translation_matrix(-center_x, -center_y)
+    R = create_rotation_matrix(angle_degrees)
+    T2 = create_translation_matrix(center_x, center_y)
+    
+    return T2 @ R @ T1
+
+# Test transformation composition
+points = np.array([[0, 0], [100, 0], [100, 100], [0, 100]])  # Square corners
+center = np.array([50, 50])
+
+# Rotate 45 degrees around center
+rotation_matrix = rotate_around_point(45, center[0], center[1])
+rotated_points = apply_transformation_matrix(points, rotation_matrix)
+
+print("Original square corners:", points)
+print("Rotated around center:", rotated_points)
+```
+
+=======================================================
+
+2. AFFINE TRANSFORMATIONS
+========================
+
+2.1 Affine Transformation Matrix:
+--------------------------------
+General Form:
+[x']   [a  b  tx] [x]
+[y'] = [c  d  ty] [y]
+[1 ]   [0  0  1 ] [1]
+
+Properties:
+- Lines remain lines
+- Parallel lines remain parallel
+- Ratios of distances on same line preserved
+- Areas scaled by |det(A)| where A = [[a,b],[c,d]]
+
+Components:
+- Linear part: [[a,b],[c,d]] (rotation, scaling, shear)
+- Translation part: [tx, ty]
+
+```python
+def create_affine_matrix(scale_x=1, scale_y=1, rotation_deg=0, 
+                        shear_x=0, shear_y=0, trans_x=0, trans_y=0):
+    """Create general affine transformation matrix"""
+    
+    # Individual transformation matrices
+    S = create_scaling_matrix(scale_x, scale_y)
+    R = create_rotation_matrix(rotation_deg)
+    
+    # Shear matrix
+    Sh = np.array([
+        [1, shear_x, 0],
+        [shear_y, 1, 0],
+        [0, 0, 1]
+    ], dtype=np.float32)
+    
+    T = create_translation_matrix(trans_x, trans_y)
+    
+    # Combine: T * Sh * R * S
+    affine_matrix = T @ Sh @ R @ S
+    
+    return affine_matrix
+
+def decompose_affine_matrix(matrix):
+    """Decompose affine matrix into components"""
+    # Extract components
+    a, b, tx = matrix[0, :]
+    c, d, ty = matrix[1, :]
+    
+    # Translation
+    translation = np.array([tx, ty])
+    
+    # Scale and rotation from linear part
+    linear_part = matrix[:2, :2]
+    
+    # Compute scale
+    scale_x = np.sqrt(a*a + c*c)
+    scale_y = np.sqrt(b*b + d*d)
+    
+    # Compute rotation
+    rotation_rad = np.arctan2(c, a)
+    rotation_deg = np.degrees(rotation_rad)
+    
+    # Compute shear (simplified)
+    cos_r, sin_r = np.cos(rotation_rad), np.sin(rotation_rad)
+    shear_x = (a*b + c*d) / (a*a + c*c)
+    
+    return {
+        'scale': (scale_x, scale_y),
+        'rotation': rotation_deg,
+        'shear': shear_x,
+        'translation': translation
+    }
+
+# Test affine transformation
+affine_test = create_affine_matrix(scale_x=1.5, scale_y=0.8, rotation_deg=30, 
+                                  shear_x=0.2, trans_x=20, trans_y=10)
+
+test_square = np.array([[0, 0], [50, 0], [50, 50], [0, 50]])
+transformed_square = apply_transformation_matrix(test_square, affine_test)
+
+# Decompose back
+decomposed = decompose_affine_matrix(affine_test)
+print("Affine transformation decomposition:", decomposed)
+```
+
+2.2 Affine Parameter Estimation:
+-------------------------------
+Point Correspondences:
+Minimum 3 non-collinear point pairs
+Overdetermined system with more points
+
+Least Squares Solution:
+Minimize sum of squared residuals
+SVD or normal equations
+
+```python
+def estimate_affine_transform(src_points, dst_points):
+    """Estimate affine transformation from point correspondences"""
+    
+    if len(src_points) < 3:
+        raise ValueError("Need at least 3 point correspondences")
+    
+    n_points = len(src_points)
+    
+    # Set up linear system Ax = b
+    # For each point: [xi yi 1 0 0 0; 0 0 0 xi yi 1] * [a b tx c d ty]T = [xi' yi']T
+    A = np.zeros((2 * n_points, 6))
+    b = np.zeros(2 * n_points)
+    
+    for i in range(n_points):
+        x, y = src_points[i]
+        x_prime, y_prime = dst_points[i]
+        
+        # First equation (x')
+        A[2*i, :] = [x, y, 1, 0, 0, 0]
+        b[2*i] = x_prime
+        
+        # Second equation (y')
+        A[2*i + 1, :] = [0, 0, 0, x, y, 1]
+        b[2*i + 1] = y_prime
+    
+    # Solve least squares
+    params, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+    
+    # Reshape to transformation matrix
+    affine_matrix = np.array([
+        [params[0], params[1], params[2]],
+        [params[3], params[4], params[5]],
+        [0, 0, 1]
+    ], dtype=np.float32)
+    
+    return affine_matrix, residuals
+
+# Test affine estimation
+src_pts = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.float32)
+true_affine = create_affine_matrix(scale_x=1.2, rotation_deg=15, trans_x=30, trans_y=20)
+dst_pts = apply_transformation_matrix(src_pts, true_affine)
+
+# Add some noise
+dst_pts += np.random.normal(0, 1, dst_pts.shape)
+
+# Estimate transformation
+estimated_affine, residuals = estimate_affine_transform(src_pts, dst_pts)
+
+print("True affine matrix:")
+print(true_affine)
+print("\nEstimated affine matrix:")
+print(estimated_affine)
+print(f"\nEstimation error: {np.max(np.abs(true_affine - estimated_affine)):.6f}")
+```
+
+2.3 Image Warping with Affine Transformations:
+---------------------------------------------
+Forward Warping:
+For each source pixel, compute destination
+May leave holes in output image
+
+Backward Warping:
+For each destination pixel, find source
+No holes, but requires interpolation
+
+```python
+def affine_warp_image(image, transformation_matrix, output_shape=None):
+    """Warp image using affine transformation"""
+    
+    if output_shape is None:
+        output_shape = image.shape
+    
+    # Use inverse transformation for backward warping
+    inv_transform = np.linalg.inv(transformation_matrix)
+    
+    warped_image = np.zeros(output_shape, dtype=image.dtype)
+    
+    for y in range(output_shape[0]):
+        for x in range(output_shape[1]):
+            # Apply inverse transformation
+            dst_point = np.array([x, y, 1])
+            src_point_h = inv_transform @ dst_point
+            src_x, src_y = src_point_h[0], src_point_h[1]
+            
+            # Bilinear interpolation
+            if 0 <= src_x < image.shape[1]-1 and 0 <= src_y < image.shape[0]-1:
+                warped_image[y, x] = bilinear_interpolate(image, src_x, src_y)
+    
+    return warped_image
+
+def bilinear_interpolate(image, x, y):
+    """Bilinear interpolation at non-integer coordinates"""
+    x1, y1 = int(x), int(y)
+    x2, y2 = x1 + 1, y1 + 1
+    
+    # Get weights
+    wx2 = x - x1
+    wx1 = 1 - wx2
+    wy2 = y - y1
+    wy1 = 1 - wy2
+    
+    # Interpolate
+    if x2 < image.shape[1] and y2 < image.shape[0]:
+        interpolated = (image[y1, x1] * wx1 * wy1 +
+                       image[y1, x2] * wx2 * wy1 +
+                       image[y2, x1] * wx1 * wy2 +
+                       image[y2, x2] * wx2 * wy2)
+        return interpolated
+    else:
+        return image[y1, x1]  # Nearest neighbor fallback
+
+# Test image warping
+transformation = create_affine_matrix(scale_x=1.2, rotation_deg=30, trans_x=20, trans_y=10)
+warped_pattern = affine_warp_image(test_pattern, transformation)
+
+print(f"Original image shape: {test_pattern.shape}")
+print(f"Warped image shape: {warped_pattern.shape}")
+print(f"Warped image intensity range: {warped_pattern.min()} to {warped_pattern.max()}")
+```
+
+=======================================================
+
+3. PERSPECTIVE TRANSFORMATIONS AND HOMOGRAPHY
+=============================================
+
+3.1 Perspective Transformation:
+------------------------------
+Homography Matrix:
+3×3 matrix with 8 degrees of freedom
+H = [[h11, h12, h13],
+     [h21, h22, h23],
+     [h31, h32,  1 ]]
+
+Point Transformation:
+[x']   [h11  h12  h13] [x]
+[y'] = [h21  h22  h23] [y]
+[w']   [h31  h32   1 ] [1]
+
+Final coordinates: x'/w', y'/w'
+
+```python
+def create_perspective_matrix(src_points, dst_points):
+    """Create perspective transformation matrix from 4 point correspondences"""
+    
+    if len(src_points) != 4 or len(dst_points) != 4:
+        raise ValueError("Perspective transformation requires exactly 4 point correspondences")
+    
+    # Set up linear system for homography estimation
+    # For each point correspondence, we get 2 equations
+    A = []
+    
+    for i in range(4):
+        x, y = src_points[i]
+        x_prime, y_prime = dst_points[i]
+        
+        # First equation
+        A.append([x, y, 1, 0, 0, 0, -x_prime*x, -x_prime*y])
+        # Second equation  
+        A.append([0, 0, 0, x, y, 1, -y_prime*x, -y_prime*y])
+    
+    A = np.array(A, dtype=np.float32)
+    b = np.array([dst_points[:, 0], dst_points[:, 1]]).T.flatten()
+    
+    # Solve Ah = b where h contains first 8 elements of homography
+    h_partial, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+    
+    # Construct full homography matrix (h33 = 1)
+    homography = np.array([
+        [h_partial[0], h_partial[1], h_partial[2]],
+        [h_partial[3], h_partial[4], h_partial[5]],
+        [h_partial[6], h_partial[7], 1.0]
+    ], dtype=np.float32)
+    
+    return homography
+
+def apply_perspective_transform(points, homography):
+    """Apply perspective transformation to points"""
+    # Convert to homogeneous coordinates
+    if points.shape[1] == 2:
+        ones = np.ones((points.shape[0], 1))
+        points_h = np.hstack([points, ones])
+    else:
+        points_h = points
+    
+    # Apply transformation
+    transformed_h = (homography @ points_h.T).T
+    
+    # Convert back to Cartesian (perspective division)
+    transformed = transformed_h[:, :2] / transformed_h[:, 2:3]
+    
+    return transformed
+
+# Test perspective transformation
+# Define a rectangle and its perspective transformation
+src_rect = np.array([[0, 0], [200, 0], [200, 150], [0, 150]], dtype=np.float32)
+dst_quad = np.array([[20, 10], [180, 30], [170, 140], [30, 120]], dtype=np.float32)
+
+# Compute homography
+H = create_perspective_matrix(src_rect, dst_quad)
+print("Perspective transformation matrix:")
+print(H)
+
+# Apply to test points
+test_pts = np.array([[50, 50], [100, 75], [150, 100]])
+transformed_pts = apply_perspective_transform(test_pts, H)
+
+print("Original points:", test_pts)
+print("Transformed points:", transformed_pts)
+```
+
+3.2 RANSAC for Robust Homography Estimation:
+--------------------------------------------
+Problem:
+Outliers in point correspondences
+Least squares sensitive to outliers
+
+RANSAC Algorithm:
+1. Randomly sample minimum number of points (4 for homography)
+2. Fit model to sample
+3. Count inliers
+4. Repeat and keep best model
+
+```python
+def estimate_homography_ransac(src_points, dst_points, 
+                              threshold=3.0, max_iterations=1000, min_inliers=4):
+    """Estimate homography using RANSAC"""
+    
+    if len(src_points) < 4:
+        raise ValueError("Need at least 4 point correspondences")
+    
+    best_homography = None
+    best_inliers = []
+    max_inlier_count = 0
+    
+    n_points = len(src_points)
+    
+    for iteration in range(max_iterations):
+        # Randomly sample 4 points
+        sample_indices = np.random.choice(n_points, 4, replace=False)
+        sample_src = src_points[sample_indices]
+        sample_dst = dst_points[sample_indices]
+        
+        try:
+            # Fit homography to sample
+            H = create_perspective_matrix(sample_src, sample_dst)
+            
+            # Test all points
+            transformed_points = apply_perspective_transform(src_points, H)
+            
+            # Compute distances to ground truth
+            distances = np.sqrt(np.sum((transformed_points - dst_points)**2, axis=1))
+            
+            # Count inliers
+            inlier_mask = distances < threshold
+            inlier_count = np.sum(inlier_mask)
+            
+            # Update best model if this is better
+            if inlier_count > max_inlier_count and inlier_count >= min_inliers:
+                max_inlier_count = inlier_count
+                best_homography = H.copy()
+                best_inliers = np.where(inlier_mask)[0]
+                
+        except np.linalg.LinAlgError:
+            # Skip if matrix is singular
+            continue
+    
+    # Refine using all inliers
+    if best_homography is not None and len(best_inliers) >= 4:
+        inlier_src = src_points[best_inliers]
+        inlier_dst = dst_points[best_inliers]
+        refined_H = create_perspective_matrix(inlier_src, inlier_dst)
+        
+        return refined_H, best_inliers
+    
+    return best_homography, best_inliers
+
+# Test RANSAC homography estimation
+# Create noisy correspondences with outliers
+np.random.seed(42)
+n_points = 50
+src_pts_noise = np.random.rand(n_points, 2) * 200
+
+# Create ground truth transformation
+true_H = create_perspective_matrix(
+    np.array([[0, 0], [200, 0], [200, 150], [0, 150]]), 
+    np.array([[20, 10], [180, 30], [170, 140], [30, 120]])
+)
+
+# Apply transformation and add noise
+dst_pts_noise = apply_perspective_transform(src_pts_noise, true_H)
+dst_pts_noise += np.random.normal(0, 2, dst_pts_noise.shape)
+
+# Add outliers
+n_outliers = 10
+outlier_indices = np.random.choice(n_points, n_outliers, replace=False)
+dst_pts_noise[outlier_indices] += np.random.normal(0, 50, (n_outliers, 2))
+
+# Estimate with RANSAC
+estimated_H, inliers = estimate_homography_ransac(src_pts_noise, dst_pts_noise)
+
+print(f"RANSAC found {len(inliers)} inliers out of {n_points} points")
+print(f"Inlier percentage: {len(inliers)/n_points*100:.1f}%")
+```
+
+3.3 Perspective Image Rectification:
+-----------------------------------
+Applications:
+- Document scanning
+- Perspective correction
+- Image stitching preparation
+
+Process:
+1. Identify four corners of planar object
+2. Define desired output rectangle
+3. Compute homography
+4. Warp image
+
+```python
+def perspective_warp_image(image, homography, output_shape):
+    """Warp image using perspective transformation"""
+    
+    # Use inverse transformation for backward warping
+    inv_homography = np.linalg.inv(homography)
+    
+    warped_image = np.zeros(output_shape, dtype=image.dtype)
+    
+    for y in range(output_shape[0]):
+        for x in range(output_shape[1]):
+            # Apply inverse transformation
+            dst_point = np.array([x, y, 1])
+            src_point_h = inv_homography @ dst_point
+            
+            # Perspective division
+            if src_point_h[2] != 0:
+                src_x = src_point_h[0] / src_point_h[2]
+                src_y = src_point_h[1] / src_point_h[2]
+                
+                # Bilinear interpolation
+                if 0 <= src_x < image.shape[1]-1 and 0 <= src_y < image.shape[0]-1:
+                    warped_image[y, x] = bilinear_interpolate(image, src_x, src_y)
+    
+    return warped_image
+
+def rectify_perspective_document(image, corners, output_width=400, output_height=300):
+    """Rectify perspective distortion in document image"""
+    
+    # Define output rectangle corners
+    output_corners = np.array([
+        [0, 0],
+        [output_width, 0],
+        [output_width, output_height],
+        [0, output_height]
+    ], dtype=np.float32)
+    
+    # Compute homography from distorted to rectified
+    H = create_perspective_matrix(corners, output_corners)
+    
+    # Warp image
+    rectified = perspective_warp_image(image, H, (output_height, output_width))
+    
+    return rectified, H
+
+# Create a perspective-distorted document
+document_corners = np.array([
+    [30, 20],    # Top-left
+    [170, 30],   # Top-right  
+    [160, 140],  # Bottom-right
+    [40, 130]    # Bottom-left
+], dtype=np.float32)
+
+# Create synthetic document
+doc_image = np.ones((200, 200), dtype=np.uint8) * 255
+cv2.rectangle(doc_image, (20, 20), (180, 180), 0, 2)
+cv2.putText(doc_image, "TEXT", (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, 0, 2)
+
+# Rectify the document
+rectified_doc, rectify_H = rectify_perspective_document(doc_image, document_corners)
+
+print(f"Document rectification completed")
+print(f"Output shape: {rectified_doc.shape}")
+```
+
+=======================================================
+
+4. IMAGE WARPING AND INTERPOLATION
+==================================
+
+4.1 Interpolation Methods:
+--------------------------
+Nearest Neighbor:
+f(x,y) = f(round(x), round(y))
+Fast but introduces aliasing
+
+Bilinear:
+Linear interpolation in both directions
+Smooth but may blur edges
+
+Bicubic:
+Cubic interpolation using 16 neighbors
+Smoother but more computation
+
+```python
+def nearest_neighbor_interpolation(image, x, y):
+    """Nearest neighbor interpolation"""
+    xi, yi = int(round(x)), int(round(y))
+    
+    # Check bounds
+    if 0 <= xi < image.shape[1] and 0 <= yi < image.shape[0]:
+        return image[yi, xi]
+    return 0
+
+def bicubic_interpolation(image, x, y):
+    """Bicubic interpolation using 16 neighbors"""
+    
+    def cubic_kernel(t):
+        """Cubic interpolation kernel"""
+        t = abs(t)
+        if t <= 1:
+            return 1.5*t**3 - 2.5*t**2 + 1
+        elif t <= 2:
+            return -0.5*t**3 + 2.5*t**2 - 4*t + 2
+        else:
+            return 0
+    
+    # Get integer coordinates
+    x0, y0 = int(x), int(y)
+    
+    # Get fractional parts
+    dx, dy = x - x0, y - y0
+    
+    # Initialize result
+    result = 0
+    
+    # Loop over 4x4 neighborhood
+    for j in range(4):
+        for i in range(4):
+            xi, yi = x0 + i - 1, y0 + j - 1
+            
+            # Check bounds
+            if 0 <= xi < image.shape[1] and 0 <= yi < image.shape[0]:
+                pixel_value = image[yi, xi]
+                weight = cubic_kernel(i - 1 - dx) * cubic_kernel(j - 1 - dy)
+                result += pixel_value * weight
+    
+    return np.clip(result, 0, 255)
+
+def compare_interpolation_methods(image, x, y):
+    """Compare different interpolation methods at given coordinates"""
+    
+    methods = {
+        'nearest': nearest_neighbor_interpolation,
+        'bilinear': bilinear_interpolate,
+        'bicubic': bicubic_interpolation
+    }
+    
+    results = {}
+    for name, method in methods.items():
+        results[name] = method(image, x, y)
+    
+    return results
+
+# Test interpolation methods
+test_coord_x, test_coord_y = 50.7, 75.3
+interpolation_results = compare_interpolation_methods(test_pattern, test_coord_x, test_coord_y)
+
+print(f"Interpolation at ({test_coord_x}, {test_coord_y}):")
+for method, value in interpolation_results.items():
+    print(f"  {method}: {value:.2f}")
+```
+
+4.2 Image Pyramid and Multi-Scale Processing:
+--------------------------------------------
+Gaussian Pyramid:
+Successive smoothing and downsampling
+Efficient for multi-scale operations
+
+Laplacian Pyramid:
+Difference between consecutive Gaussian levels
+Captures details at different scales
+
+```python
+def build_image_pyramid(image, num_levels=4, scale_factor=2):
+    """Build Gaussian pyramid"""
+    pyramid = [image.astype(np.float32)]
+    
+    current = image.astype(np.float32)
+    
+    for level in range(1, num_levels):
+        # Smooth image
+        smoothed = ndimage.gaussian_filter(current, sigma=1.0)
+        
+        # Downsample
+        downsampled = smoothed[::scale_factor, ::scale_factor]
+        pyramid.append(downsampled)
+        
+        current = downsampled
+    
+    return pyramid
+
+def pyramid_blend(image1, image2, mask, num_levels=4):
+    """Blend two images using pyramid blending"""
+    
+    # Build pyramids
+    pyr1 = build_image_pyramid(image1, num_levels)
+    pyr2 = build_image_pyramid(image2, num_levels)
+    mask_pyr = build_image_pyramid(mask, num_levels)
+    
+    # Blend at each level
+    blended_pyr = []
+    for i in range(num_levels):
+        m = mask_pyr[i] / 255.0  # Normalize mask
+        blended = pyr1[i] * m + pyr2[i] * (1 - m)
+        blended_pyr.append(blended)
+    
+    # Reconstruct from pyramid
+    result = blended_pyr[-1]
+    for i in range(num_levels - 2, -1, -1):
+        # Upsample
+        upsampled = np.repeat(np.repeat(result, 2, axis=0), 2, axis=1)
+        
+        # Crop to match size
+        target_shape = blended_pyr[i].shape
+        upsampled = upsampled[:target_shape[0], :target_shape[1]]
+        
+        # Add detail
+        result = upsampled + blended_pyr[i]
+    
+    return np.clip(result, 0, 255).astype(np.uint8)
+
+# Test pyramid operations
+pyramid = build_image_pyramid(test_pattern)
+print(f"Pyramid levels: {len(pyramid)}")
+for i, level in enumerate(pyramid):
+    print(f"Level {i}: {level.shape}")
+```
+
+4.3 Non-Rigid Warping:
+---------------------
+Thin-Plate Splines:
+Smooth interpolation between control points
+Minimizes bending energy
+
+Radial Basis Functions:
+Local influence of control points
+Good for scattered data interpolation
+
+```python
+def thin_plate_spline_warp(image, src_points, dst_points):
+    """Warp image using Thin-Plate Spline interpolation"""
+    
+    def tps_kernel(r):
+        """Thin-plate spline kernel function"""
+        return r**2 * np.log(r + 1e-10)
+    
+    n_points = len(src_points)
+    
+    # Build TPS system matrix
+    K = np.zeros((n_points, n_points))
+    for i in range(n_points):
+        for j in range(n_points):
+            if i != j:
+                r = np.linalg.norm(src_points[i] - src_points[j])
+                K[i, j] = tps_kernel(r)
+    
+    # Add affine terms
+    P = np.hstack([src_points, np.ones((n_points, 1))])
+    
+    # Construct full matrix
+    upper = np.hstack([K, P])
+    lower = np.hstack([P.T, np.zeros((3, 3))])
+    A = np.vstack([upper, lower])
+    
+    # Solve for weights
+    b_x = np.hstack([dst_points[:, 0], np.zeros(3)])
+    b_y = np.hstack([dst_points[:, 1], np.zeros(3)])
+    
+    try:
+        weights_x = np.linalg.solve(A, b_x)
+        weights_y = np.linalg.solve(A, b_y)
+    except np.linalg.LinAlgError:
+        # Fallback to least squares if singular
+        weights_x = np.linalg.lstsq(A, b_x, rcond=None)[0]
+        weights_y = np.linalg.lstsq(A, b_y, rcond=None)[0]
+    
+    # Warp image
+    warped = np.zeros_like(image)
+    rows, cols = image.shape
+    
+    for y in range(rows):
+        for x in range(cols):
+            # Compute TPS interpolation
+            target_point = np.array([x, y])
+            
+            # Kernel contributions
+            src_x = src_y = 0
+            for i in range(n_points):
+                r = np.linalg.norm(target_point - dst_points[i])
+                kernel_val = tps_kernel(r)
+                src_x += weights_x[i] * kernel_val
+                src_y += weights_y[i] * kernel_val
+            
+            # Affine contributions
+            src_x += weights_x[n_points] * x + weights_x[n_points+1] * y + weights_x[n_points+2]
+            src_y += weights_y[n_points] * x + weights_y[n_points+1] * y + weights_y[n_points+2]
+            
+            # Sample from source image
+            if 0 <= src_x < cols-1 and 0 <= src_y < rows-1:
+                warped[y, x] = bilinear_interpolate(image, src_x, src_y)
+    
+    return warped
+
+# Test TPS warping with a few control points
+tps_src = np.array([[50, 50], [100, 50], [150, 50], [100, 100]])
+tps_dst = np.array([[45, 55], [100, 45], [155, 55], [100, 95]])
+
+if len(tps_src) >= 3:  # Need minimum points for TPS
+    try:
+        tps_warped = thin_plate_spline_warp(test_pattern, tps_src, tps_dst)
+        print("TPS warping completed successfully")
+    except Exception as e:
+        print(f"TPS warping failed: {e}")
+```
+
+=======================================================
+
+5. CAMERA GEOMETRY AND CALIBRATION
+==================================
+
+5.1 Pinhole Camera Model:
+-------------------------
+Camera Projection:
+3D world point → 2D image point
+Perspective projection through optical center
+
+Intrinsic Parameters:
+- Focal length: fx, fy
+- Principal point: cx, cy  
+- Skew: s (usually 0)
+
+Camera Matrix:
+K = [[fx, s,  cx],
+     [0,  fy, cy],
+     [0,  0,  1 ]]
+
+```python
+def create_camera_matrix(fx, fy, cx, cy, skew=0):
+    """Create camera intrinsic matrix"""
+    K = np.array([
+        [fx, skew, cx],
+        [0,  fy,   cy],
+        [0,  0,    1]
+    ], dtype=np.float32)
+    return K
+
+def project_3d_to_2d(points_3d, camera_matrix, rotation=None, translation=None):
+    """Project 3D points to 2D using camera model"""
+    
+    # Apply extrinsic transformation if provided
+    if rotation is not None and translation is not None:
+        # Convert rotation vector to matrix if needed
+        if rotation.shape == (3,):
+            R, _ = cv2.Rodrigues(rotation)
+        else:
+            R = rotation
+        
+        # Transform 3D points
+        points_3d_transformed = (R @ points_3d.T).T + translation
+    else:
+        points_3d_transformed = points_3d
+    
+    # Project to 2D
+    if points_3d_transformed.shape[1] == 3:
+        # Convert to homogeneous coordinates
+        ones = np.ones((points_3d_transformed.shape[0], 1))
+        points_3d_h = np.hstack([points_3d_transformed, ones])
+    else:
+        points_3d_h = points_3d_transformed
+    
+    # Apply camera matrix
+    points_2d_h = (camera_matrix @ points_3d_h[:, :3].T).T
+    
+    # Perspective division
+    points_2d = points_2d_h[:, :2] / points_2d_h[:, 2:3]
+    
+    return points_2d
+
+# Test camera projection
+K = create_camera_matrix(fx=500, fy=500, cx=320, cy=240)
+points_3d = np.array([
+    [0, 0, 5],
+    [1, 0, 5],
+    [0, 1, 5],
+    [1, 1, 5]
+])
+
+projected_points = project_3d_to_2d(points_3d, K)
+print("Camera matrix:")
+print(K)
+print("3D points:", points_3d)
+print("Projected 2D points:", projected_points)
+```
+
+5.2 Camera Calibration:
+-----------------------
+Zhang's Method:
+Use planar calibration pattern (checkerboard)
+Multiple views at different orientations
+
+Calibration Process:
+1. Detect corners in calibration images
+2. Set up homography equations
+3. Solve for intrinsic parameters
+4. Refine with non-linear optimization
+
+```python
+def generate_checkerboard_points(board_size, square_size=1.0):
+    """Generate 3D coordinates of checkerboard corners"""
+    rows, cols = board_size
+    points_3d = np.zeros((rows * cols, 3), dtype=np.float32)
+    
+    for i in range(rows):
+        for j in range(cols):
+            points_3d[i * cols + j] = [j * square_size, i * square_size, 0]
+    
+    return points_3d
+
+def calibrate_camera_simple(object_points_list, image_points_list, image_size):
+    """Simplified camera calibration implementation"""
+    
+    n_views = len(object_points_list)
+    
+    # For each view, compute homography
+    homographies = []
+    for i in range(n_views):
+        # Use first 4 points for homography (simplified)
+        if len(object_points_list[i]) >= 4 and len(image_points_list[i]) >= 4:
+            obj_pts = object_points_list[i][:4, :2]  # Use only x,y (z=0)
+            img_pts = image_points_list[i][:4]
+            
+            try:
+                H = create_perspective_matrix(obj_pts, img_pts)
+                homographies.append(H)
+            except:
+                continue
+    
+    if len(homographies) < 2:
+        raise ValueError("Need at least 2 valid homographies for calibration")
+    
+    # Set up constraints for intrinsic parameters (simplified)
+    # In full implementation, would solve for all parameters simultaneously
+    
+    # Estimate focal length from homographies (simplified approach)
+    fx = fy = 500  # Default estimate
+    cx, cy = image_size[0] / 2, image_size[1] / 2  # Assume center
+    
+    camera_matrix = create_camera_matrix(fx, fy, cx, cy)
+    
+    # Estimate distortion coefficients (set to zero for simplicity)
+    dist_coeffs = np.zeros(5)
+    
+    return camera_matrix, dist_coeffs
+
+# Simulate camera calibration
+board_size = (6, 8)
+square_size = 30.0
+
+# Generate object points
+obj_points_3d = generate_checkerboard_points(board_size, square_size)
+
+# Simulate multiple views with different poses
+camera_matrix_true = create_camera_matrix(500, 500, 320, 240)
+object_points_list = []
+image_points_list = []
+
+for view in range(3):
+    # Simulate different camera poses
+    rotation_vec = np.random.normal(0, 0.1, 3)
+    translation_vec = np.random.normal(0, 10, 3)
+    translation_vec[2] += 500  # Move away from camera
+    
+    # Project to image
+    img_points = project_3d_to_2d(obj_points_3d, camera_matrix_true, 
+                                 rotation_vec, translation_vec)
+    
+    # Add noise
+    img_points += np.random.normal(0, 0.5, img_points.shape)
+    
+    object_points_list.append(obj_points_3d)
+    image_points_list.append(img_points)
+
+# Calibrate camera
+try:
+    estimated_K, dist_coeffs = calibrate_camera_simple(object_points_list, 
+                                                      image_points_list, 
+                                                      (640, 480))
+    print("Camera calibration completed")
+    print("Estimated camera matrix:")
+    print(estimated_K)
+except Exception as e:
+    print(f"Camera calibration failed: {e}")
+```
+
+5.3 Lens Distortion Correction:
+------------------------------
+Radial Distortion:
+x' = x(1 + k₁r² + k₂r⁴ + k₃r⁶)
+y' = y(1 + k₁r² + k₂r⁴ + k₃r⁶)
+
+Tangential Distortion:
+x' = x + 2p₁xy + p₂(r² + 2x²)
+y' = y + p₁(r² + 2y²) + 2p₂xy
+
+```python
+def undistort_points(points, camera_matrix, dist_coeffs):
+    """Undistort image points using distortion model"""
+    
+    fx, fy = camera_matrix[0, 0], camera_matrix[1, 1]
+    cx, cy = camera_matrix[0, 2], camera_matrix[1, 2]
+    
+    # Extract distortion coefficients
+    k1, k2, p1, p2, k3 = dist_coeffs[:5] if len(dist_coeffs) >= 5 else np.pad(dist_coeffs, (0, 5-len(dist_coeffs)))
+    
+    undistorted_points = []
+    
+    for point in points:
+        x, y = point
+        
+        # Normalize coordinates
+        x_norm = (x - cx) / fx
+        y_norm = (y - cy) / fy
+        
+        # Iterative undistortion (simplified)
+        x_undist, y_undist = x_norm, y_norm
+        
+        for iteration in range(5):  # Usually converges quickly
+            r2 = x_undist**2 + y_undist**2
+            r4 = r2**2
+            r6 = r2**3
+            
+            # Radial distortion
+            radial_factor = 1 + k1*r2 + k2*r4 + k3*r6
+            
+            # Tangential distortion
+            tangential_x = 2*p1*x_undist*y_undist + p2*(r2 + 2*x_undist**2)
+            tangential_y = p1*(r2 + 2*y_undist**2) + 2*p2*x_undist*y_undist
+            
+            # Update estimate
+            x_undist = (x_norm - tangential_x) / radial_factor
+            y_undist = (y_norm - tangential_y) / radial_factor
+        
+        # Convert back to pixel coordinates
+        x_final = x_undist * fx + cx
+        y_final = y_undist * fy + cy
+        
+        undistorted_points.append([x_final, y_final])
+    
+    return np.array(undistorted_points)
+
+def create_distortion_map(image_shape, camera_matrix, dist_coeffs):
+    """Create undistortion map for image rectification"""
+    
+    rows, cols = image_shape
+    
+    # Create coordinate grids
+    x_grid, y_grid = np.meshgrid(np.arange(cols), np.arange(rows))
+    points = np.column_stack([x_grid.flatten(), y_grid.flatten()])
+    
+    # Undistort all points
+    undistorted_points = undistort_points(points, camera_matrix, dist_coeffs)
+    
+    # Reshape back to grid
+    map_x = undistorted_points[:, 0].reshape(rows, cols).astype(np.float32)
+    map_y = undistorted_points[:, 1].reshape(rows, cols).astype(np.float32)
+    
+    return map_x, map_y
+
+# Test distortion correction
+test_points = np.array([[100, 100], [200, 200], [300, 150]])
+dist_coeffs_test = np.array([0.1, -0.05, 0.001, 0.001, 0])
+
+undistorted_test_points = undistort_points(test_points, camera_matrix_true, dist_coeffs_test)
+
+print("Original points:", test_points)
+print("Undistorted points:", undistorted_test_points)
+```
+
+=======================================================
+
+6. STEREO VISION AND DEPTH ESTIMATION
+=====================================
+
+6.1 Stereo Camera Geometry:
+---------------------------
+Baseline:
+Distance between camera centers
+Larger baseline → better depth resolution
+
+Epipolar Geometry:
+Corresponding points lie on epipolar lines
+Reduces search space for matching
+
+Disparity:
+Difference in x-coordinates of corresponding points
+Inversely proportional to depth: depth = baseline × focal_length / disparity
+
+```python
+def compute_fundamental_matrix(points1, points2):
+    """Compute fundamental matrix from point correspondences"""
+    
+    if len(points1) < 8:
+        raise ValueError("Need at least 8 point correspondences")
+    
+    # Normalize points (8-point algorithm)
+    n = len(points1)
+    
+    # Set up linear system
+    A = np.zeros((n, 9))
+    
+    for i in range(n):
+        x1, y1 = points1[i]
+        x2, y2 = points2[i]
+        
+        A[i] = [x1*x2, x1*y2, x1, y1*x2, y1*y2, y1, x2, y2, 1]
+    
+    # Solve using SVD
+    U, S, Vt = np.linalg.svd(A)
+    F = Vt[-1].reshape(3, 3)
+    
+    # Enforce rank-2 constraint
+    U_f, S_f, Vt_f = np.linalg.svd(F)
+    S_f[2] = 0  # Set smallest singular value to 0
+    F = U_f @ np.diag(S_f) @ Vt_f
+    
+    return F
+
+def compute_epipolar_lines(points, fundamental_matrix, which_image=1):
+    """Compute epipolar lines for given points"""
+    
+    # Convert to homogeneous coordinates
+    if points.shape[1] == 2:
+        ones = np.ones((points.shape[0], 1))
+        points_h = np.hstack([points, ones])
+    else:
+        points_h = points
+    
+    if which_image == 1:
+        # Lines in image 2 for points in image 1
+        lines = (fundamental_matrix @ points_h.T).T
+    else:
+        # Lines in image 1 for points in image 2
+        lines = (fundamental_matrix.T @ points_h.T).T
+    
+    return lines
+
+def rectify_stereo_pair(image1, image2, camera_matrix1, camera_matrix2, 
+                       rotation, translation, image_size):
+    """Rectify stereo image pair for easier correspondence matching"""
+    
+    # Compute rectification transformations
+    # Simplified implementation - in practice would use cv2.stereoRectify
+    
+    # Assume rectification maps are identity for demonstration
+    rectified1 = image1.copy()
+    rectified2 = image2.copy()
+    
+    # In real implementation, would apply rectification warping
+    
+    return rectified1, rectified2
+
+# Generate synthetic stereo correspondences
+np.random.seed(42)
+n_correspondences = 20
+points1 = np.random.rand(n_correspondences, 2) * 300
+points2 = points1 + np.random.normal(0, 2, points1.shape)  # Simulate slight disparity
+
+# Add some noise and outliers
+points2 += np.random.normal(0, 1, points2.shape)
+
+# Compute fundamental matrix
+try:
+    F = compute_fundamental_matrix(points1, points2)
+    print("Fundamental matrix computed successfully")
+    print("F matrix rank:", np.linalg.matrix_rank(F))
+    
+    # Compute epipolar lines for first few points
+    epipolar_lines = compute_epipolar_lines(points1[:3], F, which_image=2)
+    print("Sample epipolar lines:", epipolar_lines)
+    
+except Exception as e:
+    print(f"Fundamental matrix computation failed: {e}")
+```
+
+6.2 Stereo Matching:
+--------------------
+Block Matching:
+Compare image patches between stereo images
+Find correspondence with minimum cost
+
+Cost Functions:
+- Sum of Absolute Differences (SAD)
+- Sum of Squared Differences (SSD)
+- Normalized Cross Correlation (NCC)
+
+```python
+def stereo_block_matching(left_image, right_image, block_size=11, max_disparity=64):
+    """Compute disparity map using block matching"""
+    
+    rows, cols = left_image.shape
+    disparity_map = np.zeros((rows, cols), dtype=np.float32)
+    
+    half_block = block_size // 2
+    
+    for y in range(half_block, rows - half_block):
+        for x in range(half_block, cols - half_block):
+            
+            # Extract reference block from left image
+            ref_block = left_image[y-half_block:y+half_block+1, 
+                                 x-half_block:x+half_block+1]
+            
+            best_disparity = 0
+            min_cost = float('inf')
+            
+            # Search along epipolar line (horizontal for rectified images)
+            for d in range(min(max_disparity, x - half_block)):
+                if x - d - half_block < 0:
+                    break
+                
+                # Extract comparison block from right image
+                comp_block = right_image[y-half_block:y+half_block+1,
+                                       x-d-half_block:x-d+half_block+1]
+                
+                # Compute cost (SAD)
+                cost = np.sum(np.abs(ref_block.astype(np.float32) - 
+                                   comp_block.astype(np.float32)))
+                
+                if cost < min_cost:
+                    min_cost = cost
+                    best_disparity = d
+            
+            disparity_map[y, x] = best_disparity
+    
+    return disparity_map
+
+def compute_depth_from_disparity(disparity_map, baseline, focal_length):
+    """Convert disparity map to depth map"""
+    
+    # Avoid division by zero
+    valid_disparities = disparity_map > 0
+    depth_map = np.zeros_like(disparity_map)
+    
+    depth_map[valid_disparities] = (baseline * focal_length) / disparity_map[valid_disparities]
+    
+    return depth_map
+
+# Create synthetic stereo pair
+left_img = test_pattern.copy()
+# Simulate right image with horizontal shift (disparity)
+right_img = np.zeros_like(left_img)
+shift = 10  # pixels
+right_img[:, shift:] = left_img[:, :-shift]
+
+# Compute disparity
+disparity = stereo_block_matching(left_img, right_img, block_size=7, max_disparity=20)
+
+# Convert to depth
+baseline = 0.1  # meters
+focal_length = 500  # pixels
+depth_map = compute_depth_from_disparity(disparity, baseline, focal_length)
+
+print(f"Disparity map range: {disparity.min():.1f} to {disparity.max():.1f}")
+print(f"Depth map range: {depth_map[depth_map > 0].min():.2f} to {depth_map[depth_map > 0].max():.2f} meters")
+```
+
+=======================================================
+
+7. IMPLEMENTATION AND PRACTICAL GUIDELINES
+==========================================
+
+7.1 Performance Optimization:
+-----------------------------
+```python
+import time
+
+class GeometryBenchmark:
+    """Benchmark geometric transformation operations"""
+    
+    @staticmethod
+    def benchmark_transformation(transform_func, image, transformation, num_runs=10):
+        """Benchmark transformation function"""
+        times = []
+        
+        for _ in range(num_runs):
+            start_time = time.time()
+            result = transform_func(image, transformation)
+            end_time = time.time()
+            times.append(end_time - start_time)
+        
+        return np.mean(times), np.std(times)
+    
+    @staticmethod
+    def compare_warping_methods(image, transformation):
+        """Compare different warping implementations"""
+        
+        methods = {
+            'custom_affine': lambda img, t: affine_warp_image(img, t),
+            'opencv_affine': lambda img, t: cv2.warpAffine(img, t[:2], img.shape[::-1])
+        }
+        
+        results = {}
+        for name, method in methods.items():
+            try:
+                mean_time, std_time = GeometryBenchmark.benchmark_transformation(
+                    method, image, transformation, num_runs=5
+                )
+                results[name] = {'mean_time': mean_time, 'std_time': std_time}
+            except Exception as e:
+                results[name] = {'error': str(e)}
+        
+        return results
+
+# Benchmark transformations
+benchmark = GeometryBenchmark()
+affine_transform = create_affine_matrix(scale_x=1.2, rotation_deg=15, trans_x=10, trans_y=5)
+
+print("Performance Benchmarks:")
+print("-" * 30)
+
+# Custom implementation timing
+custom_time, custom_std = benchmark.benchmark_transformation(
+    affine_warp_image, test_pattern, affine_transform, num_runs=3
+)
+print(f"Custom affine warp: {custom_time:.4f} ± {custom_std:.4f} seconds")
+
+# OpenCV comparison (if available)
+try:
+    opencv_time, opencv_std = benchmark.benchmark_transformation(
+        lambda img, t: cv2.warpAffine(img, t[:2], img.shape[::-1]),
+        test_pattern, affine_transform, num_runs=3
+    )
+    print(f"OpenCV affine warp: {opencv_time:.4f} ± {opencv_std:.4f} seconds")
+    print(f"Speedup factor: {custom_time/opencv_time:.2f}x")
+except:
+    print("OpenCV not available for comparison")
+```
+
+7.2 Robust Estimation:
+----------------------
+```python
+class RobustEstimation:
+    """Tools for robust geometric estimation"""
+    
+    @staticmethod
+    def compute_transformation_error(src_points, dst_points, transformation):
+        """Compute transformation error for point correspondences"""
+        transformed_points = apply_transformation_matrix(src_points, transformation)
+        errors = np.sqrt(np.sum((transformed_points - dst_points)**2, axis=1))
+        return errors
+    
+    @staticmethod
+    def estimate_transformation_robust(src_points, dst_points, 
+                                     transformation_type='affine',
+                                     max_iterations=1000, 
+                                     threshold=3.0):
+        """Robust transformation estimation using RANSAC"""
+        
+        if transformation_type == 'affine':
+            min_points = 3
+            estimate_func = estimate_affine_transform
+        elif transformation_type == 'perspective':
+            min_points = 4
+            estimate_func = create_perspective_matrix
+        else:
+            raise ValueError("Unknown transformation type")
+        
+        if len(src_points) < min_points:
+            raise ValueError(f"Need at least {min_points} point correspondences")
+        
+        best_transformation = None
+        best_inliers = []
+        max_inliers = 0
+        
+        n_points = len(src_points)
+        
+        for iteration in range(max_iterations):
+            # Random sample
+            sample_indices = np.random.choice(n_points, min_points, replace=False)
+            sample_src = src_points[sample_indices]
+            sample_dst = dst_points[sample_indices]
+            
+            try:
+                # Estimate transformation
+                if transformation_type == 'affine':
+                    transformation, _ = estimate_func(sample_src, sample_dst)
+                else:
+                    transformation = estimate_func(sample_src, sample_dst)
+                
+                # Compute errors for all points
+                errors = RobustEstimation.compute_transformation_error(
+                    src_points, dst_points, transformation
+                )
+                
+                # Count inliers
+                inliers = np.where(errors < threshold)[0]
+                
+                if len(inliers) > max_inliers:
+                    max_inliers = len(inliers)
+                    best_transformation = transformation.copy()
+                    best_inliers = inliers.copy()
+                    
+            except (np.linalg.LinAlgError, ValueError):
+                continue
+        
+        # Refine using all inliers
+        if best_transformation is not None and len(best_inliers) >= min_points:
+            try:
+                if transformation_type == 'affine':
+                    refined_transformation, _ = estimate_func(
+                        src_points[best_inliers], dst_points[best_inliers]
+                    )
+                else:
+                    refined_transformation = estimate_func(
+                        src_points[best_inliers], dst_points[best_inliers]
+                    )
+                return refined_transformation, best_inliers
+            except:
+                pass
+        
+        return best_transformation, best_inliers
+
+# Test robust estimation
+np.random.seed(42)
+n_points = 30
+src_test = np.random.rand(n_points, 2) * 200
+true_transform = create_affine_matrix(scale_x=1.5, rotation_deg=30, trans_x=50, trans_y=20)
+dst_test = apply_transformation_matrix(src_test, true_transform)
+
+# Add noise
+dst_test += np.random.normal(0, 1, dst_test.shape)
+
+# Add outliers
+n_outliers = 5
+outlier_indices = np.random.choice(n_points, n_outliers, replace=False)
+dst_test[outlier_indices] += np.random.normal(0, 50, (n_outliers, 2))
+
+# Robust estimation
+robust_estimator = RobustEstimation()
+estimated_transform, inliers = robust_estimator.estimate_transformation_robust(
+    src_test, dst_test, transformation_type='affine'
+)
+
+print(f"Robust estimation: {len(inliers)}/{n_points} inliers")
+print(f"Inlier percentage: {len(inliers)/n_points*100:.1f}%")
+```
+
+7.3 Best Practices:
+------------------
+Transformation Selection:
+1. Use simplest transformation that models the data
+2. Consider computational constraints
+3. Account for expected geometric distortions
+4. Validate with ground truth when available
+
+Numerical Stability:
+1. Normalize coordinates when possible
+2. Use robust estimation for noisy data
+3. Check for singular matrices
+4. Apply appropriate regularization
+
+Quality Assurance:
+1. Visualize transformed images
+2. Check for artifacts and distortions
+3. Measure geometric accuracy
+4. Test on diverse image content
+
+7.4 Common Pitfalls:
+-------------------
+Coordinate System Issues:
+- Image vs. world coordinate confusion
+- Homogeneous coordinate handling
+- Matrix multiplication order
+
+Interpolation Problems:
+- Aliasing from insufficient sampling
+- Boundary handling
+- Choice of interpolation method
+
+Calibration Errors:
+- Insufficient calibration images
+- Poor checkerboard detection
+- Inappropriate camera model
+
+7.5 Success Guidelines:
+----------------------
+1. Understand the mathematical foundations thoroughly
+2. Choose appropriate transformations for your application
+3. Use robust estimation techniques for real-world data
+4. Implement proper interpolation and boundary handling
+5. Validate results with ground truth measurements
+6. Consider computational efficiency for real-time applications
+7. Use established libraries for production systems
+8. Document all parameter choices and assumptions
+
+=======================================================
+END OF DOCUMENT 

@@ -1,0 +1,1165 @@
+OBJECT DETECTION AND TEMPLATE MATCHING
+======================================
+
+Table of Contents:
+1. Introduction to Object Detection
+2. Template Matching Fundamentals
+3. Advanced Template Matching Techniques
+4. Sliding Window Detection
+5. Feature-Based Object Detection
+6. Cascade Classifiers
+7. Haar Feature Detection
+8. Histogram of Oriented Gradients (HOG)
+9. Viola-Jones Face Detection
+10. Python Implementation Examples
+11. Performance Evaluation and Metrics
+12. Applications and Modern Developments
+
+================================================================================
+1. INTRODUCTION TO OBJECT DETECTION
+================================================================================
+
+1.1 Object Detection Overview
+-----------------------------
+Object detection is the task of identifying and localizing objects within images:
+- **Classification:** What objects are present?
+- **Localization:** Where are the objects located?
+- **Multiple objects:** Handle varying numbers of objects
+
+**Challenges:**
+- Scale variation: objects appear at different sizes
+- Illumination changes: lighting conditions vary
+- Partial occlusion: objects may be partially hidden
+- Viewpoint variation: objects viewed from different angles
+- Intra-class variation: objects within same class vary
+- Background clutter: distinguishing objects from background
+
+1.2 Classical vs. Modern Approaches
+-----------------------------------
+**Classical Methods (Pre-Deep Learning):**
+- Hand-crafted features (SIFT, HOG, Haar)
+- Template matching approaches
+- Sliding window detection
+- Cascade classifiers
+- Support Vector Machines
+
+**Modern Methods (Deep Learning):**
+- Convolutional Neural Networks
+- R-CNN family, YOLO, SSD
+- End-to-end learned features
+- Better accuracy but higher computational cost
+
+1.3 Evaluation Metrics
+----------------------
+**Detection Metrics:**
+- Precision: TP/(TP + FP)
+- Recall: TP/(TP + FN)
+- Average Precision (AP): Area under PR curve
+- Mean Average Precision (mAP): Average AP across classes
+- Intersection over Union (IoU): Overlap measure
+
+**IoU Calculation:**
+IoU = Area(Prediction ∩ Ground Truth) / Area(Prediction ∪ Ground Truth)
+
+================================================================================
+2. TEMPLATE MATCHING FUNDAMENTALS
+================================================================================
+
+2.1 Basic Template Matching
+----------------------------
+Template matching finds locations of a template T in image I:
+- Template: small image patch representing object
+- Search: slide template across entire image
+- Similarity measure: correlation, normalized correlation
+
+**Mathematical Formulation:**
+Given image I(x,y) and template T(u,v) of size M×N:
+
+R(x,y) = ∑∑[I(x+u,y+v) × T(u,v)]
+         u v
+
+where R(x,y) is the correlation response at position (x,y)
+
+2.2 Correlation Measures
+------------------------
+**Cross-Correlation:**
+R(x,y) = ∑∑[I(x+u,y+v) × T(u,v)]
+
+**Normalized Cross-Correlation (NCC):**
+R(x,y) = ∑∑[(I(x+u,y+v) - Ī) × (T(u,v) - T̄)] / (σI × σT)
+
+where Ī, T̄ are means and σI, σT are standard deviations
+
+**Advantages of NCC:**
+- Invariant to linear illumination changes
+- Values in range [-1, 1]
+- More robust than basic correlation
+
+2.3 Distance-Based Measures
+----------------------------
+**Sum of Squared Differences (SSD):**
+R(x,y) = ∑∑[I(x+u,y+v) - T(u,v)]²
+
+**Sum of Absolute Differences (SAD):**
+R(x,y) = ∑∑|I(x+u,y+v) - T(u,v)|
+
+**Normalized SSD:**
+R(x,y) = ∑∑[(I(x+u,y+v) - Ī) - (T(u,v) - T̄)]² / (σI × σT)
+
+2.4 Peak Detection
+------------------
+**Finding Matches:**
+- Local maxima (for correlation measures)
+- Local minima (for distance measures)
+- Threshold-based selection
+- Non-maximum suppression
+
+**Multiple Object Detection:**
+- Detect multiple peaks above threshold
+- Ensure minimum distance between detections
+- Handle overlapping detections
+
+================================================================================
+3. ADVANCED TEMPLATE MATCHING TECHNIQUES
+================================================================================
+
+3.1 Multi-Scale Template Matching
+----------------------------------
+**Scale Pyramid Approach:**
+1. Create scale pyramid of template
+2. Apply template matching at each scale
+3. Combine results across scales
+4. Non-maximum suppression across scales
+
+**Implementation:**
+```python
+def multi_scale_template_matching(image, template, scales):
+    best_match = None
+    best_score = 0
+    
+    for scale in scales:
+        # Resize template
+        h, w = template.shape[:2]
+        scaled_template = cv2.resize(template, 
+                                   (int(w * scale), int(h * scale)))
+        
+        # Perform template matching
+        result = cv2.matchTemplate(image, scaled_template, 
+                                 cv2.TM_CCOEFF_NORMED)
+        
+        # Find best match at this scale
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        
+        if max_val > best_score:
+            best_score = max_val
+            best_match = (max_loc, scale)
+    
+    return best_match, best_score
+```
+
+3.2 Rotation-Invariant Template Matching
+-----------------------------------------
+**Rotation Pyramid:**
+1. Rotate template by various angles
+2. Apply template matching for each rotation
+3. Find best match across all rotations
+
+**Polar Coordinate Transform:**
+- Convert template and image regions to polar coordinates
+- Rotation becomes translation in angular dimension
+- Apply standard template matching in polar domain
+
+3.3 Deformable Template Matching
+---------------------------------
+**Active Shape Models:**
+- Template can deform according to learned variations
+- Principal Component Analysis of shape variations
+- Optimize both position and deformation parameters
+
+**Elastic Template Matching:**
+- Allow local deformations of template
+- Energy function balances matching score and deformation cost
+- Optimization using dynamic programming or graph cuts
+
+3.4 Feature-Based Template Matching
+------------------------------------
+**SIFT-Based Matching:**
+1. Extract SIFT features from template
+2. Extract SIFT features from search image
+3. Match features using descriptor similarity
+4. Use geometric verification (RANSAC)
+
+**Advantages:**
+- Invariant to scale, rotation, illumination
+- Robust to partial occlusion
+- Works with textured objects
+
+================================================================================
+4. SLIDING WINDOW DETECTION
+================================================================================
+
+4.1 Sliding Window Paradigm
+----------------------------
+**Basic Algorithm:**
+1. Define window size (template size)
+2. Slide window across image at all positions
+3. Extract features from each window
+4. Classify each window (object vs. background)
+5. Apply non-maximum suppression
+
+**Multi-Scale Detection:**
+- Create image pyramid (different scales)
+- Apply sliding window at each scale
+- Fixed window size, varying image scales
+
+4.2 Feature Extraction
+----------------------
+**Common Features:**
+- Raw pixel intensities
+- Histogram of Oriented Gradients (HOG)
+- Local Binary Patterns (LBP)
+- Haar-like features
+- SIFT/SURF descriptors
+
+**Feature Vector Construction:**
+- Concatenate all features from window
+- Normalize features (zero mean, unit variance)
+- Dimensionality reduction (PCA, LDA)
+
+4.3 Classification
+------------------
+**Binary Classifiers:**
+- Support Vector Machine (SVM)
+- AdaBoost
+- Random Forest
+- Logistic Regression
+
+**Multi-Class Extension:**
+- One-vs-All approach
+- Hierarchical classification
+- Multi-class SVM
+
+4.4 Non-Maximum Suppression
+----------------------------
+**Greedy NMS Algorithm:**
+1. Sort detections by confidence score
+2. Select highest scoring detection
+3. Remove detections with high overlap (IoU > threshold)
+4. Repeat until no detections remain
+
+**Soft NMS:**
+- Reduce scores of overlapping detections instead of removing
+- Maintains detections of nearby objects
+- Better for crowded scenes
+
+================================================================================
+5. FEATURE-BASED OBJECT DETECTION
+================================================================================
+
+5.1 Local Feature Detectors
+----------------------------
+**Harris Corner Detector:**
+- Detect corners based on intensity variations
+- Corner response: R = det(M) - k(trace(M))²
+- where M is structure tensor
+
+**SIFT (Scale-Invariant Feature Transform):**
+- Scale-space extrema detection
+- Keypoint localization and filtering
+- Orientation assignment
+- Descriptor computation
+
+**SURF (Speeded-Up Robust Features):**
+- Fast approximation of SIFT
+- Integral images for efficient computation
+- Determinant of Hessian for detection
+
+5.2 Feature Matching and Verification
+--------------------------------------
+**Descriptor Matching:**
+- Brute-force matching: compare all pairs
+- FLANN (Fast Library for Approximate Nearest Neighbors)
+- Ratio test: reject ambiguous matches
+
+**Geometric Verification:**
+- RANSAC for robust estimation
+- Fundamental matrix estimation
+- Homography estimation
+- Minimum number of correspondences
+
+5.3 Bag of Visual Words (BoVW)
+------------------------------
+**Vocabulary Construction:**
+1. Extract features from training images
+2. Cluster features using k-means
+3. Cluster centers form visual vocabulary
+
+**Image Representation:**
+1. Extract features from image
+2. Assign each feature to nearest vocabulary word
+3. Create histogram of word occurrences
+4. Normalize histogram
+
+**Classification:**
+- Train classifier on BoVW histograms
+- SVM with histogram intersection kernel
+- Nearest neighbor classification
+
+================================================================================
+6. CASCADE CLASSIFIERS
+================================================================================
+
+6.1 Cascade Detection Framework
+-------------------------------
+**Motivation:**
+- Most image windows are background (negative)
+- Use simple features to quickly reject background
+- Apply complex features only to promising regions
+
+**Cascade Structure:**
+- Series of increasingly complex classifiers
+- Early stages: simple, fast features
+- Later stages: complex, accurate features
+- Reject negative examples at any stage
+
+6.2 AdaBoost for Feature Selection
+----------------------------------
+**AdaBoost Algorithm:**
+1. Initialize uniform weights for training examples
+2. For each round t:
+   - Train weak classifier on weighted data
+   - Compute error and classifier weight
+   - Update example weights (increase for misclassified)
+3. Combine weak classifiers with weighted voting
+
+**Feature Selection:**
+- Each weak classifier uses single feature
+- AdaBoost selects most discriminative features
+- Automatic feature selection and combination
+
+6.3 Cascade Training
+--------------------
+**Stage-wise Training:**
+1. Train AdaBoost classifier for current stage
+2. Adjust threshold to achieve target detection rate
+3. Run classifier on negative examples
+4. Collect false positives for next stage training
+5. Add more features if false positive rate too high
+
+**Performance Goals:**
+- High detection rate (≥ 99.5% per stage)
+- Low false positive rate (≤ 50% per stage)
+- Overall: very low false positive rate
+
+6.4 Detection Process
+---------------------
+**Runtime Detection:**
+1. For each window position and scale:
+2. Apply cascade stages sequentially
+3. If any stage rejects window, move to next window
+4. If all stages pass, report detection
+5. Apply non-maximum suppression to final detections
+
+**Efficiency:**
+- Most windows rejected in early stages
+- Computational cost dramatically reduced
+- Real-time performance possible
+
+================================================================================
+7. HAAR FEATURE DETECTION
+================================================================================
+
+7.1 Haar-like Features
+----------------------
+**Basic Haar Features:**
+- Two-rectangle features: adjacent light/dark regions
+- Three-rectangle features: center different from sides
+- Four-rectangle features: diagonal patterns
+
+**Feature Computation:**
+Value = (Sum of pixels in white regions) - (Sum of pixels in black regions)
+
+**Normalization:**
+- Normalize by window variance
+- Account for illumination changes
+- Improve feature discrimination
+
+7.2 Integral Image
+------------------
+**Definition:**
+Integral image II(x,y) = ∑∑I(i,j)
+                        i≤x j≤y
+
+**Fast Rectangle Sum:**
+Sum over rectangle with corners (x₁,y₁), (x₂,y₂):
+Sum = II(x₂,y₂) - II(x₁-1,y₂) - II(x₂,y₁-1) + II(x₁-1,y₁-1)
+
+**Advantages:**
+- Constant time rectangle sum computation
+- Enables real-time Haar feature evaluation
+- Essential for cascade efficiency
+
+7.3 Extended Haar Features
+---------------------------
+**Rotated Features:**
+- 45-degree rotated rectangles
+- Additional orientation information
+- Requires rotated integral image
+
+**Multi-Scale Features:**
+- Different sized rectangles at same location
+- Capture patterns at multiple scales
+- More discriminative power
+
+7.4 Feature Selection and Optimization
+---------------------------------------
+**Exhaustive Feature Set:**
+- All possible rectangles at all positions
+- Millions of potential features
+- AdaBoost selects most useful subset
+
+**Optimization Techniques:**
+- Variance normalization for invariance
+- Feature value lookup tables
+- SIMD instructions for parallel computation
+
+================================================================================
+8. HISTOGRAM OF ORIENTED GRADIENTS (HOG)
+================================================================================
+
+8.1 HOG Feature Computation
+----------------------------
+**Step 1: Gradient Computation**
+- Compute image gradients using [-1, 0, 1] filter
+- Gradient magnitude: |G| = √(Gx² + Gy²)
+- Gradient orientation: θ = arctan(Gy/Gx)
+
+**Step 2: Cell Histograms**
+- Divide image into cells (typically 8×8 pixels)
+- Create orientation histogram for each cell
+- Typically 9 bins covering 0-180 degrees
+- Vote with gradient magnitude
+
+**Step 3: Block Normalization**
+- Group cells into blocks (typically 2×2 cells)
+- Normalize histogram within each block
+- Handle illumination changes
+- Several normalization schemes: L1, L2, L1-sqrt
+
+**Step 4: Feature Vector**
+- Concatenate all normalized histograms
+- Typical descriptor: 3780 dimensions for 64×128 window
+
+8.2 HOG Parameters
+------------------
+**Cell Size:**
+- Smaller cells: more spatial detail, higher dimensionality
+- Larger cells: more robust to noise, lower dimensionality
+- Common choice: 8×8 pixels
+
+**Block Size:**
+- Overlap between blocks improves performance
+- Common choice: 2×2 cells with 50% overlap
+
+**Orientation Bins:**
+- More bins: finer orientation discrimination
+- Fewer bins: more robust to orientation noise
+- Common choice: 9 bins for 180 degrees
+
+8.3 HOG for Object Detection
+-----------------------------
+**Training:**
+1. Extract HOG features from positive/negative windows
+2. Train linear SVM classifier
+3. Optimize SVM parameters using cross-validation
+
+**Detection:**
+1. Extract HOG features from sliding windows
+2. Classify using trained SVM
+3. Apply non-maximum suppression
+
+**Advantages:**
+- Robust to illumination changes
+- Captures shape information well
+- Successful for human detection
+
+8.4 HOG Variants and Extensions
+-------------------------------
+**Dense HOG:**
+- Compute HOG at every pixel location
+- Better localization accuracy
+- Higher computational cost
+
+**Sparse HOG:**
+- Compute HOG only at interest points
+- Faster computation
+- May miss important regions
+
+**Multi-Scale HOG:**
+- Extract HOG at multiple scales
+- Combine features across scales
+- Better scale invariance
+
+================================================================================
+9. VIOLA-JONES FACE DETECTION
+================================================================================
+
+9.1 Viola-Jones Algorithm Overview
+-----------------------------------
+**Key Innovations:**
+1. Haar-like features with integral image
+2. AdaBoost for feature selection
+3. Cascade classifier for efficiency
+4. Real-time face detection capability
+
+**Training Process:**
+1. Collect large dataset of face/non-face examples
+2. Compute Haar features for all examples
+3. Use AdaBoost to select discriminative features
+4. Build cascade of classifiers
+5. Optimize cascade parameters
+
+9.2 Face-Specific Features
+--------------------------
+**Effective Haar Features for Faces:**
+- Eye region typically darker than cheek region
+- Nose bridge brighter than eye regions
+- Mouth region characteristics
+- Overall face shape patterns
+
+**Feature Examples:**
+- Two-rectangle: eyes vs. cheeks
+- Three-rectangle: eyes-nose-mouth pattern
+- Four-rectangle: eye region patterns
+
+9.3 Cascade Architecture
+------------------------
+**Multi-Stage Design:**
+- Stage 1: 2 features (very fast, high recall)
+- Stage 2: 10 features (moderate complexity)
+- Stage 3: 25 features (more discriminative)
+- ...continuing with increasing complexity
+
+**Performance Characteristics:**
+- Overall detection rate: ~95%
+- Overall false positive rate: ~10⁻⁶
+- Average features evaluated per window: ~10
+  (vs. thousands without cascade)
+
+9.4 Detection Performance
+-------------------------
+**Speed:**
+- Real-time detection on 2000s hardware
+- 15 fps on 320×240 images
+- Faster than previous methods by orders of magnitude
+
+**Accuracy:**
+- High detection rates on frontal faces
+- Challenges with profile views, lighting, occlusion
+- Foundation for many commercial applications
+
+**Limitations:**
+- Limited to frontal face detection
+- Sensitive to lighting conditions
+- Requires training for each object class
+
+================================================================================
+10. PYTHON IMPLEMENTATION EXAMPLES
+================================================================================
+
+```python
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from sklearn.svm import SVM
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.metrics import classification_report
+from skimage.feature import hog
+from skimage import data, exposure
+import os
+
+class TemplateMatching:
+    """Template matching implementations"""
+    
+    @staticmethod
+    def basic_template_matching(image, template, method=cv2.TM_CCOEFF_NORMED):
+        """
+        Basic template matching using OpenCV
+        """
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        if len(template.shape) == 3:
+            template = cv2.cvtColor(template, cv2.COLOR_RGB2GRAY)
+        
+        # Apply template matching
+        result = cv2.matchTemplate(image, template, method)
+        
+        # Find best match
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        
+        # For correlation methods, use max_loc
+        if method in [cv2.TM_CCOEFF, cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR, cv2.TM_CCORR_NORMED]:
+            top_left = max_loc
+            match_val = max_val
+        else:
+            top_left = min_loc
+            match_val = min_val
+        
+        h, w = template.shape
+        bottom_right = (top_left[0] + w, top_left[1] + h)
+        
+        return top_left, bottom_right, match_val, result
+    
+    @staticmethod
+    def multi_scale_matching(image, template, scales=np.linspace(0.2, 1.0, 20)):
+        """
+        Multi-scale template matching
+        """
+        found = None
+        
+        for scale in scales:
+            # Resize the image
+            resized = cv2.resize(image, None, fx=scale, fy=scale)
+            ratio = image.shape[1] / float(resized.shape[1])
+            
+            # If resized image is smaller than template, break
+            if resized.shape[0] < template.shape[0] or resized.shape[1] < template.shape[1]:
+                break
+            
+            # Apply template matching
+            result = cv2.matchTemplate(resized, template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            
+            # If first iteration or better match found
+            if found is None or max_val > found[0]:
+                found = (max_val, max_loc, ratio)
+        
+        # Unpack the best match
+        (max_val, max_loc, ratio) = found
+        (start_x, start_y) = (int(max_loc[0] * ratio), int(max_loc[1] * ratio))
+        (end_x, end_y) = (int((max_loc[0] + template.shape[1]) * ratio),
+                         int((max_loc[1] + template.shape[0]) * ratio))
+        
+        return (start_x, start_y), (end_x, end_y), max_val
+    
+    @staticmethod
+    def rotation_invariant_matching(image, template, angles=range(0, 360, 15)):
+        """
+        Rotation-invariant template matching
+        """
+        best_match = None
+        best_score = 0
+        
+        template_center = (template.shape[1] // 2, template.shape[0] // 2)
+        
+        for angle in angles:
+            # Rotate template
+            rotation_matrix = cv2.getRotationMatrix2D(template_center, angle, 1.0)
+            rotated_template = cv2.warpAffine(template, rotation_matrix, 
+                                            (template.shape[1], template.shape[0]))
+            
+            # Apply template matching
+            result = cv2.matchTemplate(image, rotated_template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            
+            if max_val > best_score:
+                best_score = max_val
+                best_match = (max_loc, angle, rotated_template)
+        
+        return best_match, best_score
+
+class SlidingWindowDetector:
+    """Sliding window object detection"""
+    
+    def __init__(self, window_size=(64, 128), step_size=8):
+        self.window_size = window_size
+        self.step_size = step_size
+        self.classifier = None
+        self.scaler = None
+    
+    def extract_hog_features(self, image):
+        """Extract HOG features from image"""
+        features = hog(image, orientations=9, pixels_per_cell=(8, 8),
+                      cells_per_block=(2, 2), transform_sqrt=True, block_norm="L1")
+        return features
+    
+    def sliding_window(self, image, window_size, step_size):
+        """Generate sliding windows"""
+        for y in range(0, image.shape[0] - window_size[1], step_size):
+            for x in range(0, image.shape[1] - window_size[0], step_size):
+                yield (x, y, image[y:y + window_size[1], x:x + window_size[0]])
+    
+    def train(self, positive_images, negative_images):
+        """Train the sliding window detector"""
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.svm import LinearSVC
+        
+        # Extract features
+        features = []
+        labels = []
+        
+        # Positive examples
+        for img in positive_images:
+            if len(img.shape) == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            
+            # Resize to window size
+            img = cv2.resize(img, self.window_size)
+            feature = self.extract_hog_features(img)
+            features.append(feature)
+            labels.append(1)
+        
+        # Negative examples
+        for img in negative_images:
+            if len(img.shape) == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            
+            # Extract random windows
+            for _ in range(5):  # Multiple negative windows per image
+                if img.shape[0] >= self.window_size[1] and img.shape[1] >= self.window_size[0]:
+                    y = np.random.randint(0, img.shape[0] - self.window_size[1])
+                    x = np.random.randint(0, img.shape[1] - self.window_size[0])
+                    window = img[y:y + self.window_size[1], x:x + self.window_size[0]]
+                    feature = self.extract_hog_features(window)
+                    features.append(feature)
+                    labels.append(0)
+        
+        # Convert to arrays
+        features = np.array(features)
+        labels = np.array(labels)
+        
+        # Normalize features
+        self.scaler = StandardScaler()
+        features_scaled = self.scaler.fit_transform(features)
+        
+        # Train classifier
+        self.classifier = LinearSVC(C=0.01, max_iter=10000)
+        self.classifier.fit(features_scaled, labels)
+        
+        print(f"Training completed. Accuracy: {self.classifier.score(features_scaled, labels):.3f}")
+    
+    def detect(self, image, threshold=0.5, scales=[1.0]):
+        """Detect objects in image"""
+        detections = []
+        
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        for scale in scales:
+            # Scale image
+            scaled_image = cv2.resize(image, None, fx=scale, fy=scale)
+            
+            # Sliding window
+            for (x, y, window) in self.sliding_window(scaled_image, self.window_size, self.step_size):
+                if window.shape[0] != self.window_size[1] or window.shape[1] != self.window_size[0]:
+                    continue
+                
+                # Extract features
+                features = self.extract_hog_features(window)
+                features_scaled = self.scaler.transform([features])
+                
+                # Predict
+                prob = self.classifier.decision_function(features_scaled)[0]
+                
+                if prob > threshold:
+                    # Scale back coordinates
+                    x_orig = int(x / scale)
+                    y_orig = int(y / scale)
+                    w_orig = int(self.window_size[0] / scale)
+                    h_orig = int(self.window_size[1] / scale)
+                    
+                    detections.append((x_orig, y_orig, x_orig + w_orig, 
+                                     y_orig + h_orig, prob))
+        
+        return detections
+    
+    def non_max_suppression(self, detections, overlap_threshold=0.3):
+        """Apply non-maximum suppression"""
+        if len(detections) == 0:
+            return []
+        
+        # Convert to numpy array
+        detections = np.array(detections)
+        
+        # Extract coordinates and scores
+        x1 = detections[:, 0]
+        y1 = detections[:, 1]
+        x2 = detections[:, 2]
+        y2 = detections[:, 3]
+        scores = detections[:, 4]
+        
+        # Compute areas
+        areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+        
+        # Sort by scores
+        indices = np.argsort(scores)[::-1]
+        
+        keep = []
+        while len(indices) > 0:
+            # Pick the detection with highest score
+            current = indices[0]
+            keep.append(current)
+            
+            # Compute IoU with remaining detections
+            xx1 = np.maximum(x1[current], x1[indices[1:]])
+            yy1 = np.maximum(y1[current], y1[indices[1:]])
+            xx2 = np.minimum(x2[current], x2[indices[1:]])
+            yy2 = np.minimum(y2[current], y2[indices[1:]])
+            
+            w = np.maximum(0, xx2 - xx1 + 1)
+            h = np.maximum(0, yy2 - yy1 + 1)
+            
+            overlap = (w * h) / areas[indices[1:]]
+            
+            # Remove detections with high overlap
+            indices = indices[np.where(overlap <= overlap_threshold)[0] + 1]
+        
+        return detections[keep]
+
+class HaarFeatureDetector:
+    """Haar feature-based detection"""
+    
+    def __init__(self):
+        self.cascade = None
+    
+    def load_cascade(self, cascade_path):
+        """Load pre-trained cascade classifier"""
+        self.cascade = cv2.CascadeClassifier(cascade_path)
+    
+    def detect_faces(self, image, scale_factor=1.1, min_neighbors=5, min_size=(30, 30)):
+        """Detect faces using Haar cascade"""
+        if self.cascade is None:
+            raise ValueError("Cascade not loaded. Call load_cascade() first.")
+        
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image
+        
+        # Detect faces
+        faces = self.cascade.detectMultiScale(
+            gray,
+            scaleFactor=scale_factor,
+            minNeighbors=min_neighbors,
+            minSize=min_size,
+            flags=cv2.CASCADE_SCALE_IMAGE
+        )
+        
+        return faces
+    
+    def compute_integral_image(self, image):
+        """Compute integral image"""
+        return cv2.integral(image)
+    
+    def haar_feature_value(self, integral_img, x, y, w, h, rectangles):
+        """
+        Compute Haar feature value
+        rectangles: list of (x_offset, y_offset, width, height, weight)
+        """
+        value = 0
+        for rect in rectangles:
+            rx, ry, rw, rh, weight = rect
+            
+            # Rectangle corners in integral image
+            x1, y1 = x + rx, y + ry
+            x2, y2 = x1 + rw, y1 + rh
+            
+            # Rectangle sum using integral image
+            rect_sum = (integral_img[y2, x2] - integral_img[y1, x2] - 
+                       integral_img[y2, x1] + integral_img[y1, x1])
+            
+            value += weight * rect_sum
+        
+        return value
+
+def demonstrate_object_detection():
+    """Demonstrate various object detection techniques"""
+    
+    # Load test image
+    image = cv2.imread('test_image.jpg') if os.path.exists('test_image.jpg') else create_test_image()
+    
+    # Template matching demonstration
+    template = image[50:100, 50:100]  # Extract template from image
+    
+    template_matcher = TemplateMatching()
+    
+    # Basic template matching
+    top_left, bottom_right, score, result = template_matcher.basic_template_matching(image, template)
+    print(f"Template matching score: {score:.3f}")
+    
+    # Multi-scale matching
+    (start_x, start_y), (end_x, end_y), scale_score = template_matcher.multi_scale_matching(image, template)
+    print(f"Multi-scale matching score: {scale_score:.3f}")
+    
+    # Face detection using Haar cascades
+    face_detector = HaarFeatureDetector()
+    
+    # Try to load face cascade (OpenCV installation dependent)
+    try:
+        face_cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        face_detector.load_cascade(face_cascade_path)
+        faces = face_detector.detect_faces(image)
+        print(f"Detected {len(faces)} faces")
+    except:
+        print("Haar cascade for face detection not available")
+    
+    # HOG feature extraction
+    if len(image.shape) == 3:
+        gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    else:
+        gray_image = image
+    
+    hog_features, hog_image = hog(gray_image, orientations=9, pixels_per_cell=(8, 8),
+                                  cells_per_block=(2, 2), visualize=True, transform_sqrt=True)
+    
+    print(f"HOG feature vector length: {len(hog_features)}")
+    
+    # Visualization
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    
+    axes[0, 0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    axes[0, 0].set_title('Original Image')
+    
+    axes[0, 1].imshow(result, cmap='hot')
+    axes[0, 1].set_title('Template Matching Result')
+    
+    axes[1, 0].imshow(gray_image, cmap='gray')
+    axes[1, 0].set_title('Grayscale Image')
+    
+    axes[1, 1].imshow(hog_image, cmap='gray')
+    axes[1, 1].set_title('HOG Features Visualization')
+    
+    for ax in axes.flat:
+        ax.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+def create_test_image():
+    """Create a synthetic test image"""
+    image = np.ones((400, 600, 3), dtype=np.uint8) * 128
+    
+    # Add some objects
+    cv2.rectangle(image, (100, 100), (200, 200), (255, 0, 0), -1)
+    cv2.circle(image, (400, 150), 50, (0, 255, 0), -1)
+    cv2.ellipse(image, (300, 300), (80, 40), 45, 0, 360, (0, 0, 255), -1)
+    
+    # Add noise
+    noise = np.random.normal(0, 20, image.shape)
+    image = np.clip(image + noise, 0, 255).astype(np.uint8)
+    
+    return image
+
+# Example usage
+if __name__ == "__main__":
+    demonstrate_object_detection()
+```
+
+================================================================================
+11. PERFORMANCE EVALUATION AND METRICS
+================================================================================
+
+11.1 Detection Metrics
+----------------------
+**Precision and Recall:**
+- Precision = TP / (TP + FP)
+- Recall = TP / (TP + FN)
+- F1-Score = 2 × (Precision × Recall) / (Precision + Recall)
+
+**Average Precision (AP):**
+- Area under Precision-Recall curve
+- Single number summarizing performance
+- Computed for each object class
+
+**Mean Average Precision (mAP):**
+- Average of AP across all classes
+- Standard metric for object detection
+- Often reported at different IoU thresholds
+
+11.2 Localization Accuracy
+--------------------------
+**Intersection over Union (IoU):**
+IoU = Area(Prediction ∩ Ground Truth) / Area(Prediction ∪ Ground Truth)
+
+**IoU Thresholds:**
+- IoU ≥ 0.5: Traditional threshold
+- IoU ≥ 0.75: Stricter localization requirement
+- mAP@[0.5:0.95]: Average over IoU thresholds 0.5 to 0.95
+
+**Detection Quality:**
+- True Positive: IoU ≥ threshold
+- False Positive: IoU < threshold or duplicate detection
+- False Negative: Ground truth object not detected
+
+11.3 Computational Performance
+------------------------------
+**Speed Metrics:**
+- Frames Per Second (FPS)
+- Detection time per image
+- Feature extraction time
+- Classification time
+
+**Memory Usage:**
+- Model size
+- Runtime memory consumption
+- Cache efficiency
+
+**Scalability:**
+- Performance vs. image size
+- Performance vs. number of objects
+- Multi-threading capabilities
+
+11.4 Robustness Evaluation
+--------------------------
+**Illumination Robustness:**
+- Performance under different lighting conditions
+- Shadow handling capability
+- Contrast variation tolerance
+
+**Scale Robustness:**
+- Detection across different object sizes
+- Multi-scale performance evaluation
+- Scale invariance measures
+
+**Occlusion Handling:**
+- Performance with partially occluded objects
+- Crowded scene performance
+- Multiple object detection accuracy
+
+================================================================================
+12. APPLICATIONS AND MODERN DEVELOPMENTS
+================================================================================
+
+12.1 Traditional Applications
+-----------------------------
+**Surveillance Systems:**
+- Face detection and recognition
+- Motion detection and tracking
+- Anomaly detection
+- Crowd analysis
+
+**Industrial Inspection:**
+- Quality control automation
+- Defect detection
+- Assembly verification
+- Dimensional measurement
+
+**Medical Imaging:**
+- Anatomical structure detection
+- Lesion identification
+- Organ segmentation
+- Diagnostic assistance
+
+12.2 Automotive Applications
+----------------------------
+**Driver Assistance:**
+- Pedestrian detection
+- Vehicle detection
+- Traffic sign recognition
+- Lane departure warning
+
+**Autonomous Driving:**
+- Object detection and tracking
+- Obstacle avoidance
+- Path planning support
+- Scene understanding
+
+12.3 Modern Deep Learning Approaches
+------------------------------------
+**Region-Based Methods:**
+- R-CNN, Fast R-CNN, Faster R-CNN
+- Feature Pyramid Networks (FPN)
+- Mask R-CNN for instance segmentation
+
+**Single-Shot Methods:**
+- YOLO (You Only Look Once)
+- SSD (Single Shot MultiBox Detector)
+- RetinaNet with Focal Loss
+
+**Transformer-Based:**
+- DETR (Detection Transformer)
+- Deformable DETR
+- End-to-end object detection
+
+12.4 Hybrid Approaches
+----------------------
+**Classical + Deep Learning:**
+- Deep features with classical classifiers
+- Classical preprocessing with deep detection
+- Multi-stage pipelines
+
+**Edge Computing:**
+- Lightweight models for mobile devices
+- Real-time processing constraints
+- Power-efficient implementations
+
+**Multi-Modal Fusion:**
+- RGB + Depth information
+- Thermal + Visible spectrum
+- Radar + Camera fusion
+
+12.5 Future Directions
+---------------------
+**Few-Shot Learning:**
+- Detection with minimal training data
+- Meta-learning approaches
+- Transfer learning techniques
+
+**Explainable AI:**
+- Understanding detection decisions
+- Feature visualization
+- Model interpretability
+
+**3D Object Detection:**
+- Point cloud processing
+- Multi-view geometry
+- LIDAR + Camera fusion
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Classical object detection methods laid the foundation for modern computer vision systems. Key achievements include:
+
+**Template Matching:**
+- Simple and intuitive approach
+- Effective for rigid objects
+- Limited robustness to variations
+
+**Sliding Window Detection:**
+- Systematic search strategy
+- Enables multi-scale detection
+- Computationally expensive without optimization
+
+**Cascade Classifiers:**
+- Dramatic speed improvements
+- Real-time detection capability
+- Foundation for many commercial systems
+
+**Feature-Based Methods:**
+- HOG, Haar, SIFT provide robustness
+- Learned feature selection
+- Good generalization capability
+
+**Modern Relevance:**
+- Classical methods still useful for specific applications
+- Computational efficiency advantages
+- Interpretability and explainability
+- Foundation for understanding deep learning approaches
+
+The evolution from classical to deep learning methods represents a shift from hand-crafted to learned features, but the fundamental principles of object detection remain relevant for understanding and developing robust computer vision systems.
+
+================================================================================
+REFERENCES AND FURTHER READING
+================================================================================
+
+1. Viola, P. & Jones, M. "Rapid Object Detection using a Boosted Cascade" (2001)
+2. Dalal, N. & Triggs, B. "Histograms of Oriented Gradients for Human Detection" (2005)
+3. Lowe, D.G. "Distinctive Image Features from Scale-Invariant Keypoints" (2004)
+4. Papageorgiou, C. & Poggio, T. "A Trainable System for Object Detection" (2000)
+5. Felzenszwalb, P. et al. "Object Detection with Discriminatively Trained Part-Based Models" (2010)
+6. Zhang, C. & Zhang, Z. "A Survey of Recent Advances in Face Detection" (2010)
+7. Everingham, M. et al. "The Pascal Visual Object Classes Challenge" (2010)
+8. Freund, Y. & Schapire, R.E. "A Decision-Theoretic Generalization of On-Line Learning" (1997)
+9. Schneiderman, H. & Kanade, T. "A Statistical Method for 3D Object Detection" (2000)
+10. Rowley, H.A. et al. "Neural Network-Based Face Detection" (1998) 

@@ -1,0 +1,1366 @@
+CAMERA MODELS AND 3D RECONSTRUCTION
+===================================
+
+Table of Contents:
+1. Introduction to Camera Models
+2. Pinhole Camera Model
+3. Camera Calibration
+4. Lens Distortion Models
+5. Multi-Camera Systems
+6. Structure from Motion (SfM)
+7. Bundle Adjustment
+8. 3D Reconstruction Techniques
+9. Dense Reconstruction Methods
+10. Python Implementation Examples
+11. Quality Assessment and Validation
+12. Applications and Modern Developments
+
+================================================================================
+1. INTRODUCTION TO CAMERA MODELS
+================================================================================
+
+1.1 Camera Modeling Overview
+----------------------------
+Camera models describe the mathematical relationship between 3D world coordinates and 2D image coordinates:
+- **Forward projection:** 3D world point → 2D image point
+- **Inverse projection:** 2D image point → 3D ray in world space
+- **Parameter estimation:** Determine camera parameters from correspondences
+- **3D reconstruction:** Recover 3D structure from multiple views
+
+**Applications:**
+- 3D reconstruction and mapping
+- Augmented reality and mixed reality
+- Robot navigation and SLAM
+- Photogrammetry and surveying
+- Computer graphics and virtual reality
+
+1.2 Camera Model Components
+---------------------------
+**Intrinsic Parameters:**
+- Focal length: distance from optical center to image plane
+- Principal point: intersection of optical axis with image plane
+- Pixel aspect ratio and skew
+- Radial and tangential distortion coefficients
+
+**Extrinsic Parameters:**
+- Rotation: orientation of camera in world coordinates
+- Translation: position of camera in world coordinates
+- Together define camera pose (position and orientation)
+
+**Complete Camera Model:**
+World coordinates → Camera coordinates → Image coordinates → Pixel coordinates
+
+1.3 Coordinate Systems
+----------------------
+**World Coordinate System:**
+- Fixed 3D coordinate system
+- Units: meters, millimeters, etc.
+- Origin and axes defined by application
+
+**Camera Coordinate System:**
+- Origin at optical center
+- Z-axis along optical axis (into scene)
+- X and Y axes parallel to image plane
+
+**Image Coordinate System:**
+- 2D coordinates on image plane
+- Origin typically at principal point
+- Units: millimeters
+
+**Pixel Coordinate System:**
+- Discrete pixel coordinates
+- Origin at top-left or bottom-left corner
+- Units: pixels
+
+================================================================================
+2. PINHOLE CAMERA MODEL
+================================================================================
+
+2.1 Basic Pinhole Model
+-----------------------
+**Mathematical Formulation:**
+For a 3D point P = [X, Y, Z]ᵀ in camera coordinates:
+
+[u]   [f  0  0] [X]
+[v] = [0  f  0] [Y]
+[w]   [0  0  1] [Z]
+
+Normalized image coordinates: x = u/w = fX/Z, y = v/w = fY/Z
+
+**Perspective Projection:**
+- Similar triangles relationship
+- Parallel lines converge to vanishing points
+- Depth information lost in projection
+
+2.2 General Pinhole Model
+-------------------------
+**Intrinsic Matrix K:**
+[u]   [fx  s   cx] [X]
+[v] = [0   fy  cy] [Y]
+[1]   [0   0   1 ] [Z]
+
+where:
+- fx, fy: focal lengths in pixel units
+- cx, cy: principal point coordinates
+- s: skew parameter (usually 0)
+
+**Parameter Interpretation:**
+- fx = f × mx (focal length × pixels per mm in x)
+- fy = f × my (focal length × pixels per mm in y)
+- Aspect ratio: α = fy/fx
+- Principal point offset from image center
+
+2.3 World to Image Projection
+-----------------------------
+**Complete Projection Model:**
+For world point Pw = [Xw, Yw, Zw]ᵀ:
+
+[u]     [X]
+[v] = K [R|t] [Y]
+[1]     [Z]
+        [1]
+
+where:
+- R: 3×3 rotation matrix (camera orientation)
+- t: 3×1 translation vector (camera position)
+- K: 3×3 intrinsic matrix
+
+**Decomposition:**
+1. Rigid transformation: Pc = R(Pw - C) where C = -R^T t
+2. Perspective projection: p = KPc
+
+2.4 Projection Matrix
+---------------------
+**3×4 Projection Matrix:**
+P = K[R|t] = [p₁ᵀ]
+              [p₂ᵀ]
+              [p₃ᵀ]
+
+**Properties:**
+- 11 degrees of freedom (up to scale)
+- Encodes both intrinsic and extrinsic parameters
+- Direct projection: p = PX (homogeneous coordinates)
+
+**Decomposition:**
+Given P, recover K, R, t using:
+- QR decomposition: K = upper triangular
+- R = orthogonal matrix
+- t = solution to linear system
+
+================================================================================
+3. CAMERA CALIBRATION
+================================================================================
+
+3.1 Calibration Problem
+-----------------------
+**Goal:** Estimate camera parameters from known 3D-2D correspondences
+**Input:** n point correspondences {(Xi, xi)} where Xi ∈ ℝ³, xi ∈ ℝ²
+**Output:** Intrinsic matrix K and extrinsic parameters (R, t)
+
+**Calibration Approaches:**
+- Planar patterns (chessboard, circles, dots)
+- 3D calibration objects
+- Self-calibration from multiple views
+- Vanishing point methods
+
+3.2 Zhang's Method
+------------------
+**Planar Pattern Calibration:**
+Most common approach using planar calibration patterns
+
+**Algorithm:**
+1. Capture multiple images of planar pattern
+2. Detect feature points (corners, circles)
+3. Estimate homographies between pattern and images
+4. Extract intrinsic parameters from homographies
+5. Compute extrinsic parameters for each view
+6. Refine all parameters using bundle adjustment
+
+**Homography Constraint:**
+For planar pattern, Z = 0:
+[u]     [h₁ h₂ h₃] [X]
+[v] = λ [h₄ h₅ h₆] [Y]
+[1]     [h₇ h₈ h₉] [1]
+
+where H = [h₁ h₂ h₃; h₄ h₅ h₆; h₇ h₈ h₉] is homography
+
+3.3 Intrinsic Parameter Estimation
+----------------------------------
+**Constraint from Homography:**
+H = K[r₁ r₂ t] where r₁, r₂ are first two columns of R
+
+**Orthogonality Constraints:**
+r₁ᵀr₁ = r₂ᵀr₂ and r₁ᵀr₂ = 0
+
+**Linear System:**
+For each homography Hi, get 2 constraints on intrinsic parameters
+Minimum 3 homographies needed for 5 intrinsic parameters
+
+**Closed-Form Solution:**
+Solve linear system for intrinsic parameters:
+ω = K⁻ᵀK⁻¹ (absolute conic image)
+
+3.4 Extrinsic Parameter Estimation
+----------------------------------
+**Given K and homography H:**
+λ = 1/||K⁻¹h₁|| = 1/||K⁻¹h₂||
+
+r₁ = λK⁻¹h₁
+r₂ = λK⁻¹h₂
+r₃ = r₁ × r₂
+t = λK⁻¹h₃
+
+**Rotation Matrix Refinement:**
+R̃ = [r₁ r₂ r₃] may not be exactly orthogonal
+Use SVD to find closest orthogonal matrix: R = UVᵀ
+
+================================================================================
+4. LENS DISTORTION MODELS
+================================================================================
+
+4.1 Types of Distortion
+-----------------------
+**Radial Distortion:**
+- Barrel distortion: inward bending
+- Pincushion distortion: outward bending
+- Caused by lens shape and manufacturing
+
+**Tangential Distortion:**
+- Asymmetric distortion
+- Caused by lens and sensor misalignment
+- Less significant than radial distortion
+
+4.2 Radial Distortion Model
+---------------------------
+**Mathematical Model:**
+x_corrected = x_distorted(1 + k₁r² + k₂r⁴ + k₃r⁶ + ...)
+y_corrected = y_distorted(1 + k₁r² + k₂r⁴ + k₃r⁶ + ...)
+
+where r² = x_distorted² + y_distorted²
+
+**Practical Model:**
+Usually sufficient to use first 2-3 terms:
+x' = x(1 + k₁r² + k₂r⁴)
+y' = y(1 + k₁r² + k₂r⁴)
+
+4.3 Tangential Distortion Model
+-------------------------------
+**Brown's Model:**
+x' = x + [2p₁xy + p₂(r² + 2x²)]
+y' = y + [p₁(r² + 2y²) + 2p₂xy]
+
+where p₁, p₂ are tangential distortion coefficients
+
+4.4 Complete Distortion Model
+-----------------------------
+**Combined Model:**
+x_corrected = x(1 + k₁r² + k₂r⁴ + k₃r⁶) + [2p₁xy + p₂(r² + 2x²)]
+y_corrected = y(1 + k₁r² + k₂r⁴ + k₃r⁶) + [p₁(r² + 2y²) + 2p₂xy]
+
+**Distortion Parameters:**
+- k₁, k₂, k₃: radial distortion coefficients
+- p₁, p₂: tangential distortion coefficients
+
+**Undistortion Process:**
+1. Convert pixel coordinates to normalized coordinates
+2. Apply distortion correction
+3. Convert back to pixel coordinates
+
+================================================================================
+5. MULTI-CAMERA SYSTEMS
+================================================================================
+
+5.1 Stereo Camera Systems
+-------------------------
+**Stereo Geometry:**
+- Two cameras with known relative pose
+- Baseline B: distance between optical centers
+- Disparity d: difference in x-coordinates
+- Depth Z = fB/d (inverse relationship)
+
+**Stereo Calibration:**
+1. Calibrate each camera individually
+2. Estimate relative pose (R, t) between cameras
+3. Compute rectification transformations
+4. Generate lookup tables for real-time rectification
+
+5.2 Multi-Camera Arrays
+-----------------------
+**Applications:**
+- 360-degree capture
+- Light field imaging
+- Multi-baseline stereo
+- Omnidirectional vision
+
+**Calibration Challenges:**
+- Non-overlapping fields of view
+- Different lighting conditions
+- Temporal synchronization
+- Bundle adjustment with many cameras
+
+5.3 Camera Networks
+-------------------
+**Distributed Systems:**
+- Multiple cameras in environment
+- Overlapping and non-overlapping views
+- Communication and synchronization
+- Distributed processing
+
+**Calibration Approaches:**
+- Sequential calibration
+- Simultaneous calibration
+- Self-calibration methods
+- Topology estimation
+
+================================================================================
+6. STRUCTURE FROM MOTION (SFM)
+================================================================================
+
+6.1 SfM Problem Formulation
+---------------------------
+**Input:** 
+- Set of images from unknown viewpoints
+- Feature correspondences across images
+
+**Output:**
+- Camera poses for each image
+- 3D structure of scene points
+- Intrinsic camera parameters (if unknown)
+
+**Challenges:**
+- Scale ambiguity (monocular case)
+- Degenerate configurations
+- Outliers in correspondences
+- Drift accumulation
+
+6.2 Sequential SfM
+------------------
+**Incremental Approach:**
+1. **Initialization:** Select good image pair, estimate relative pose
+2. **Triangulation:** Compute 3D points from correspondences
+3. **Registration:** Add next image using PnP (Perspective-n-Point)
+4. **Triangulation:** Add new 3D points
+5. **Bundle Adjustment:** Refine all parameters
+6. **Repeat:** Until all images processed
+
+**Image Selection:**
+- Wide baseline for initialization
+- Sufficient correspondences with existing model
+- Good distribution of features
+- Avoid pure rotation or degenerate motion
+
+6.3 Global SfM
+--------------
+**Simultaneous Approach:**
+1. Estimate all pairwise relative rotations
+2. Find globally consistent rotations (rotation averaging)
+3. Estimate all pairwise relative translations
+4. Find globally consistent translations (translation averaging)
+5. Triangulate all 3D points
+6. Bundle adjustment refinement
+
+**Advantages:**
+- No drift accumulation
+- Better global consistency
+- Parallel computation possible
+
+**Disadvantages:**
+- Requires good initialization
+- More sensitive to outliers
+- Complex optimization
+
+6.4 Robust SfM
+--------------
+**Outlier Handling:**
+- RANSAC for relative pose estimation
+- Robust bundle adjustment
+- Track validation and filtering
+- Geometric verification
+
+**Degeneracy Detection:**
+- Pure rotation detection
+- Planar motion detection
+- Insufficient parallax
+- Automatic parameter tuning
+
+================================================================================
+7. BUNDLE ADJUSTMENT
+================================================================================
+
+7.1 Bundle Adjustment Formulation
+---------------------------------
+**Objective Function:**
+Minimize reprojection error over all cameras and points:
+
+min Σᵢⱼ ||πᵢ(Rᵢ Xⱼ + tᵢ) - xᵢⱼ||²
+
+where:
+- i indexes cameras, j indexes 3D points
+- πᵢ is projection function for camera i
+- Rᵢ, tᵢ are rotation and translation for camera i
+- Xⱼ is 3D coordinates of point j
+- xᵢⱼ is observed image coordinates
+
+7.2 Parameterization
+-------------------
+**Camera Parameters:**
+- Rotation: axis-angle, quaternions, Rodrigues
+- Translation: 3D vector
+- Intrinsics: focal length, principal point, distortion
+
+**3D Point Parameters:**
+- Cartesian coordinates [X, Y, Z]
+- Inverse depth parameterization
+- Homogeneous coordinates
+
+**Parameter Vector:**
+θ = [θ_cameras, θ_points] where θ_cameras includes all camera parameters
+
+7.3 Optimization Methods
+------------------------
+**Levenberg-Marquardt Algorithm:**
+- Combination of Gauss-Newton and gradient descent
+- Adaptive damping parameter
+- Good convergence properties
+- Standard choice for bundle adjustment
+
+**Update Equation:**
+(JᵀJ + λI)Δθ = -Jᵀr
+
+where:
+- J is Jacobian matrix
+- r is residual vector
+- λ is damping parameter
+
+7.4 Sparse Bundle Adjustment
+----------------------------
+**Sparsity Structure:**
+- Each 3D point observed by subset of cameras
+- Jacobian matrix is sparse
+- Exploit sparsity for efficiency
+
+**Schur Complement:**
+Partition system into camera and point parameters:
+[JᵀₒJₒ  JᵀₒJₚ] [Δθₒ]   [Jᵀₒrₒ]
+[JᵀₚJₒ  JᵀₚJₚ] [Δθₚ] = [Jᵀₚrₚ]
+
+Eliminate point parameters:
+(JᵀₒJₒ - JᵀₒJₚ(JᵀₚJₚ)⁻¹JᵀₚJₒ)Δθₒ = Jᵀₒrₒ - JᵀₒJₚ(JᵀₚJₚ)⁻¹Jᵀₚrₚ
+
+**Benefits:**
+- Reduced system size
+- Better conditioning
+- Faster convergence
+
+================================================================================
+8. 3D RECONSTRUCTION TECHNIQUES
+================================================================================
+
+8.1 Triangulation Methods
+-------------------------
+**Linear Triangulation:**
+For two cameras with projection matrices P₁, P₂:
+Solve: p₁ × (P₁X) = 0 and p₂ × (P₂X) = 0
+
+**DLT (Direct Linear Transformation):**
+Homogeneous linear system AX = 0
+Solve using SVD: X = eigenvector of smallest eigenvalue
+
+**Optimal Triangulation:**
+Minimize reprojection error:
+min ||p₁ - P₁X||² + ||p₂ - P₂X||²
+
+**Iterative Methods:**
+- Newton-Raphson
+- Levenberg-Marquardt
+- Better accuracy than linear methods
+
+8.2 Multi-View Triangulation
+----------------------------
+**N-View Triangulation:**
+Minimize reprojection error across all views:
+min Σᵢ ||pᵢ - PᵢX||²
+
+**Weighted Least Squares:**
+Weight observations by uncertainty:
+min Σᵢ wᵢ||pᵢ - PᵢX||²
+
+**Robust Estimation:**
+- RANSAC for outlier rejection
+- M-estimators for robust loss
+- Iterative reweighting
+
+8.3 Visibility and Occlusion
+----------------------------
+**Visibility Constraints:**
+- Point must be in front of camera
+- Point must be within image boundaries
+- Occlusion checking using depth buffer
+
+**Multi-View Consistency:**
+- Photometric consistency
+- Geometric consistency
+- Outlier detection and removal
+
+================================================================================
+9. DENSE RECONSTRUCTION METHODS
+================================================================================
+
+9.1 Multi-View Stereo (MVS)
+---------------------------
+**Dense Correspondence:**
+- Establish pixel-level correspondences
+- Photo-consistency measures
+- Geometric constraints
+- Occlusion handling
+
+**Patch-Based Methods:**
+- PMVS (Patch-based Multi-view Stereo)
+- Dense point cloud generation
+- Surface reconstruction
+- Texture mapping
+
+9.2 Volumetric Reconstruction
+-----------------------------
+**Voxel-Based Methods:**
+- Discretize 3D space into voxels
+- Photo-consistency voting
+- Isosurface extraction
+- Memory intensive for high resolution
+
+**Level Set Methods:**
+- Implicit surface representation
+- Evolution equations
+- Handle topology changes
+- Smooth surface reconstruction
+
+9.3 Surface Reconstruction
+--------------------------
+**Mesh Generation:**
+- Delaunay triangulation
+- Alpha shapes
+- Ball-pivoting algorithm
+- Advancing front methods
+
+**Surface Refinement:**
+- Laplacian smoothing
+- Taubin smoothing
+- Bilateral filtering
+- Edge-preserving smoothing
+
+================================================================================
+10. PYTHON IMPLEMENTATION EXAMPLES
+================================================================================
+
+```python
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from scipy.optimize import least_squares
+from sklearn.cluster import DBSCAN
+import os
+
+class CameraModel:
+    """Camera model implementation with calibration and 3D reconstruction"""
+    
+    def __init__(self):
+        self.K = None  # Intrinsic matrix
+        self.dist_coeffs = None  # Distortion coefficients
+        self.R = None  # Rotation matrix
+        self.t = None  # Translation vector
+        self.P = None  # Projection matrix
+        
+    def set_intrinsics(self, fx, fy, cx, cy, k1=0, k2=0, p1=0, p2=0, k3=0):
+        """Set camera intrinsic parameters"""
+        self.K = np.array([[fx, 0, cx],
+                          [0, fy, cy],
+                          [0, 0, 1]], dtype=np.float32)
+        
+        self.dist_coeffs = np.array([k1, k2, p1, p2, k3], dtype=np.float32)
+    
+    def set_extrinsics(self, R, t):
+        """Set camera extrinsic parameters"""
+        self.R = np.array(R, dtype=np.float32)
+        self.t = np.array(t, dtype=np.float32).reshape(3, 1)
+        
+        # Compute projection matrix
+        if self.K is not None:
+            self.P = self.K @ np.hstack([self.R, self.t])
+    
+    def project_points(self, points_3d):
+        """Project 3D points to image coordinates"""
+        if self.P is None:
+            raise ValueError("Camera not fully calibrated")
+        
+        # Convert to homogeneous coordinates
+        if points_3d.shape[1] == 3:
+            points_3d_h = np.hstack([points_3d, np.ones((points_3d.shape[0], 1))])
+        else:
+            points_3d_h = points_3d
+        
+        # Project points
+        points_2d_h = (self.P @ points_3d_h.T).T
+        
+        # Convert to Cartesian coordinates
+        points_2d = points_2d_h[:, :2] / points_2d_h[:, 2:3]
+        
+        return points_2d
+    
+    def undistort_points(self, points_2d):
+        """Undistort image points using distortion model"""
+        if self.K is None or self.dist_coeffs is None:
+            return points_2d
+        
+        points_2d = np.array(points_2d, dtype=np.float32)
+        if len(points_2d.shape) == 1:
+            points_2d = points_2d.reshape(1, -1)
+        
+        # Use OpenCV's undistortPoints
+        undistorted = cv2.undistortPoints(points_2d.reshape(-1, 1, 2), 
+                                        self.K, self.dist_coeffs, P=self.K)
+        
+        return undistorted.reshape(-1, 2)
+
+class CameraCalibrator:
+    """Camera calibration implementation"""
+    
+    def __init__(self, pattern_size=(9, 6), square_size=1.0):
+        self.pattern_size = pattern_size
+        self.square_size = square_size
+        self.object_points = []
+        self.image_points = []
+        
+        # Prepare object points
+        self.pattern_points = np.zeros((pattern_size[0] * pattern_size[1], 3), np.float32)
+        self.pattern_points[:, :2] = np.mgrid[0:pattern_size[0], 
+                                             0:pattern_size[1]].T.reshape(-1, 2)
+        self.pattern_points *= square_size
+    
+    def add_calibration_image(self, image):
+        """Add calibration image and detect pattern"""
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image
+        
+        # Find chessboard corners
+        ret, corners = cv2.findChessboardCorners(gray, self.pattern_size, None)
+        
+        if ret:
+            # Refine corner positions
+            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+            corners_refined = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+            
+            self.object_points.append(self.pattern_points)
+            self.image_points.append(corners_refined)
+            
+            return True, corners_refined
+        
+        return False, None
+    
+    def calibrate(self, image_size):
+        """Perform camera calibration"""
+        if len(self.object_points) < 3:
+            raise ValueError("Need at least 3 calibration images")
+        
+        # Perform calibration
+        ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+            self.object_points, self.image_points, image_size, None, None)
+        
+        if ret:
+            # Create camera model
+            camera = CameraModel()
+            camera.K = camera_matrix
+            camera.dist_coeffs = dist_coeffs
+            
+            return camera, rvecs, tvecs
+        else:
+            raise RuntimeError("Camera calibration failed")
+    
+    def compute_reprojection_error(self, camera_matrix, dist_coeffs, rvecs, tvecs):
+        """Compute reprojection error"""
+        total_error = 0
+        total_points = 0
+        
+        for i in range(len(self.object_points)):
+            # Project object points
+            projected_points, _ = cv2.projectPoints(
+                self.object_points[i], rvecs[i], tvecs[i], 
+                camera_matrix, dist_coeffs)
+            
+            # Compute error
+            error = cv2.norm(self.image_points[i], projected_points, cv2.NORM_L2)
+            total_error += error**2
+            total_points += len(self.object_points[i])
+        
+        mean_error = np.sqrt(total_error / total_points)
+        return mean_error
+
+class StructureFromMotion:
+    """Structure from Motion implementation"""
+    
+    def __init__(self):
+        self.cameras = []
+        self.points_3d = []
+        self.observations = []
+        self.camera_params = []
+        self.point_params = []
+    
+    def estimate_pose_2d2d(self, pts1, pts2, K):
+        """Estimate relative pose between two views"""
+        
+        # Find essential matrix
+        E, mask = cv2.findEssentialMat(pts1, pts2, K, method=cv2.RANSAC)
+        
+        if E is None:
+            return None, None, None
+        
+        # Recover pose
+        _, R, t, mask = cv2.recoverPose(E, pts1, pts2, K)
+        
+        return R, t, mask
+    
+    def triangulate_points(self, pts1, pts2, P1, P2):
+        """Triangulate 3D points from two views"""
+        
+        # Triangulate points
+        points_4d = cv2.triangulatePoints(P1, P2, pts1.T, pts2.T)
+        
+        # Convert to 3D
+        points_3d = points_4d[:3] / points_4d[3]
+        
+        return points_3d.T
+    
+    def solve_pnp(self, points_3d, points_2d, K):
+        """Solve Perspective-n-Point problem"""
+        
+        if len(points_3d) < 4:
+            return None, None
+        
+        # Solve PnP
+        success, rvec, tvec = cv2.solvePnP(
+            points_3d.astype(np.float32),
+            points_2d.astype(np.float32),
+            K, None)
+        
+        if success:
+            R, _ = cv2.Rodrigues(rvec)
+            return R, tvec
+        
+        return None, None
+    
+    def bundle_adjustment(self, cameras, points_3d, observations):
+        """Bundle adjustment optimization"""
+        
+        def residual_function(params):
+            """Compute residuals for bundle adjustment"""
+            residuals = []
+            
+            # Extract camera parameters
+            n_cameras = len(cameras)
+            n_points = len(points_3d)
+            
+            # Camera parameters (6 per camera: rotation + translation)
+            camera_params = params[:n_cameras * 6].reshape(n_cameras, 6)
+            
+            # Point parameters (3 per point)
+            point_params = params[n_cameras * 6:].reshape(n_points, 3)
+            
+            for obs in observations:
+                cam_idx, point_idx, observed_pt = obs
+                
+                # Get camera parameters
+                rvec = camera_params[cam_idx, :3]
+                tvec = camera_params[cam_idx, 3:6]
+                
+                # Get 3D point
+                point_3d = point_params[point_idx]
+                
+                # Project point
+                projected_pt, _ = cv2.projectPoints(
+                    point_3d.reshape(1, 3), rvec, tvec, cameras[cam_idx].K, None)
+                
+                # Compute residual
+                residual = observed_pt - projected_pt.reshape(2)
+                residuals.extend(residual)
+            
+            return np.array(residuals)
+        
+        # Prepare initial parameters
+        initial_params = []
+        
+        # Camera parameters
+        for camera in cameras:
+            rvec, _ = cv2.Rodrigues(camera.R)
+            initial_params.extend(rvec.flatten())
+            initial_params.extend(camera.t.flatten())
+        
+        # Point parameters
+        for point in points_3d:
+            initial_params.extend(point)
+        
+        initial_params = np.array(initial_params)
+        
+        # Optimize
+        result = least_squares(residual_function, initial_params, 
+                             method='lm', max_nfev=1000)
+        
+        return result
+    
+    def incremental_sfm(self, images, keypoints_list, matches_list, K):
+        """Incremental Structure from Motion"""
+        
+        # Step 1: Initialize with first two images
+        if len(images) < 2:
+            raise ValueError("Need at least 2 images for SfM")
+        
+        # Get matches between first two images
+        matches_01 = matches_list[0]  # Matches between image 0 and 1
+        
+        pts1 = np.array([keypoints_list[0][m.queryIdx].pt for m in matches_01])
+        pts2 = np.array([keypoints_list[1][m.trainIdx].pt for m in matches_01])
+        
+        # Estimate relative pose
+        R, t, mask = self.estimate_pose_2d2d(pts1, pts2, K)
+        
+        if R is None:
+            raise RuntimeError("Failed to estimate initial pose")
+        
+        # Create camera models
+        cam1 = CameraModel()
+        cam1.K = K
+        cam1.set_extrinsics(np.eye(3), np.zeros(3))
+        
+        cam2 = CameraModel()
+        cam2.K = K
+        cam2.set_extrinsics(R, t)
+        
+        self.cameras = [cam1, cam2]
+        
+        # Triangulate initial points
+        pts1_inliers = pts1[mask.ravel() == 1]
+        pts2_inliers = pts2[mask.ravel() == 1]
+        
+        points_3d = self.triangulate_points(pts1_inliers, pts2_inliers, 
+                                          cam1.P, cam2.P)
+        
+        # Filter points behind cameras
+        valid_mask = (points_3d[:, 2] > 0)
+        points_3d = points_3d[valid_mask]
+        pts1_inliers = pts1_inliers[valid_mask]
+        pts2_inliers = pts2_inliers[valid_mask]
+        
+        self.points_3d = points_3d.tolist()
+        
+        # Create observations
+        self.observations = []
+        for i, (pt1, pt2) in enumerate(zip(pts1_inliers, pts2_inliers)):
+            self.observations.append((0, i, pt1))  # Camera 0, Point i
+            self.observations.append((1, i, pt2))  # Camera 1, Point i
+        
+        print(f"Initialized with {len(self.points_3d)} 3D points")
+        
+        # Step 2: Add remaining images incrementally
+        for img_idx in range(2, len(images)):
+            self.add_image(img_idx, keypoints_list, matches_list, K)
+        
+        return self.cameras, self.points_3d
+    
+    def add_image(self, img_idx, keypoints_list, matches_list, K):
+        """Add new image to existing reconstruction"""
+        
+        # Find matches with existing images
+        matched_3d_points = []
+        matched_2d_points = []
+        
+        for prev_idx in range(img_idx):
+            if prev_idx < len(matches_list):
+                matches = matches_list[prev_idx]
+                
+                for match in matches:
+                    # Check if this point exists in 3D reconstruction
+                    # (Simplified - in practice need to track point IDs)
+                    pt_2d = keypoints_list[img_idx][match.trainIdx].pt
+                    matched_2d_points.append(pt_2d)
+        
+        if len(matched_2d_points) < 4:
+            print(f"Insufficient matches for image {img_idx}")
+            return
+        
+        # Solve PnP to get camera pose
+        matched_2d_points = np.array(matched_2d_points[:len(self.points_3d)])
+        matched_3d_points = np.array(self.points_3d[:len(matched_2d_points)])
+        
+        R, t = self.solve_pnp(matched_3d_points, matched_2d_points, K)
+        
+        if R is None:
+            print(f"Failed to estimate pose for image {img_idx}")
+            return
+        
+        # Create new camera
+        new_camera = CameraModel()
+        new_camera.K = K
+        new_camera.set_extrinsics(R, t.flatten())
+        
+        self.cameras.append(new_camera)
+        print(f"Added image {img_idx}, total cameras: {len(self.cameras)}")
+
+def demonstrate_camera_calibration():
+    """Demonstrate camera calibration process"""
+    
+    # Create synthetic calibration images
+    calibration_images = create_synthetic_calibration_images()
+    
+    # Initialize calibrator
+    calibrator = CameraCalibrator(pattern_size=(9, 6), square_size=25.0)  # 25mm squares
+    
+    successful_images = 0
+    
+    # Process calibration images
+    for i, image in enumerate(calibration_images):
+        success, corners = calibrator.add_calibration_image(image)
+        if success:
+            successful_images += 1
+            print(f"Successfully processed calibration image {i+1}")
+        else:
+            print(f"Failed to detect pattern in image {i+1}")
+    
+    if successful_images >= 3:
+        # Perform calibration
+        image_size = (calibration_images[0].shape[1], calibration_images[0].shape[0])
+        camera, rvecs, tvecs = calibrator.calibrate(image_size)
+        
+        # Compute reprojection error
+        error = calibrator.compute_reprojection_error(camera.K, camera.dist_coeffs, rvecs, tvecs)
+        
+        print(f"\nCalibration Results:")
+        print(f"Successful images: {successful_images}")
+        print(f"Reprojection error: {error:.3f} pixels")
+        print(f"Camera matrix:\n{camera.K}")
+        print(f"Distortion coefficients: {camera.dist_coeffs}")
+        
+        return camera
+    else:
+        print("Insufficient successful calibration images")
+        return None
+
+def demonstrate_structure_from_motion():
+    """Demonstrate Structure from Motion"""
+    
+    # Create synthetic image sequence
+    images, true_cameras, true_points = create_synthetic_image_sequence()
+    
+    # Extract features from images
+    detector = cv2.SIFT_create()
+    keypoints_list = []
+    descriptors_list = []
+    
+    for image in images:
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        keypoints, descriptors = detector.detectAndCompute(gray, None)
+        keypoints_list.append(keypoints)
+        descriptors_list.append(descriptors)
+    
+    # Match features between consecutive images
+    matcher = cv2.BFMatcher()
+    matches_list = []
+    
+    for i in range(len(images) - 1):
+        matches = matcher.match(descriptors_list[i], descriptors_list[i + 1])
+        matches = sorted(matches, key=lambda x: x.distance)
+        matches_list.append(matches[:100])  # Keep best 100 matches
+    
+    # Assume known camera intrinsics for simplicity
+    K = np.array([[800, 0, 320],
+                  [0, 800, 240],
+                  [0, 0, 1]], dtype=np.float32)
+    
+    # Run Structure from Motion
+    sfm = StructureFromMotion()
+    
+    try:
+        estimated_cameras, estimated_points = sfm.incremental_sfm(
+            images, keypoints_list, matches_list, K)
+        
+        print(f"\nSfM Results:")
+        print(f"Estimated cameras: {len(estimated_cameras)}")
+        print(f"Estimated 3D points: {len(estimated_points)}")
+        
+        # Visualize results
+        visualize_sfm_results(estimated_cameras, estimated_points, true_cameras, true_points)
+        
+    except Exception as e:
+        print(f"SfM failed: {e}")
+
+def create_synthetic_calibration_images(n_images=10):
+    """Create synthetic calibration images"""
+    images = []
+    
+    for i in range(n_images):
+        # Create chessboard pattern
+        pattern_size = (9, 6)
+        square_size = 50  # pixels
+        
+        # Create pattern
+        pattern = np.zeros((pattern_size[1] * square_size, 
+                           pattern_size[0] * square_size), dtype=np.uint8)
+        
+        for row in range(pattern_size[1]):
+            for col in range(pattern_size[0]):
+                if (row + col) % 2 == 0:
+                    y1 = row * square_size
+                    y2 = (row + 1) * square_size
+                    x1 = col * square_size
+                    x2 = (col + 1) * square_size
+                    pattern[y1:y2, x1:x2] = 255
+        
+        # Add random perspective transformation
+        h, w = pattern.shape
+        src_pts = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+        
+        # Random perturbation
+        offset = 50
+        dst_pts = src_pts + np.random.uniform(-offset, offset, src_pts.shape)
+        
+        # Apply transformation
+        M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+        transformed = cv2.warpPerspective(pattern, M, (640, 480))
+        
+        # Convert to 3-channel image
+        transformed_bgr = cv2.cvtColor(transformed, cv2.COLOR_GRAY2BGR)
+        
+        # Add noise
+        noise = np.random.normal(0, 10, transformed_bgr.shape)
+        noisy_image = np.clip(transformed_bgr + noise, 0, 255).astype(np.uint8)
+        
+        images.append(noisy_image)
+    
+    return images
+
+def create_synthetic_image_sequence():
+    """Create synthetic image sequence with known 3D structure"""
+    
+    # Create 3D points (corners of a cube)
+    true_points = np.array([
+        [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],  # Back face
+        [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],     # Front face
+        [0, 0, 0]  # Center point
+    ], dtype=np.float32) * 2  # Scale up
+    
+    # Camera intrinsics
+    K = np.array([[800, 0, 320],
+                  [0, 800, 240],
+                  [0, 0, 1]], dtype=np.float32)
+    
+    # Create camera poses (circular motion)
+    n_cameras = 5
+    radius = 8
+    true_cameras = []
+    images = []
+    
+    for i in range(n_cameras):
+        angle = i * 2 * np.pi / n_cameras
+        
+        # Camera position
+        pos = np.array([radius * np.cos(angle), 0, radius * np.sin(angle)])
+        
+        # Look at origin
+        z_axis = -pos / np.linalg.norm(pos)
+        x_axis = np.cross([0, 1, 0], z_axis)
+        x_axis = x_axis / np.linalg.norm(x_axis)
+        y_axis = np.cross(z_axis, x_axis)
+        
+        R = np.column_stack([x_axis, y_axis, z_axis])
+        t = pos
+        
+        # Create camera model
+        camera = CameraModel()
+        camera.set_intrinsics(800, 800, 320, 240)
+        camera.set_extrinsics(R, t)
+        true_cameras.append(camera)
+        
+        # Generate synthetic image
+        image = generate_synthetic_image(camera, true_points, (640, 480))
+        images.append(image)
+    
+    return images, true_cameras, true_points
+
+def generate_synthetic_image(camera, points_3d, image_size):
+    """Generate synthetic image from camera and 3D points"""
+    
+    # Create blank image
+    image = np.ones((image_size[1], image_size[0], 3), dtype=np.uint8) * 128
+    
+    # Project 3D points
+    points_2d = camera.project_points(points_3d)
+    
+    # Draw points and connections
+    for i, pt in enumerate(points_2d):
+        x, y = int(pt[0]), int(pt[1])
+        if 0 <= x < image_size[0] and 0 <= y < image_size[1]:
+            cv2.circle(image, (x, y), 5, (0, 255, 0), -1)
+            cv2.putText(image, str(i), (x+10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    # Draw cube edges
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0),  # Back face
+             (4, 5), (5, 6), (6, 7), (7, 4),  # Front face
+             (0, 4), (1, 5), (2, 6), (3, 7)]  # Connecting edges
+    
+    for edge in edges:
+        pt1 = points_2d[edge[0]]
+        pt2 = points_2d[edge[1]]
+        
+        x1, y1 = int(pt1[0]), int(pt1[1])
+        x2, y2 = int(pt2[0]), int(pt2[1])
+        
+        if (0 <= x1 < image_size[0] and 0 <= y1 < image_size[1] and
+            0 <= x2 < image_size[0] and 0 <= y2 < image_size[1]):
+            cv2.line(image, (x1, y1), (x2, y2), (255, 0, 0), 2)
+    
+    # Add noise
+    noise = np.random.normal(0, 5, image.shape)
+    noisy_image = np.clip(image + noise, 0, 255).astype(np.uint8)
+    
+    return noisy_image
+
+def visualize_sfm_results(estimated_cameras, estimated_points, true_cameras, true_points):
+    """Visualize Structure from Motion results"""
+    
+    fig = plt.figure(figsize=(15, 5))
+    
+    # Plot estimated cameras and points
+    ax1 = fig.add_subplot(131, projection='3d')
+    
+    # Plot estimated camera positions
+    if estimated_cameras:
+        cam_positions = []
+        for cam in estimated_cameras:
+            if cam.R is not None and cam.t is not None:
+                pos = -cam.R.T @ cam.t
+                cam_positions.append(pos.flatten())
+        
+        if cam_positions:
+            cam_positions = np.array(cam_positions)
+            ax1.scatter(cam_positions[:, 0], cam_positions[:, 1], cam_positions[:, 2], 
+                       c='red', marker='o', s=50, label='Estimated Cameras')
+    
+    # Plot estimated 3D points
+    if estimated_points:
+        estimated_points = np.array(estimated_points)
+        ax1.scatter(estimated_points[:, 0], estimated_points[:, 1], estimated_points[:, 2], 
+                   c='blue', marker='.', s=20, label='Estimated Points')
+    
+    ax1.set_title('Estimated Structure')
+    ax1.legend()
+    ax1.set_xlabel('X')
+    ax1.set_ylabel('Y')
+    ax1.set_zlabel('Z')
+    
+    # Plot true cameras and points
+    ax2 = fig.add_subplot(132, projection='3d')
+    
+    # Plot true camera positions
+    true_cam_positions = []
+    for cam in true_cameras:
+        pos = -cam.R.T @ cam.t
+        true_cam_positions.append(pos.flatten())
+    
+    true_cam_positions = np.array(true_cam_positions)
+    ax2.scatter(true_cam_positions[:, 0], true_cam_positions[:, 1], true_cam_positions[:, 2], 
+               c='red', marker='o', s=50, label='True Cameras')
+    
+    # Plot true 3D points
+    ax2.scatter(true_points[:, 0], true_points[:, 1], true_points[:, 2], 
+               c='blue', marker='.', s=20, label='True Points')
+    
+    ax2.set_title('Ground Truth')
+    ax2.legend()
+    ax2.set_xlabel('X')
+    ax2.set_ylabel('Y')
+    ax2.set_zlabel('Z')
+    
+    # Plot comparison
+    ax3 = fig.add_subplot(133)
+    
+    # Compare camera positions
+    if len(true_cam_positions) > 0 and len(cam_positions) > 0:
+        min_len = min(len(true_cam_positions), len(cam_positions))
+        
+        pos_errors = []
+        for i in range(min_len):
+            error = np.linalg.norm(true_cam_positions[i] - cam_positions[i])
+            pos_errors.append(error)
+        
+        ax3.bar(range(len(pos_errors)), pos_errors)
+        ax3.set_title('Camera Position Errors')
+        ax3.set_xlabel('Camera Index')
+        ax3.set_ylabel('Position Error')
+    
+    plt.tight_layout()
+    plt.show()
+
+# Example usage
+if __name__ == "__main__":
+    print("Demonstrating Camera Calibration...")
+    camera = demonstrate_camera_calibration()
+    
+    print("\nDemonstrating Structure from Motion...")
+    demonstrate_structure_from_motion()
+```
+
+================================================================================
+11. QUALITY ASSESSMENT AND VALIDATION
+================================================================================
+
+11.1 Calibration Quality Metrics
+--------------------------------
+**Reprojection Error:**
+- RMS error between observed and projected points
+- Typical values: < 0.5 pixels for good calibration
+- Per-image and overall statistics
+
+**Parameter Uncertainty:**
+- Covariance matrix from optimization
+- Confidence intervals for parameters
+- Sensitivity analysis
+
+**Geometric Validation:**
+- Check for reasonable focal lengths
+- Principal point near image center
+- Distortion parameters within expected ranges
+
+11.2 3D Reconstruction Quality
+------------------------------
+**Reconstruction Accuracy:**
+- Comparison with ground truth (if available)
+- Bundle adjustment residuals
+- Cross-validation with held-out observations
+
+**Completeness Metrics:**
+- Percentage of scene reconstructed
+- Point density statistics
+- Coverage analysis
+
+**Consistency Checks:**
+- Multi-view consistency
+- Temporal consistency (for sequences)
+- Scale consistency
+
+11.3 Robustness Assessment
+-------------------------
+**Sensitivity Analysis:**
+- Parameter perturbation studies
+- Noise sensitivity testing
+- Outlier injection experiments
+
+**Failure Mode Analysis:**
+- Degenerate configuration detection
+- Insufficient texture handling
+- Motion blur effects
+
+================================================================================
+12. APPLICATIONS AND MODERN DEVELOPMENTS
+================================================================================
+
+12.1 Traditional Applications
+-----------------------------
+**Photogrammetry:**
+- Aerial mapping and surveying
+- Cultural heritage documentation
+- Industrial metrology
+- Medical imaging
+
+**Computer Graphics:**
+- Motion capture systems
+- Virtual set creation
+- Camera tracking for VFX
+- 3D model acquisition
+
+12.2 Modern Applications
+-----------------------
+**Autonomous Systems:**
+- Visual SLAM for robots and vehicles
+- Obstacle detection and mapping
+- Navigation and localization
+- Path planning
+
+**Mixed Reality:**
+- AR/VR tracking systems
+- Real-time camera pose estimation
+- Environment mapping
+- Occlusion handling
+
+12.3 Deep Learning Integration
+------------------------------
+**Learning-Based Methods:**
+- Neural SLAM systems
+- End-to-end pose estimation
+- Learned feature descriptors
+- Self-supervised training
+
+**Hybrid Approaches:**
+- Classical initialization + learning refinement
+- Learning-based outlier detection
+- Neural network regularization
+- Domain adaptation
+
+12.4 Future Directions
+---------------------
+**Neural Rendering:**
+- Neural Radiance Fields (NeRF)
+- Neural implicit surfaces
+- Differentiable rendering
+- Real-time neural graphics
+
+**Multi-Modal Systems:**
+- RGB-D cameras
+- Event cameras
+- LiDAR integration
+- Sensor fusion approaches
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Camera models and 3D reconstruction form the mathematical foundation of computer vision systems. Key insights:
+
+**Camera Modeling:**
+- Pinhole model provides fundamental projection geometry
+- Lens distortion correction essential for accuracy
+- Calibration quality directly impacts reconstruction accuracy
+- Multi-camera systems enable robust 3D perception
+
+**3D Reconstruction:**
+- Structure from Motion enables reconstruction from images
+- Bundle adjustment provides optimal parameter estimation
+- Dense reconstruction methods create detailed 3D models
+- Quality assessment ensures reliable results
+
+**Modern Developments:**
+- Deep learning enhances traditional methods
+- Real-time systems enable new applications
+- Neural rendering opens new possibilities
+- Multi-modal approaches improve robustness
+
+**Applications:**
+- Autonomous systems rely on robust 3D perception
+- Mixed reality demands real-time performance
+- Photogrammetry benefits from automated processing
+- New domains continue to emerge
+
+The field continues to evolve with advances in optimization, learning, and sensor technology, enabling increasingly sophisticated 3D perception systems.
+
+================================================================================
+REFERENCES AND FURTHER READING
+================================================================================
+
+1. Hartley, R. & Zisserman, A. "Multiple View Geometry in Computer Vision" (2003)
+2. Zhang, Z. "A Flexible New Technique for Camera Calibration" (2000)
+3. Triggs, B. et al. "Bundle Adjustment — A Modern Synthesis" (1999)
+4. Snavely, N. et al. "Photo Tourism: Exploring Photo Collections in 3D" (2006)
+5. Agarwal, S. et al. "Building Rome in a Day" (2009)
+6. Lourakis, M.I.A. & Argyros, A.A. "SBA: A Software Package for Generic Sparse Bundle Adjustment" (2009)
+7. Furukawa, Y. & Ponce, J. "Accurate, Dense, and Robust Multiview Stereopsis" (2010)
+8. Mur-Artal, R. et al. "ORB-SLAM: A Versatile and Accurate Monocular SLAM System" (2015)
+9. Schönberger, J.L. & Frahm, J.M. "Structure-from-Motion Revisited" (2016)
+10. Mildenhall, B. et al. "NeRF: Representing Scenes as Neural Radiance Fields" (2020) 

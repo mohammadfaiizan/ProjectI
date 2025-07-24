@@ -1,0 +1,1680 @@
+IMAGE FILTERING AND CONVOLUTION - Fundamental Image Processing Operations
+=======================================================================
+
+TABLE OF CONTENTS:
+1. Convolution Fundamentals
+2. Linear Filtering Operations
+3. Edge Detection Filters
+4. Noise Reduction Techniques
+5. Morphological Operations
+6. Advanced Filtering Techniques
+7. Implementation and Practical Guidelines
+
+=======================================================
+
+1. CONVOLUTION FUNDAMENTALS
+===========================
+
+1.1 Mathematical Definition:
+---------------------------
+2D Convolution:
+(f * g)(x,y) = ∑∑ f(m,n) g(x-m, y-n)
+
+Where:
+- f(x,y) is the input image
+- g(x,y) is the kernel/filter
+- * denotes convolution operation
+
+Discrete Convolution:
+For digital images with finite size
+g(x,y) = ∑ᵢ₌₋ₐᵃ ∑ⱼ₌₋ᵦᵇ f(x+i, y+j) h(i,j)
+
+Cross-Correlation vs Convolution:
+Cross-correlation: g(x,y) = ∑∑ f(x+i, y+j) h(i,j)
+Convolution: g(x,y) = ∑∑ f(x+i, y+j) h(-i,-j)
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import ndimage, signal
+import cv2
+
+def convolution_2d(image, kernel, mode='same'):
+    """
+    Perform 2D convolution manually
+    """
+    if len(image.shape) > 2:
+        # Convert to grayscale if color image
+        image = np.mean(image, axis=2)
+    
+    # Get dimensions
+    img_height, img_width = image.shape
+    kernel_height, kernel_width = kernel.shape
+    
+    # Calculate padding
+    pad_h = kernel_height // 2
+    pad_w = kernel_width // 2
+    
+    # Pad image
+    padded_image = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant')
+    
+    # Initialize output
+    output = np.zeros_like(image)
+    
+    # Perform convolution
+    for i in range(img_height):
+        for j in range(img_width):
+            # Extract region
+            region = padded_image[i:i+kernel_height, j:j+kernel_width]
+            # Compute convolution (note: using correlation, flip kernel for true convolution)
+            output[i, j] = np.sum(region * kernel)
+    
+    return output
+
+def demonstrate_convolution():
+    """Demonstrate basic convolution operation"""
+    # Create simple test image
+    image = np.zeros((10, 10))
+    image[4:6, 4:6] = 255  # White square in center
+    
+    # Simple 3x3 kernel
+    kernel = np.array([
+        [0, -1, 0],
+        [-1, 5, -1],
+        [0, -1, 0]
+    ]) / 1.0  # Sharpening kernel
+    
+    # Apply convolution
+    result = convolution_2d(image, kernel)
+    
+    print("Original image:")
+    print(image.astype(int))
+    print("\nKernel:")
+    print(kernel)
+    print("\nConvolved result:")
+    print(result.astype(int))
+    
+    return image, kernel, result
+
+# Demonstrate convolution
+orig_img, kern, conv_result = demonstrate_convolution()
+```
+
+1.2 Convolution Properties:
+--------------------------
+Linearity:
+conv(af + bg, h) = a×conv(f, h) + b×conv(g, h)
+
+Shift Invariance:
+If g(x,y) = conv(f(x,y), h(x,y))
+Then g(x-x₀, y-y₀) = conv(f(x-x₀, y-y₀), h(x,y))
+
+Commutativity:
+f * h = h * f
+
+Associativity:
+(f * g) * h = f * (g * h)
+
+```python
+def verify_convolution_properties():
+    """Verify mathematical properties of convolution"""
+    # Create test data
+    image1 = np.random.rand(50, 50)
+    image2 = np.random.rand(50, 50)
+    kernel1 = np.random.rand(5, 5)
+    kernel2 = np.random.rand(5, 5)
+    
+    # Test linearity
+    a, b = 2.0, 3.0
+    linear_left = signal.convolve2d(a*image1 + b*image2, kernel1, mode='same')
+    linear_right = a*signal.convolve2d(image1, kernel1, mode='same') + b*signal.convolve2d(image2, kernel1, mode='same')
+    
+    linearity_error = np.mean(np.abs(linear_left - linear_right))
+    
+    # Test commutativity (approximately, since we use correlation in practice)
+    comm1 = signal.correlate2d(image1, kernel1, mode='same')
+    comm2 = signal.correlate2d(kernel1, image1, mode='same')
+    
+    print(f"Linearity error: {linearity_error:.2e}")
+    print(f"Commutativity test shapes: {comm1.shape}, {comm2.shape}")
+    
+    return linearity_error
+
+verify_convolution_properties()
+```
+
+1.3 Boundary Conditions:
+------------------------
+Zero Padding:
+Extend image with zeros
+Most common, introduces boundary artifacts
+
+Constant Padding:
+Extend with constant value
+Reduces some boundary effects
+
+Reflect Padding:
+Mirror image values at boundaries
+Better preservation of image structure
+
+Wrap Padding:
+Periodic extension (circular convolution)
+Useful for some applications
+
+```python
+def compare_padding_methods(image, kernel):
+    """Compare different padding methods"""
+    padding_methods = {
+        'constant': 0,
+        'reflect': None,
+        'wrap': None,
+        'nearest': None
+    }
+    
+    results = {}
+    
+    for method in padding_methods:
+        if method == 'constant':
+            result = ndimage.convolve(image, kernel, mode='constant', cval=0)
+        else:
+            result = ndimage.convolve(image, kernel, mode=method)
+        
+        results[method] = result
+    
+    return results
+
+# Test padding methods
+test_image = np.random.rand(20, 20)
+test_kernel = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]]) / 4  # Sobel-like
+padding_results = compare_padding_methods(test_image, test_kernel)
+
+for method, result in padding_results.items():
+    print(f"{method} padding - output range: [{result.min():.3f}, {result.max():.3f}]")
+```
+
+=======================================================
+
+2. LINEAR FILTERING OPERATIONS
+==============================
+
+2.1 Smoothing Filters:
+----------------------
+Box Filter (Mean Filter):
+Uniform averaging within neighborhood
+H = (1/k²) × ones(k, k)
+
+Gaussian Filter:
+Weighted averaging with Gaussian weights
+G(x,y) = (1/2πσ²) × exp(-(x²+y²)/2σ²)
+
+```python
+def create_gaussian_kernel(size, sigma):
+    """Create Gaussian kernel"""
+    kernel = np.zeros((size, size))
+    center = size // 2
+    
+    for i in range(size):
+        for j in range(size):
+            x, y = i - center, j - center
+            kernel[i, j] = np.exp(-(x*x + y*y) / (2 * sigma*sigma))
+    
+    # Normalize
+    kernel = kernel / np.sum(kernel)
+    return kernel
+
+def apply_smoothing_filters(image):
+    """Apply various smoothing filters"""
+    # Box filter
+    box_kernel = np.ones((5, 5)) / 25
+    box_filtered = ndimage.convolve(image, box_kernel)
+    
+    # Gaussian filter
+    gaussian_kernel = create_gaussian_kernel(5, 1.0)
+    gaussian_filtered = ndimage.convolve(image, gaussian_kernel)
+    
+    # Built-in Gaussian
+    gaussian_builtin = ndimage.gaussian_filter(image, sigma=1.0)
+    
+    return {
+        'original': image,
+        'box_filter': box_filtered,
+        'gaussian_manual': gaussian_filtered,
+        'gaussian_builtin': gaussian_builtin
+    }
+
+# Create noisy test image
+np.random.seed(42)
+clean_image = np.zeros((50, 50))
+clean_image[20:30, 20:30] = 1.0
+noisy_image = clean_image + 0.1 * np.random.randn(50, 50)
+
+smoothing_results = apply_smoothing_filters(noisy_image)
+
+for method, result in smoothing_results.items():
+    print(f"{method}: mean={result.mean():.3f}, std={result.std():.3f}")
+```
+
+2.2 Sharpening Filters:
+-----------------------
+Laplacian Filter:
+Second derivative operator
+Emphasizes rapid intensity changes
+
+Unsharp Masking:
+Enhanced = Original + α × (Original - Blurred)
+Enhances high-frequency details
+
+```python
+def sharpening_filters():
+    """Demonstrate various sharpening filters"""
+    
+    # Laplacian kernels
+    laplacian_4 = np.array([
+        [0, 1, 0],
+        [1, -4, 1],
+        [0, 1, 0]
+    ])
+    
+    laplacian_8 = np.array([
+        [1, 1, 1],
+        [1, -8, 1],
+        [1, 1, 1]
+    ])
+    
+    # Sharpening kernel
+    sharpening = np.array([
+        [0, -1, 0],
+        [-1, 5, -1],
+        [0, -1, 0]
+    ])
+    
+    return {
+        'laplacian_4': laplacian_4,
+        'laplacian_8': laplacian_8,
+        'sharpening': sharpening
+    }
+
+def unsharp_masking(image, sigma=1.0, alpha=1.5):
+    """Apply unsharp masking for image sharpening"""
+    # Create blurred version
+    blurred = ndimage.gaussian_filter(image, sigma=sigma)
+    
+    # Compute high-frequency component
+    high_freq = image - blurred
+    
+    # Enhance
+    sharpened = image + alpha * high_freq
+    
+    return sharpened, blurred, high_freq
+
+# Test sharpening
+test_image = np.random.rand(30, 30)
+test_image[10:20, 10:20] += 0.5  # Add a square feature
+
+sharpened_img, blurred_img, high_freq_img = unsharp_masking(test_image, sigma=1.0, alpha=1.5)
+
+print(f"Original range: [{test_image.min():.3f}, {test_image.max():.3f}]")
+print(f"Sharpened range: [{sharpened_img.min():.3f}, {sharpened_img.max():.3f}]")
+print(f"High frequency range: [{high_freq_img.min():.3f}, {high_freq_img.max():.3f}]")
+```
+
+2.3 Custom Linear Filters:
+--------------------------
+Directional Filters:
+Emphasize features in specific directions
+Useful for texture analysis
+
+Frequency Domain Filtering:
+Apply filters in frequency domain
+Computationally efficient for large kernels
+
+```python
+def create_directional_filters():
+    """Create filters for different directions"""
+    
+    # Horizontal edge detection
+    horizontal = np.array([
+        [-1, -1, -1],
+        [0, 0, 0],
+        [1, 1, 1]
+    ])
+    
+    # Vertical edge detection
+    vertical = np.array([
+        [-1, 0, 1],
+        [-1, 0, 1],
+        [-1, 0, 1]
+    ])
+    
+    # Diagonal filters
+    diagonal_1 = np.array([
+        [0, -1, -1],
+        [1, 0, -1],
+        [1, 1, 0]
+    ])
+    
+    diagonal_2 = np.array([
+        [-1, -1, 0],
+        [-1, 0, 1],
+        [0, 1, 1]
+    ])
+    
+    return {
+        'horizontal': horizontal,
+        'vertical': vertical,
+        'diagonal_1': diagonal_1,
+        'diagonal_2': diagonal_2
+    }
+
+def frequency_domain_filtering(image, filter_func):
+    """Apply filtering in frequency domain"""
+    # Forward FFT
+    f_transform = np.fft.fft2(image)
+    f_shift = np.fft.fftshift(f_transform)
+    
+    # Create frequency coordinates
+    rows, cols = image.shape
+    crow, ccol = rows // 2, cols // 2
+    
+    # Apply filter
+    filtered_f = filter_func(f_shift, crow, ccol)
+    
+    # Inverse FFT
+    f_ishift = np.fft.ifftshift(filtered_f)
+    img_back = np.fft.ifft2(f_ishift)
+    img_back = np.real(img_back)
+    
+    return img_back
+
+def lowpass_filter(f_transform, crow, ccol, cutoff=30):
+    """Create ideal lowpass filter"""
+    rows, cols = f_transform.shape
+    mask = np.zeros((rows, cols), np.uint8)
+    mask[crow-cutoff:crow+cutoff, ccol-cutoff:ccol+cutoff] = 1
+    return f_transform * mask
+
+# Test frequency domain filtering
+test_img = np.random.rand(64, 64)
+lowpass_result = frequency_domain_filtering(test_img, lowpass_filter)
+
+print(f"Original image std: {test_img.std():.3f}")
+print(f"Lowpass filtered std: {lowpass_result.std():.3f}")
+```
+
+=======================================================
+
+3. EDGE DETECTION FILTERS
+=========================
+
+3.1 Gradient-Based Methods:
+---------------------------
+Sobel Operator:
+Gₓ = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
+Gᵧ = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
+
+Prewitt Operator:
+Similar to Sobel but uniform weights
+Gₓ = [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]]
+
+Roberts Cross-Gradient:
+2×2 operators for diagonal gradients
+G₁ = [[1, 0], [0, -1]]
+G₂ = [[0, 1], [-1, 0]]
+
+```python
+def gradient_edge_detection(image):
+    """Apply various gradient-based edge detectors"""
+    
+    # Sobel operators
+    sobel_x = np.array([
+        [-1, 0, 1],
+        [-2, 0, 2],
+        [-1, 0, 1]
+    ])
+    
+    sobel_y = np.array([
+        [-1, -2, -1],
+        [0, 0, 0],
+        [1, 2, 1]
+    ])
+    
+    # Prewitt operators
+    prewitt_x = np.array([
+        [-1, 0, 1],
+        [-1, 0, 1],
+        [-1, 0, 1]
+    ])
+    
+    prewitt_y = np.array([
+        [-1, -1, -1],
+        [0, 0, 0],
+        [1, 1, 1]
+    ])
+    
+    # Apply filters
+    sobel_gx = ndimage.convolve(image, sobel_x)
+    sobel_gy = ndimage.convolve(image, sobel_y)
+    sobel_magnitude = np.sqrt(sobel_gx**2 + sobel_gy**2)
+    sobel_direction = np.arctan2(sobel_gy, sobel_gx)
+    
+    prewitt_gx = ndimage.convolve(image, prewitt_x)
+    prewitt_gy = ndimage.convolve(image, prewitt_y)
+    prewitt_magnitude = np.sqrt(prewitt_gx**2 + prewitt_gy**2)
+    
+    return {
+        'sobel_x': sobel_gx,
+        'sobel_y': sobel_gy,
+        'sobel_magnitude': sobel_magnitude,
+        'sobel_direction': sobel_direction,
+        'prewitt_magnitude': prewitt_magnitude
+    }
+
+def roberts_cross_gradient(image):
+    """Apply Roberts cross-gradient operator"""
+    roberts_1 = np.array([
+        [1, 0],
+        [0, -1]
+    ])
+    
+    roberts_2 = np.array([
+        [0, 1],
+        [-1, 0]
+    ])
+    
+    # Apply operators
+    g1 = ndimage.convolve(image, roberts_1)
+    g2 = ndimage.convolve(image, roberts_2)
+    
+    # Compute magnitude
+    magnitude = np.sqrt(g1**2 + g2**2)
+    
+    return g1, g2, magnitude
+
+# Test edge detection
+test_image = np.zeros((50, 50))
+test_image[20:30, 10:40] = 1.0  # Rectangle
+test_image = ndimage.gaussian_filter(test_image, sigma=1.0)  # Smooth edges
+
+edge_results = gradient_edge_detection(test_image)
+roberts_g1, roberts_g2, roberts_mag = roberts_cross_gradient(test_image)
+
+print("Edge Detection Results:")
+for method, result in edge_results.items():
+    if 'direction' not in method:
+        print(f"{method}: max magnitude = {result.max():.3f}")
+```
+
+3.2 Laplacian-Based Methods:
+---------------------------
+Laplacian of Gaussian (LoG):
+∇²G = ∂²G/∂x² + ∂²G/∂y²
+Combines Gaussian smoothing with Laplacian
+
+Zero-Crossing Detection:
+Find points where LoG changes sign
+Indicates edge locations
+
+```python
+def laplacian_of_gaussian(image, sigma=1.0):
+    """Apply Laplacian of Gaussian edge detection"""
+    
+    # Method 1: Apply Gaussian then Laplacian
+    gaussian_img = ndimage.gaussian_filter(image, sigma=sigma)
+    laplacian_kernel = np.array([
+        [0, 1, 0],
+        [1, -4, 1],
+        [0, 1, 0]
+    ])
+    log_result1 = ndimage.convolve(gaussian_img, laplacian_kernel)
+    
+    # Method 2: Use built-in LoG
+    log_result2 = ndimage.gaussian_laplace(image, sigma=sigma)
+    
+    return log_result1, log_result2
+
+def find_zero_crossings(log_image, threshold=0.01):
+    """Find zero crossings in LoG response"""
+    zero_crossings = np.zeros_like(log_image)
+    
+    rows, cols = log_image.shape
+    
+    for i in range(1, rows-1):
+        for j in range(1, cols-1):
+            # Check 4-connected neighbors
+            neighbors = [
+                log_image[i-1, j],  # North
+                log_image[i+1, j],  # South
+                log_image[i, j-1],  # West
+                log_image[i, j, j+1]  # East
+            ]
+            
+            center = log_image[i, j]
+            
+            # Check for sign changes
+            for neighbor in neighbors:
+                if (center * neighbor < 0) and (abs(center - neighbor) > threshold):
+                    zero_crossings[i, j] = 1
+                    break
+    
+    return zero_crossings
+
+# Test LoG edge detection
+test_img = np.zeros((40, 40))
+test_img[15:25, 15:25] = 1.0
+test_img = ndimage.gaussian_filter(test_img, sigma=2.0)
+
+log1, log2 = laplacian_of_gaussian(test_img, sigma=1.0)
+zero_cross = find_zero_crossings(log2, threshold=0.01)
+
+print(f"LoG method 1 range: [{log1.min():.3f}, {log1.max():.3f}]")
+print(f"LoG method 2 range: [{log2.min():.3f}, {log2.max():.3f}]")
+print(f"Zero crossings found: {zero_cross.sum()} pixels")
+```
+
+3.3 Canny Edge Detection:
+-------------------------
+Multi-Stage Process:
+1. Gaussian smoothing
+2. Gradient computation
+3. Non-maximum suppression
+4. Double thresholding
+5. Edge tracking by hysteresis
+
+```python
+def canny_edge_detection(image, sigma=1.0, low_threshold=0.1, high_threshold=0.2):
+    """Implement basic Canny edge detection"""
+    
+    # Step 1: Gaussian smoothing
+    smoothed = ndimage.gaussian_filter(image, sigma=sigma)
+    
+    # Step 2: Compute gradients
+    sobel_x = ndimage.sobel(smoothed, axis=1)
+    sobel_y = ndimage.sobel(smoothed, axis=0)
+    
+    magnitude = np.sqrt(sobel_x**2 + sobel_y**2)
+    direction = np.arctan2(sobel_y, sobel_x)
+    
+    # Step 3: Non-maximum suppression
+    suppressed = non_maximum_suppression(magnitude, direction)
+    
+    # Step 4: Double thresholding
+    strong_edges, weak_edges = double_threshold(suppressed, low_threshold, high_threshold)
+    
+    # Step 5: Edge tracking by hysteresis
+    final_edges = hysteresis_tracking(strong_edges, weak_edges)
+    
+    return final_edges, magnitude, direction
+
+def non_maximum_suppression(magnitude, direction):
+    """Apply non-maximum suppression"""
+    rows, cols = magnitude.shape
+    suppressed = np.zeros_like(magnitude)
+    
+    # Convert angle to 0-180 degrees
+    angle = direction * 180.0 / np.pi
+    angle[angle < 0] += 180
+    
+    for i in range(1, rows-1):
+        for j in range(1, cols-1):
+            try:
+                q = 255
+                r = 255
+                
+                # Angle 0
+                if (0 <= angle[i,j] < 22.5) or (157.5 <= angle[i,j] <= 180):
+                    q = magnitude[i, j+1]
+                    r = magnitude[i, j-1]
+                # Angle 45
+                elif (22.5 <= angle[i,j] < 67.5):
+                    q = magnitude[i+1, j-1]
+                    r = magnitude[i-1, j+1]
+                # Angle 90
+                elif (67.5 <= angle[i,j] < 112.5):
+                    q = magnitude[i+1, j]
+                    r = magnitude[i-1, j]
+                # Angle 135
+                elif (112.5 <= angle[i,j] < 157.5):
+                    q = magnitude[i-1, j-1]
+                    r = magnitude[i+1, j+1]
+                
+                if (magnitude[i,j] >= q) and (magnitude[i,j] >= r):
+                    suppressed[i,j] = magnitude[i,j]
+                else:
+                    suppressed[i,j] = 0
+                    
+            except IndexError:
+                pass
+    
+    return suppressed
+
+def double_threshold(image, low_threshold, high_threshold):
+    """Apply double thresholding"""
+    high_thresh = image.max() * high_threshold
+    low_thresh = high_thresh * low_threshold
+    
+    strong_edges = (image >= high_thresh)
+    weak_edges = ((image <= high_thresh) & (image >= low_thresh))
+    
+    return strong_edges, weak_edges
+
+def hysteresis_tracking(strong_edges, weak_edges):
+    """Track edges using hysteresis"""
+    final_edges = strong_edges.copy()
+    
+    rows, cols = strong_edges.shape
+    
+    for i in range(1, rows-1):
+        for j in range(1, cols-1):
+            if weak_edges[i, j]:
+                # Check if connected to strong edge
+                if np.any(strong_edges[i-1:i+2, j-1:j+2]):
+                    final_edges[i, j] = True
+    
+    return final_edges
+
+# Test Canny edge detection
+test_image = np.zeros((50, 50))
+cv2.circle(test_image, (25, 25), 15, 1.0, -1)  # Filled circle
+test_image = ndimage.gaussian_filter(test_image, sigma=1.0)
+
+canny_edges, grad_mag, grad_dir = canny_edge_detection(test_image)
+
+print(f"Strong edges detected: {canny_edges.sum()} pixels")
+print(f"Gradient magnitude range: [{grad_mag.min():.3f}, {grad_mag.max():.3f}]")
+```
+
+=======================================================
+
+4. NOISE REDUCTION TECHNIQUES
+=============================
+
+4.1 Types of Noise:
+-------------------
+Gaussian Noise:
+Additive noise with normal distribution
+I_noisy(x,y) = I(x,y) + N(0,σ²)
+
+Salt-and-Pepper Noise:
+Random white and black pixels
+Impulse noise
+
+Poisson Noise:
+Signal-dependent noise
+Common in low-light imaging
+
+```python
+def add_noise_to_image(image, noise_type='gaussian', **params):
+    """Add various types of noise to image"""
+    noisy_image = image.copy().astype(np.float64)
+    
+    if noise_type == 'gaussian':
+        sigma = params.get('sigma', 0.1)
+        noise = np.random.normal(0, sigma, image.shape)
+        noisy_image += noise
+        
+    elif noise_type == 'salt_pepper':
+        prob = params.get('prob', 0.05)
+        random_matrix = np.random.random(image.shape)
+        noisy_image[random_matrix < prob/2] = 0  # Salt
+        noisy_image[random_matrix > 1 - prob/2] = 1  # Pepper
+        
+    elif noise_type == 'poisson':
+        # Poisson noise (approximate)
+        noisy_image = np.random.poisson(image * 255) / 255.0
+        
+    elif noise_type == 'speckle':
+        noise = np.random.randn(*image.shape)
+        noisy_image += image * noise * params.get('variance', 0.1)
+    
+    return np.clip(noisy_image, 0, 1)
+
+# Generate noisy test images
+clean_image = np.zeros((50, 50))
+clean_image[20:30, 20:30] = 1.0
+clean_image = ndimage.gaussian_filter(clean_image, sigma=2.0)
+
+noisy_images = {
+    'gaussian': add_noise_to_image(clean_image, 'gaussian', sigma=0.1),
+    'salt_pepper': add_noise_to_image(clean_image, 'salt_pepper', prob=0.1),
+    'poisson': add_noise_to_image(clean_image, 'poisson'),
+    'speckle': add_noise_to_image(clean_image, 'speckle', variance=0.2)
+}
+
+for noise_type, noisy_img in noisy_images.items():
+    snr = 10 * np.log10(np.var(clean_image) / np.var(noisy_img - clean_image))
+    print(f"{noise_type} noise - SNR: {snr:.2f} dB")
+```
+
+4.2 Linear Denoising:
+---------------------
+Mean Filter:
+Simple averaging filter
+Effective for Gaussian noise but blurs edges
+
+Gaussian Filter:
+Weighted averaging with Gaussian weights
+Preserves edges better than mean filter
+
+Wiener Filter:
+Optimal linear filter in MSE sense
+Requires noise characteristics
+
+```python
+def linear_denoising_methods(noisy_image):
+    """Apply various linear denoising methods"""
+    
+    # Mean filter
+    mean_filtered = ndimage.uniform_filter(noisy_image, size=3)
+    
+    # Gaussian filter
+    gaussian_filtered = ndimage.gaussian_filter(noisy_image, sigma=1.0)
+    
+    # Separable Gaussian (more efficient)
+    gaussian_1d = ndimage.gaussian_filter1d
+    gaussian_sep = gaussian_1d(gaussian_1d(noisy_image, sigma=1.0, axis=0), sigma=1.0, axis=1)
+    
+    return {
+        'mean_filter': mean_filtered,
+        'gaussian_filter': gaussian_filtered,
+        'gaussian_separable': gaussian_sep
+    }
+
+def wiener_filter_freq_domain(noisy_image, noise_variance):
+    """Apply Wiener filter in frequency domain"""
+    # Estimate signal power spectrum (simplified)
+    signal_fft = np.fft.fft2(noisy_image)
+    signal_power = np.abs(signal_fft)**2
+    
+    # Wiener filter
+    wiener_filter = signal_power / (signal_power + noise_variance)
+    
+    # Apply filter
+    denoised_fft = signal_fft * wiener_filter
+    denoised = np.real(np.fft.ifft2(denoised_fft))
+    
+    return denoised
+
+# Test linear denoising
+test_noisy = noisy_images['gaussian']
+linear_results = linear_denoising_methods(test_noisy)
+
+for method, result in linear_results.items():
+    mse = np.mean((result - clean_image)**2)
+    print(f"{method} MSE: {mse:.6f}")
+```
+
+4.3 Non-Linear Denoising:
+-------------------------
+Median Filter:
+Replace pixel with median of neighborhood
+Excellent for salt-and-pepper noise
+Preserves edges
+
+Bilateral Filter:
+Combines spatial and intensity similarity
+Edge-preserving smoothing
+
+Non-Local Means:
+Uses similarity across entire image
+Very effective but computationally expensive
+
+```python
+def median_filter_custom(image, size=3):
+    """Custom implementation of median filter"""
+    rows, cols = image.shape
+    filtered = np.zeros_like(image)
+    pad = size // 2
+    
+    # Pad image
+    padded = np.pad(image, pad, mode='reflect')
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Extract neighborhood
+            neighborhood = padded[i:i+size, j:j+size]
+            # Compute median
+            filtered[i, j] = np.median(neighborhood)
+    
+    return filtered
+
+def bilateral_filter_simple(image, spatial_sigma=1.0, intensity_sigma=0.1):
+    """Simplified bilateral filter implementation"""
+    rows, cols = image.shape
+    filtered = np.zeros_like(image)
+    
+    # Kernel size based on spatial sigma
+    kernel_size = int(6 * spatial_sigma) + 1
+    pad = kernel_size // 2
+    
+    # Pad image
+    padded = np.pad(image, pad, mode='reflect')
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Current pixel location in padded image
+            ci, cj = i + pad, j + pad
+            center_intensity = padded[ci, cj]
+            
+            # Extract neighborhood
+            neighborhood = padded[ci-pad:ci+pad+1, cj-pad:cj+pad+1]
+            
+            # Compute spatial weights
+            y_indices, x_indices = np.ogrid[-pad:pad+1, -pad:pad+1]
+            spatial_weights = np.exp(-(x_indices**2 + y_indices**2) / (2 * spatial_sigma**2))
+            
+            # Compute intensity weights
+            intensity_diff = neighborhood - center_intensity
+            intensity_weights = np.exp(-(intensity_diff**2) / (2 * intensity_sigma**2))
+            
+            # Combined weights
+            weights = spatial_weights * intensity_weights
+            
+            # Normalized weighted average
+            filtered[i, j] = np.sum(weights * neighborhood) / np.sum(weights)
+    
+    return filtered
+
+def non_local_means_simple(image, patch_size=3, search_size=7, h=0.1):
+    """Simplified non-local means implementation"""
+    rows, cols = image.shape
+    filtered = np.zeros_like(image)
+    
+    patch_pad = patch_size // 2
+    search_pad = search_size // 2
+    
+    # Pad image
+    padded = np.pad(image, max(patch_pad, search_pad), mode='reflect')
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Current pixel in padded coordinates
+            ci, cj = i + max(patch_pad, search_pad), j + max(patch_pad, search_pad)
+            
+            # Reference patch
+            ref_patch = padded[ci-patch_pad:ci+patch_pad+1, cj-patch_pad:cj+patch_pad+1]
+            
+            weights_sum = 0
+            weighted_value = 0
+            
+            # Search in neighborhood
+            for di in range(-search_pad, search_pad+1):
+                for dj in range(-search_pad, search_pad+1):
+                    # Comparison patch
+                    comp_patch = padded[ci+di-patch_pad:ci+di+patch_pad+1, 
+                                      cj+dj-patch_pad:cj+dj+patch_pad+1]
+                    
+                    # Compute patch distance
+                    patch_distance = np.sum((ref_patch - comp_patch)**2)
+                    
+                    # Compute weight
+                    weight = np.exp(-patch_distance / (h**2))
+                    
+                    weights_sum += weight
+                    weighted_value += weight * padded[ci+di, cj+dj]
+            
+            filtered[i, j] = weighted_value / weights_sum
+    
+    return filtered
+
+# Test non-linear denoising
+test_sp_noise = noisy_images['salt_pepper']
+
+median_result = median_filter_custom(test_sp_noise, size=3)
+bilateral_result = bilateral_filter_simple(test_noisy, spatial_sigma=1.5, intensity_sigma=0.1)
+
+print(f"Median filter MSE (salt-pepper): {np.mean((median_result - clean_image)**2):.6f}")
+print(f"Bilateral filter MSE (gaussian): {np.mean((bilateral_result - clean_image)**2):.6f}")
+```
+
+=======================================================
+
+5. MORPHOLOGICAL OPERATIONS
+===========================
+
+5.1 Binary Morphology:
+----------------------
+Structuring Element:
+Defines neighborhood for operation
+Common shapes: square, disk, line
+
+Erosion:
+A ⊖ B = {z | (B)z ⊆ A}
+Shrinks objects, removes small features
+
+Dilation:
+A ⊕ B = {z | (B̂)z ∩ A ≠ ∅}
+Expands objects, fills gaps
+
+```python
+def create_structuring_elements():
+    """Create various structuring elements"""
+    
+    # Square structuring elements
+    square_3x3 = np.ones((3, 3), dtype=np.uint8)
+    square_5x5 = np.ones((5, 5), dtype=np.uint8)
+    
+    # Cross structuring element
+    cross = np.array([
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0]
+    ], dtype=np.uint8)
+    
+    # Diamond structuring element
+    diamond = np.array([
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 1, 0, 0]
+    ], dtype=np.uint8)
+    
+    # Line structuring elements
+    horizontal_line = np.array([[1, 1, 1, 1, 1]], dtype=np.uint8)
+    vertical_line = np.array([[1], [1], [1], [1], [1]], dtype=np.uint8)
+    
+    return {
+        'square_3x3': square_3x3,
+        'square_5x5': square_5x5,
+        'cross': cross,
+        'diamond': diamond,
+        'horizontal_line': horizontal_line,
+        'vertical_line': vertical_line
+    }
+
+def binary_erosion_custom(image, structuring_element):
+    """Custom implementation of binary erosion"""
+    rows, cols = image.shape
+    se_rows, se_cols = structuring_element.shape
+    
+    # Calculate padding
+    pad_r, pad_c = se_rows // 2, se_cols // 2
+    
+    # Pad image
+    padded = np.pad(image, ((pad_r, pad_r), (pad_c, pad_c)), mode='constant', constant_values=0)
+    
+    # Initialize result
+    eroded = np.zeros_like(image)
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Extract region
+            region = padded[i:i+se_rows, j:j+se_cols]
+            
+            # Check if structuring element fits completely
+            if np.all((region >= structuring_element) | (structuring_element == 0)):
+                eroded[i, j] = 1
+    
+    return eroded
+
+def binary_dilation_custom(image, structuring_element):
+    """Custom implementation of binary dilation"""
+    rows, cols = image.shape
+    se_rows, se_cols = structuring_element.shape
+    
+    # Calculate padding
+    pad_r, pad_c = se_rows // 2, se_cols // 2
+    
+    # Pad image
+    padded = np.pad(image, ((pad_r, pad_r), (pad_c, pad_c)), mode='constant', constant_values=0)
+    
+    # Initialize result
+    dilated = np.zeros_like(image)
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Extract region
+            region = padded[i:i+se_rows, j:j+se_cols]
+            
+            # Check if any overlap with structuring element
+            if np.any((region & structuring_element) == 1):
+                dilated[i, j] = 1
+    
+    return dilated
+
+# Test basic morphological operations
+binary_image = np.zeros((30, 30), dtype=np.uint8)
+binary_image[10:20, 10:20] = 1  # Square
+binary_image[5:8, 5:8] = 1      # Small square (noise)
+
+se = create_structuring_elements()['square_3x3']
+
+eroded = binary_erosion_custom(binary_image, se)
+dilated = binary_dilation_custom(binary_image, se)
+
+print(f"Original objects: {np.sum(binary_image)} pixels")
+print(f"After erosion: {np.sum(eroded)} pixels")
+print(f"After dilation: {np.sum(dilated)} pixels")
+```
+
+5.2 Compound Operations:
+-----------------------
+Opening:
+A ∘ B = (A ⊖ B) ⊕ B
+Erosion followed by dilation
+Removes small objects, separates connected objects
+
+Closing:
+A • B = (A ⊕ B) ⊖ B
+Dilation followed by erosion
+Fills small gaps, connects nearby objects
+
+```python
+def morphological_opening(image, structuring_element):
+    """Morphological opening operation"""
+    eroded = binary_erosion_custom(image, structuring_element)
+    opened = binary_dilation_custom(eroded, structuring_element)
+    return opened
+
+def morphological_closing(image, structuring_element):
+    """Morphological closing operation"""
+    dilated = binary_dilation_custom(image, structuring_element)
+    closed = binary_erosion_custom(dilated, structuring_element)
+    return closed
+
+def morphological_gradient(image, structuring_element):
+    """Morphological gradient (edge detection)"""
+    dilated = binary_dilation_custom(image, structuring_element)
+    eroded = binary_erosion_custom(image, structuring_element)
+    gradient = dilated - eroded
+    return gradient
+
+# Test compound operations
+test_binary = np.zeros((40, 40), dtype=np.uint8)
+# Add objects with noise and gaps
+test_binary[10:15, 10:25] = 1  # Rectangle with gap
+test_binary[12:13, 17:18] = 0  # Create gap
+test_binary[8:10, 8:10] = 1    # Small noise
+test_binary[30:35, 30:35] = 1  # Another object
+
+se_3x3 = create_structuring_elements()['square_3x3']
+
+opened = morphological_opening(test_binary, se_3x3)
+closed = morphological_closing(test_binary, se_3x3)
+gradient = morphological_gradient(test_binary, se_3x3)
+
+print(f"Original: {np.sum(test_binary)} pixels")
+print(f"Opened: {np.sum(opened)} pixels (noise removed)")
+print(f"Closed: {np.sum(closed)} pixels (gaps filled)")
+print(f"Gradient: {np.sum(gradient)} pixels (edges)")
+```
+
+5.3 Advanced Morphological Operations:
+-------------------------------------
+Hit-or-Miss Transform:
+Template matching for binary images
+Finds specific patterns
+
+Skeletonization:
+Reduces objects to 1-pixel wide lines
+Preserves topology
+
+Distance Transform:
+Computes distance to nearest background pixel
+Useful for watershed segmentation
+
+```python
+def hit_or_miss_transform(image, hit_structure, miss_structure):
+    """Hit-or-miss transformation"""
+    # Erode with hit structure
+    hit_eroded = binary_erosion_custom(image, hit_structure)
+    
+    # Erode complement with miss structure
+    complement = 1 - image
+    miss_eroded = binary_erosion_custom(complement, miss_structure)
+    
+    # Intersection
+    result = hit_eroded & miss_eroded
+    return result
+
+def simple_skeletonization(image):
+    """Simple skeletonization using iterative thinning"""
+    skeleton = image.copy()
+    se = np.ones((3, 3), dtype=np.uint8)
+    
+    while True:
+        eroded = binary_erosion_custom(skeleton, se)
+        opened = morphological_opening(eroded, se)
+        skeleton_next = skeleton - opened
+        
+        if np.array_equal(skeleton, skeleton_next):
+            break
+        skeleton = skeleton_next
+    
+    return skeleton
+
+def distance_transform_simple(binary_image):
+    """Simple distance transform using multiple erosions"""
+    distance = np.zeros_like(binary_image, dtype=np.float32)
+    se = np.ones((3, 3), dtype=np.uint8)
+    
+    current = binary_image.copy()
+    dist_value = 1
+    
+    while np.any(current):
+        distance[current == 1] = dist_value
+        current = binary_erosion_custom(current, se)
+        dist_value += 1
+    
+    return distance
+
+# Test advanced operations
+# Create test shape
+test_shape = np.zeros((30, 30), dtype=np.uint8)
+test_shape[10:20, 5:25] = 1  # Rectangle
+test_shape[14:16, 8:22] = 1  # Make it thicker in middle
+
+# Hit-or-miss template for corners
+hit_template = np.array([
+    [1, 1, 0],
+    [1, 1, 0],
+    [0, 0, 0]
+], dtype=np.uint8)
+
+miss_template = np.array([
+    [0, 0, 1],
+    [0, 0, 1],
+    [1, 1, 1]
+], dtype=np.uint8)
+
+hmt_result = hit_or_miss_transform(test_shape, hit_template, miss_template)
+skeleton = simple_skeletonization(test_shape)
+distance_map = distance_transform_simple(test_shape)
+
+print(f"Hit-or-miss corners found: {np.sum(hmt_result)} pixels")
+print(f"Skeleton pixels: {np.sum(skeleton)} pixels")
+print(f"Max distance: {distance_map.max()}")
+```
+
+=======================================================
+
+6. ADVANCED FILTERING TECHNIQUES
+================================
+
+6.1 Adaptive Filtering:
+-----------------------
+Local Statistics:
+Adapt filter parameters based on local image properties
+Better preservation of features
+
+Adaptive Smoothing:
+Stronger smoothing in uniform areas
+Less smoothing near edges
+
+```python
+def adaptive_gaussian_filter(image, sigma_min=0.5, sigma_max=2.0, edge_threshold=0.1):
+    """Adaptive Gaussian filtering based on local gradient"""
+    # Compute local gradient magnitude
+    sobel_x = ndimage.sobel(image, axis=1)
+    sobel_y = ndimage.sobel(image, axis=0)
+    gradient_magnitude = np.sqrt(sobel_x**2 + sobel_y**2)
+    
+    # Normalize gradient
+    grad_norm = gradient_magnitude / gradient_magnitude.max()
+    
+    # Compute adaptive sigma
+    sigma_map = sigma_max - (sigma_max - sigma_min) * (grad_norm > edge_threshold)
+    
+    # Apply filtering with varying sigma (simplified)
+    filtered = np.zeros_like(image)
+    rows, cols = image.shape
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Use local sigma value
+            local_sigma = sigma_map[i, j]
+            
+            # Extract local region (5x5)
+            r_min, r_max = max(0, i-2), min(rows, i+3)
+            c_min, c_max = max(0, j-2), min(cols, j+3)
+            
+            region = image[r_min:r_max, c_min:c_max]
+            
+            # Apply Gaussian with local sigma
+            if local_sigma > 0:
+                smoothed_region = ndimage.gaussian_filter(region, sigma=local_sigma)
+                filtered[i, j] = smoothed_region[i-r_min, j-c_min]
+            else:
+                filtered[i, j] = image[i, j]
+    
+    return filtered, sigma_map
+
+def local_variance_filter(image, window_size=5):
+    """Filter based on local variance"""
+    rows, cols = image.shape
+    filtered = np.zeros_like(image)
+    pad = window_size // 2
+    
+    # Pad image
+    padded = np.pad(image, pad, mode='reflect')
+    
+    for i in range(rows):
+        for j in range(cols):
+            # Extract window
+            window = padded[i:i+window_size, j:j+window_size]
+            
+            # Compute local statistics
+            local_mean = np.mean(window)
+            local_var = np.var(window)
+            
+            # Adaptive filtering based on variance
+            if local_var < 0.01:  # Uniform region
+                # Apply strong smoothing
+                filtered[i, j] = local_mean
+            else:  # Textured region
+                # Preserve original value
+                filtered[i, j] = image[i, j]
+    
+    return filtered
+
+# Test adaptive filtering
+test_img = np.zeros((50, 50))
+test_img[10:20, 10:20] = 1.0  # Square region
+test_img[25:35, 25:35] = 0.5  # Gray region
+test_img += 0.1 * np.random.randn(50, 50)  # Add noise
+
+adaptive_result, sigma_map = adaptive_gaussian_filter(test_img)
+variance_result = local_variance_filter(test_img)
+
+print(f"Sigma map range: [{sigma_map.min():.2f}, {sigma_map.max():.2f}]")
+print(f"Adaptive filter MSE: {np.mean((adaptive_result - test_img)**2):.6f}")
+```
+
+6.2 Anisotropic Filtering:
+--------------------------
+Anisotropic Diffusion:
+Diffusion that preserves edges
+Perona-Malik equation
+
+Edge-Stopping Functions:
+Control diffusion based on gradient magnitude
+Preserve important features
+
+```python
+def anisotropic_diffusion(image, num_iterations=20, delta_t=0.2, kappa=0.1):
+    """Perona-Malik anisotropic diffusion"""
+    
+    def edge_stopping_function(gradient_mag, kappa, function_type='exponential'):
+        """Edge stopping function"""
+        if function_type == 'exponential':
+            return np.exp(-(gradient_mag / kappa)**2)
+        elif function_type == 'rational':
+            return 1.0 / (1.0 + (gradient_mag / kappa)**2)
+        return np.ones_like(gradient_mag)
+    
+    # Initialize
+    u = image.copy().astype(np.float64)
+    
+    for iteration in range(num_iterations):
+        # Compute gradients in 4 directions
+        grad_n = np.roll(u, -1, axis=0) - u  # North
+        grad_s = np.roll(u, 1, axis=0) - u   # South
+        grad_e = np.roll(u, -1, axis=1) - u  # East
+        grad_w = np.roll(u, 1, axis=1) - u   # West
+        
+        # Compute edge stopping functions
+        c_n = edge_stopping_function(np.abs(grad_n), kappa)
+        c_s = edge_stopping_function(np.abs(grad_s), kappa)
+        c_e = edge_stopping_function(np.abs(grad_e), kappa)
+        c_w = edge_stopping_function(np.abs(grad_w), kappa)
+        
+        # Update equation
+        u_new = u + delta_t * (c_n * grad_n + c_s * grad_s + c_e * grad_e + c_w * grad_w)
+        
+        # Check convergence
+        change = np.mean(np.abs(u_new - u))
+        u = u_new
+        
+        if change < 1e-6:
+            print(f"Converged after {iteration + 1} iterations")
+            break
+    
+    return u
+
+# Test anisotropic diffusion
+test_image = np.zeros((40, 40))
+test_image[15:25, 15:25] = 1.0
+test_image += 0.2 * np.random.randn(40, 40)  # Add significant noise
+
+diffused = anisotropic_diffusion(test_image, num_iterations=50, kappa=0.1)
+
+print(f"Original noise level (std): {np.std(test_image):.3f}")
+print(f"After diffusion (std): {np.std(diffused):.3f}")
+```
+
+6.3 Multi-Scale Filtering:
+--------------------------
+Gaussian Pyramid:
+Multiple resolutions of same image
+Efficient multi-scale processing
+
+Laplacian Pyramid:
+Difference of Gaussian images
+Captures details at different scales
+
+```python
+def build_gaussian_pyramid(image, num_levels=4, sigma=1.0):
+    """Build Gaussian pyramid"""
+    pyramid = [image.copy()]
+    
+    current = image.copy()
+    for level in range(1, num_levels):
+        # Smooth and downsample
+        smoothed = ndimage.gaussian_filter(current, sigma=sigma)
+        downsampled = smoothed[::2, ::2]  # Simple downsampling
+        pyramid.append(downsampled)
+        current = downsampled
+    
+    return pyramid
+
+def build_laplacian_pyramid(gaussian_pyramid):
+    """Build Laplacian pyramid from Gaussian pyramid"""
+    laplacian_pyramid = []
+    
+    for i in range(len(gaussian_pyramid) - 1):
+        # Current level
+        current = gaussian_pyramid[i]
+        
+        # Next level (coarser)
+        next_level = gaussian_pyramid[i + 1]
+        
+        # Upsample next level
+        upsampled = np.repeat(np.repeat(next_level, 2, axis=0), 2, axis=1)
+        
+        # Crop to match current size
+        h, w = current.shape
+        upsampled = upsampled[:h, :w]
+        
+        # Compute difference
+        laplacian = current - upsampled
+        laplacian_pyramid.append(laplacian)
+    
+    # Add the coarsest level
+    laplacian_pyramid.append(gaussian_pyramid[-1])
+    
+    return laplacian_pyramid
+
+def reconstruct_from_laplacian(laplacian_pyramid):
+    """Reconstruct image from Laplacian pyramid"""
+    # Start with coarsest level
+    reconstructed = laplacian_pyramid[-1].copy()
+    
+    # Add details from finer levels
+    for i in range(len(laplacian_pyramid) - 2, -1, -1):
+        # Upsample
+        upsampled = np.repeat(np.repeat(reconstructed, 2, axis=0), 2, axis=1)
+        
+        # Crop to match target size
+        target_shape = laplacian_pyramid[i].shape
+        upsampled = upsampled[:target_shape[0], :target_shape[1]]
+        
+        # Add details
+        reconstructed = upsampled + laplacian_pyramid[i]
+    
+    return reconstructed
+
+# Test multi-scale processing
+test_img = np.random.rand(64, 64)
+# Add features at different scales
+test_img[20:44, 20:44] += 0.5  # Large feature
+test_img[30:34, 30:34] += 0.3  # Medium feature
+test_img[32, 32] += 0.2        # Small feature
+
+# Build pyramids
+gaussian_pyr = build_gaussian_pyramid(test_img, num_levels=4)
+laplacian_pyr = build_laplacian_pyramid(gaussian_pyr)
+
+# Reconstruct
+reconstructed = reconstruct_from_laplacian(laplacian_pyr)
+
+print(f"Pyramid levels: {len(gaussian_pyr)}")
+for i, level in enumerate(gaussian_pyr):
+    print(f"Level {i}: {level.shape}")
+
+reconstruction_error = np.mean(np.abs(test_img - reconstructed))
+print(f"Reconstruction error: {reconstruction_error:.6f}")
+```
+
+=======================================================
+
+7. IMPLEMENTATION AND PRACTICAL GUIDELINES
+==========================================
+
+7.1 Performance Optimization:
+-----------------------------
+```python
+import time
+from scipy.ndimage import convolve
+
+class FilteringBenchmark:
+    """Benchmark different filtering implementations"""
+    
+    @staticmethod
+    def time_function(func, *args, **kwargs):
+        """Time a function execution"""
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        return result, end_time - start_time
+    
+    @staticmethod
+    def compare_implementations(image, kernel):
+        """Compare different convolution implementations"""
+        
+        # Custom implementation
+        custom_result, custom_time = FilteringBenchmark.time_function(
+            convolution_2d, image, kernel
+        )
+        
+        # SciPy implementation
+        scipy_result, scipy_time = FilteringBenchmark.time_function(
+            convolve, image, kernel
+        )
+        
+        # OpenCV implementation (if available)
+        try:
+            import cv2
+            cv2_result, cv2_time = FilteringBenchmark.time_function(
+                cv2.filter2D, image.astype(np.float32), -1, kernel.astype(np.float32)
+            )
+        except ImportError:
+            cv2_result, cv2_time = None, float('inf')
+        
+        return {
+            'custom': (custom_result, custom_time),
+            'scipy': (scipy_result, scipy_time),
+            'opencv': (cv2_result, cv2_time)
+        }
+
+def optimized_separable_filter(image, kernel_1d, axis=0):
+    """Apply 1D kernel along specified axis"""
+    if axis == 0:
+        # Apply along rows
+        return ndimage.convolve1d(image, kernel_1d, axis=0)
+    else:
+        # Apply along columns
+        return ndimage.convolve1d(image, kernel_1d, axis=1)
+
+def separable_gaussian_optimized(image, sigma):
+    """Optimized Gaussian filtering using separability"""
+    # Create 1D Gaussian kernel
+    kernel_size = int(6 * sigma) + 1
+    kernel_1d = np.zeros(kernel_size)
+    center = kernel_size // 2
+    
+    for i in range(kernel_size):
+        x = i - center
+        kernel_1d[i] = np.exp(-(x*x) / (2 * sigma*sigma))
+    
+    kernel_1d /= np.sum(kernel_1d)
+    
+    # Apply separably
+    intermediate = optimized_separable_filter(image, kernel_1d, axis=0)
+    result = optimized_separable_filter(intermediate, kernel_1d, axis=1)
+    
+    return result
+
+# Benchmark different approaches
+test_image = np.random.rand(256, 256)
+gaussian_kernel_2d = create_gaussian_kernel(11, 2.0)
+
+print("Performance Comparison:")
+print("-" * 40)
+
+# Test separable vs non-separable Gaussian
+start_time = time.time()
+non_sep_result = ndimage.convolve(test_image, gaussian_kernel_2d)
+non_sep_time = time.time() - start_time
+
+start_time = time.time()
+sep_result = separable_gaussian_optimized(test_image, 2.0)
+sep_time = time.time() - start_time
+
+print(f"Non-separable Gaussian: {non_sep_time:.4f} seconds")
+print(f"Separable Gaussian: {sep_time:.4f} seconds")
+print(f"Speedup: {non_sep_time/sep_time:.2f}x")
+print(f"Max difference: {np.max(np.abs(non_sep_result - sep_result)):.2e}")
+```
+
+7.2 Filter Design Guidelines:
+-----------------------------
+```python
+class FilterDesigner:
+    """Utility class for filter design and analysis"""
+    
+    @staticmethod
+    def analyze_filter_frequency_response(kernel):
+        """Analyze frequency response of a filter kernel"""
+        # Pad kernel to larger size for better frequency resolution
+        padded_size = 128
+        padded_kernel = np.zeros((padded_size, padded_size))
+        h, w = kernel.shape
+        start_h, start_w = (padded_size - h) // 2, (padded_size - w) // 2
+        padded_kernel[start_h:start_h+h, start_w:start_w+w] = kernel
+        
+        # Compute frequency response
+        freq_response = np.fft.fft2(padded_kernel)
+        freq_response_shifted = np.fft.fftshift(freq_response)
+        magnitude_response = np.abs(freq_response_shifted)
+        phase_response = np.angle(freq_response_shifted)
+        
+        return magnitude_response, phase_response
+    
+    @staticmethod
+    def design_lowpass_filter(cutoff_freq, filter_size):
+        """Design ideal lowpass filter"""
+        kernel = np.zeros((filter_size, filter_size))
+        center = filter_size // 2
+        
+        for i in range(filter_size):
+            for j in range(filter_size):
+                u = i - center
+                v = j - center
+                freq = np.sqrt(u*u + v*v)
+                
+                if freq <= cutoff_freq:
+                    kernel[i, j] = 1
+        
+        # Normalize
+        kernel /= np.sum(kernel)
+        return kernel
+    
+    @staticmethod
+    def design_highpass_filter(cutoff_freq, filter_size):
+        """Design ideal highpass filter"""
+        lowpass = FilterDesigner.design_lowpass_filter(cutoff_freq, filter_size)
+        
+        # Create impulse
+        impulse = np.zeros((filter_size, filter_size))
+        impulse[filter_size//2, filter_size//2] = 1
+        
+        # Highpass = impulse - lowpass
+        highpass = impulse - lowpass
+        return highpass
+    
+    @staticmethod
+    def windowed_filter_design(ideal_filter, window_type='hamming'):
+        """Apply windowing to ideal filter"""
+        h, w = ideal_filter.shape
+        
+        if window_type == 'hamming':
+            window_1d = np.hamming(h)
+        elif window_type == 'hanning':
+            window_1d = np.hanning(h)
+        elif window_type == 'blackman':
+            window_1d = np.blackman(h)
+        else:
+            window_1d = np.ones(h)
+        
+        # Create 2D window
+        window_2d = np.outer(window_1d, window_1d)
+        
+        # Apply window
+        windowed_filter = ideal_filter * window_2d
+        
+        return windowed_filter
+
+# Test filter design
+lowpass_ideal = FilterDesigner.design_lowpass_filter(cutoff_freq=10, filter_size=31)
+lowpass_windowed = FilterDesigner.windowed_filter_design(lowpass_ideal, 'hamming')
+
+# Analyze frequency responses
+mag_ideal, phase_ideal = FilterDesigner.analyze_filter_frequency_response(lowpass_ideal)
+mag_windowed, phase_windowed = FilterDesigner.analyze_filter_frequency_response(lowpass_windowed)
+
+print(f"Ideal lowpass filter sum: {np.sum(lowpass_ideal):.6f}")
+print(f"Windowed lowpass filter sum: {np.sum(lowpass_windowed):.6f}")
+print(f"Max magnitude response (ideal): {np.max(mag_ideal):.3f}")
+print(f"Max magnitude response (windowed): {np.max(mag_windowed):.3f}")
+```
+
+7.3 Best Practices:
+------------------
+Filter Selection:
+1. Choose filter based on noise characteristics
+2. Consider computational constraints
+3. Evaluate trade-offs between quality and speed
+4. Test on representative data
+
+Implementation:
+1. Use separable filters when possible
+2. Consider boundary conditions carefully
+3. Validate numerical stability
+4. Profile performance bottlenecks
+
+Quality Assessment:
+1. Use appropriate metrics (MSE, PSNR, SSIM)
+2. Visual inspection for artifacts
+3. Test on diverse image content
+4. Compare with ground truth when available
+
+7.4 Common Pitfalls:
+-------------------
+Boundary Effects:
+- Inappropriate padding methods
+- Artifacts at image borders
+- Size changes after filtering
+
+Parameter Selection:
+- Wrong filter size or strength
+- Not considering noise characteristics
+- Over-smoothing or under-smoothing
+
+Implementation Issues:
+- Integer overflow in calculations
+- Incorrect kernel normalization
+- Coordinate system confusion
+
+7.5 Success Guidelines:
+----------------------
+1. Understand the mathematical foundations
+2. Choose appropriate filters for your task
+3. Consider computational efficiency
+4. Handle boundary conditions properly
+5. Validate results systematically
+6. Use established libraries when possible
+7. Test thoroughly with real data
+8. Document filter choices and parameters
+
+=======================================================
+END OF DOCUMENT 

@@ -1,0 +1,1053 @@
+EDGE DETECTION AND SEGMENTATION
+================================
+
+Table of Contents:
+1. Fundamentals of Edge Detection
+2. Gradient-Based Edge Detection
+3. Canny Edge Detection Algorithm
+4. Advanced Edge Detection Methods
+5. Image Segmentation Overview
+6. Region-Based Segmentation
+7. Watershed Segmentation
+8. Active Contours (Snakes)
+9. Graph-Based Segmentation
+10. Python Implementation Examples
+11. Evaluation Metrics and Applications
+12. Modern Deep Learning Approaches
+
+================================================================================
+1. FUNDAMENTALS OF EDGE DETECTION
+================================================================================
+
+1.1 Definition and Importance
+-----------------------------
+An edge is a significant local change in image intensity, typically associated with:
+- Object boundaries
+- Surface discontinuities  
+- Changes in material properties
+- Shadow boundaries
+- Illumination changes
+
+**Mathematical Definition:**
+An edge occurs where the gradient magnitude is large:
+|∇f(x,y)| = √[(∂f/∂x)² + (∂f/∂y)²]
+
+Edge direction: θ = arctan(∂f/∂y / ∂f/∂x)
+
+1.2 Types of Edges
+------------------
+**Step Edge:** Sharp intensity transition
+- Ideal: f(x) = a + b·u(x-x₀)
+- Real: f(x) = a + b·(1 + tanh((x-x₀)/σ))/2
+
+**Ramp Edge:** Gradual intensity transition
+**Ridge/Valley:** Local intensity maxima/minima
+**Roof Edge:** Two opposite step edges close together
+
+1.3 Edge Detection Challenges
+------------------------------
+**Noise Sensitivity:** Gradients amplify noise
+**Scale Selection:** Edges exist at multiple scales
+**Localization vs. Detection:** Trade-off between accuracy and robustness
+**Thresholding:** Determining significant edges
+
+================================================================================
+2. GRADIENT-BASED EDGE DETECTION
+================================================================================
+
+2.1 First-Order Operators
+--------------------------
+**Roberts Cross-Gradient:**
+```
+Gx = [1  0]    Gy = [0  1]
+     [0 -1]         [-1 0]
+```
+- Simple, fast computation
+- Sensitive to noise
+- Poor localization
+
+**Prewitt Operator:**
+```
+Gx = [-1 0 1]    Gy = [-1 -1 -1]
+     [-1 0 1]         [ 0  0  0]
+     [-1 0 1]         [ 1  1  1]
+```
+- Includes smoothing (noise reduction)
+- Better than Roberts for noisy images
+
+**Sobel Operator:**
+```
+Gx = [-1 0 1]    Gy = [-1 -2 -1]
+     [-2 0 2]         [ 0  0  0]
+     [-1 0 1]         [ 1  2  1]
+```
+- Weighted smoothing (emphasizes center)
+- Most commonly used
+- Good balance of noise reduction and localization
+
+2.2 Second-Order Operators
+---------------------------
+**Laplacian Operator:**
+∇²f = ∂²f/∂x² + ∂²f/∂y²
+
+Discrete approximations:
+```
+L1 = [0 -1  0]    L2 = [-1 -1 -1]
+     [-1 4 -1]         [-1  8 -1]
+     [0 -1  0]         [-1 -1 -1]
+```
+
+**Laplacian of Gaussian (LoG):**
+- First smooth with Gaussian, then apply Laplacian
+- Zero-crossings indicate edges
+- Scale-space representation: LoG(x,y,σ) = -1/(πσ⁴)[1 - (x²+y²)/(2σ²)]e^(-(x²+y²)/(2σ²))
+
+2.3 Gradient Magnitude and Direction
+-------------------------------------
+**Magnitude:** |∇f| = √(Gx² + Gy²)
+**Direction:** θ = arctan2(Gy, Gx)
+
+**Non-Maximum Suppression:**
+- Suppress pixels that are not local maxima in gradient direction
+- Thin edges to single-pixel width
+- Essential for good edge localization
+
+================================================================================
+3. CANNY EDGE DETECTION ALGORITHM
+================================================================================
+
+3.1 Canny Algorithm Overview
+-----------------------------
+Developed by John Canny (1986), optimizes three criteria:
+1. **Good Detection:** Minimize false positives and negatives
+2. **Good Localization:** Edge points close to true edge
+3. **Single Response:** Only one response per edge
+
+3.2 Algorithm Steps
+-------------------
+**Step 1: Gaussian Smoothing**
+G(x,y,σ) = 1/(2πσ²) exp(-(x²+y²)/(2σ²))
+I_smooth = I * G(x,y,σ)
+
+**Step 2: Gradient Computation**
+Gx = I_smooth * Sobel_x
+Gy = I_smooth * Sobel_y
+Magnitude = √(Gx² + Gy²)
+Direction = arctan2(Gy, Gx)
+
+**Step 3: Non-Maximum Suppression**
+For each pixel, check if it's the local maximum along gradient direction:
+- Interpolate neighboring pixels in gradient direction
+- Suppress if not maximum
+
+**Step 4: Double Thresholding**
+- High threshold (T_high): Strong edges
+- Low threshold (T_low): Weak edges  
+- Typical ratio: T_high = 2-3 × T_low
+
+**Step 5: Edge Tracking by Hysteresis**
+- Start with strong edges (magnitude > T_high)
+- Follow connected weak edges (T_low < magnitude < T_high)
+- Suppress isolated weak edges
+
+3.3 Parameter Selection
+-----------------------
+**Gaussian σ (sigma):**
+- Larger σ: More smoothing, fewer noise edges, less detail
+- Smaller σ: More detail, more noise sensitivity
+- Typical range: 0.5 - 2.0
+
+**Threshold Selection:**
+- Otsu's method for automatic thresholding
+- Percentile-based: T_low = p₁ percentile, T_high = p₂ percentile
+- Typical: T_low = 0.1 × max_gradient, T_high = 0.3 × max_gradient
+
+3.4 Canny Performance Analysis
+------------------------------
+**Advantages:**
+- Optimal edge detector for step edges in white noise
+- Single-pixel wide edges
+- Good localization
+- Connects edge chains
+
+**Limitations:**
+- Assumes step edge model
+- Parameter sensitive
+- Computationally expensive
+- Poor for textured regions
+
+================================================================================
+4. ADVANCED EDGE DETECTION METHODS
+================================================================================
+
+4.1 Multi-Scale Edge Detection
+------------------------------
+**Scale-Space Theory:**
+- Edges exist at multiple scales
+- Gaussian scale-space: L(x,y,σ) = I(x,y) * G(x,y,σ)
+- Scale-normalized Laplacian: σ²∇²L
+
+**Edge Focusing:**
+- Track edges across scales
+- Focus to finest scale for localization
+- Automatic scale selection
+
+4.2 Oriented Edge Detection
+----------------------------
+**Steerable Filters:**
+- Design filters for specific orientations
+- Interpolate between basis filters
+- Example: G₁(x,y) = -x/σ² × G(x,y,σ)
+
+**Gabor Filters:**
+G(x,y,θ,σ,λ,γ,φ) = exp(-(x'²+γ²y'²)/(2σ²)) cos(2πx'/λ + φ)
+where x' = x cos θ + y sin θ, y' = -x sin θ + y cos θ
+
+4.3 Statistical Edge Detection
+------------------------------
+**Rank-Order Filters:**
+- Use order statistics instead of linear filters
+- More robust to noise
+- Preserve edge structure
+
+**Adaptive Thresholding:**
+- Local threshold adaptation
+- Based on local statistics
+- Better for varying illumination
+
+================================================================================
+5. IMAGE SEGMENTATION OVERVIEW
+================================================================================
+
+5.1 Segmentation Definition
+----------------------------
+Image segmentation partitions an image into meaningful regions:
+S = {S₁, S₂, ..., Sₙ} where:
+- ∪ᵢSᵢ = Image (complete)
+- Sᵢ ∩ Sⱼ = ∅ for i≠j (non-overlapping)
+- Each Sᵢ is connected
+- Pixels in Sᵢ satisfy homogeneity criterion
+
+5.2 Segmentation Approaches
+----------------------------
+**Discontinuity-Based:**
+- Edge detection and boundary linking
+- Find boundaries between regions
+
+**Similarity-Based:**
+- Region growing/splitting/merging
+- Group similar pixels
+
+**Model-Based:**
+- Fit parametric models to regions
+- Deformable models, active contours
+
+**Graph-Based:**
+- Treat image as graph
+- Min-cut, normalized cut algorithms
+
+5.3 Evaluation Challenges
+--------------------------
+- No universal ground truth
+- Application-dependent quality metrics
+- Trade-off between over- and under-segmentation
+- Boundary accuracy vs. region homogeneity
+
+================================================================================
+6. REGION-BASED SEGMENTATION
+================================================================================
+
+6.1 Region Growing
+------------------
+**Basic Algorithm:**
+1. Select seed points (manually or automatically)
+2. Add neighboring pixels that satisfy similarity criterion
+3. Continue until no more pixels can be added
+
+**Similarity Criteria:**
+- Intensity difference: |I(x,y) - μ_region| < T
+- Statistical measures: mean, variance, texture
+- Distance in feature space
+
+**Seed Selection:**
+- Manual selection
+- Automatic: local extrema, corners, uniform regions
+- Multiple seeds for complex images
+
+**Advanced Region Growing:**
+- Adaptive thresholds
+- Multi-criteria growing
+- Hierarchical growing
+
+6.2 Region Splitting and Merging
+---------------------------------
+**Split-and-Merge Algorithm:**
+1. Start with entire image as one region
+2. Split non-uniform regions (quad-tree structure)
+3. Merge adjacent similar regions
+4. Iterate until convergence
+
+**Homogeneity Predicates:**
+- Variance: σ² < T
+- Range: max - min < T  
+- Statistical tests: χ² test, F-test
+
+**Quad-tree Representation:**
+- Hierarchical region structure
+- Efficient storage and processing
+- Multi-resolution analysis
+
+6.3 Mean Shift Segmentation
+----------------------------
+**Mean Shift Algorithm:**
+- Mode-seeking algorithm
+- Find density modes in feature space
+- Segment by assigning pixels to nearest mode
+
+**Mean Shift Vector:**
+m(x) = [∑ᵢ xᵢ g(||x-xᵢ||²)] / [∑ᵢ g(||x-xᵢ||²)] - x
+
+where g() is a kernel function (usually Gaussian)
+
+**Feature Space:**
+- Spatial coordinates (x, y)
+- Color values (R, G, B or L, a, b)
+- Texture features
+- Combined spatial-color space
+
+================================================================================
+7. WATERSHED SEGMENTATION
+================================================================================
+
+7.1 Watershed Transform Theory
+-------------------------------
+**Topographic Interpretation:**
+- Image as topographic surface (intensity = altitude)
+- Water floods from local minima
+- Watersheds are ridge lines where water meets
+- Catchment basins correspond to segments
+
+**Mathematical Formulation:**
+Given gradient magnitude image G(x,y):
+1. Find local minima (markers)
+2. Simulate flooding from minima
+3. Build dams where waters meet
+4. Result: watershed lines and basins
+
+7.2 Marker-Controlled Watershed
+--------------------------------
+**Problem with Basic Watershed:**
+- Over-segmentation due to noise
+- Many spurious local minima
+
+**Solution: Marker-Based Approach:**
+1. Identify reliable markers (seeds)
+2. Modify gradient image to have minima only at markers
+3. Apply watershed transform
+4. Each basin corresponds to one marker
+
+**Marker Selection:**
+- Connected components of strong edges
+- Local maxima in distance transform
+- User-specified seeds
+- Automatic: h-maxima transform
+
+7.3 Watershed Algorithm Implementation
+--------------------------------------
+**Priority Queue Algorithm:**
+1. Initialize: markers in priority queue with distance 0
+2. Extract pixel with minimum distance
+3. For each neighbor not yet processed:
+   - Assign same label if lower priority
+   - Add to queue with updated distance
+4. Watershed pixels: neighbors with different labels
+
+**Distance Functions:**
+- Gradient magnitude: common choice
+- Modified gradients: combine intensity and texture
+- Geodesic distance: path-based distance
+
+7.4 Watershed Post-Processing
+-----------------------------
+**Hierarchical Watersheds:**
+- Apply watershed at multiple scales
+- Merge regions based on significance
+- Build hierarchy of segmentations
+
+**Region Merging:**
+- Merge small regions below size threshold
+- Merge regions with similar properties
+- Graph-based merging criteria
+
+================================================================================
+8. ACTIVE CONTOURS (SNAKES)
+================================================================================
+
+8.1 Parametric Active Contours
+-------------------------------
+**Snake Energy Model:**
+A snake is parameterized curve v(s) = [x(s), y(s)] that minimizes:
+
+E = ∫[E_internal(v(s)) + E_external(v(s))]ds
+
+**Internal Energy (Smoothness):**
+E_internal = α|v'(s)|² + β|v''(s)|²
+- α controls stretching (first derivative)
+- β controls bending (second derivative)
+
+**External Energy (Image Forces):**
+E_external = -|∇I(v(s))|² (edge-based)
+E_external = -I(v(s)) (region-based)
+
+**Evolution Equation:**
+∂v/∂t = α∇²v - β∇⁴v + ∇E_external
+
+8.2 Implementation and Numerical Methods
+-----------------------------------------
+**Discretization:**
+- Represent contour as chain of points: {v₁, v₂, ..., vₙ}
+- Finite differences for derivatives
+- Matrix formulation for efficient computation
+
+**Numerical Integration:**
+- Explicit Euler: v^(t+1) = v^t + Δt × F(v^t)
+- Implicit methods for stability
+- Multi-grid methods for efficiency
+
+**Reparameterization:**
+- Maintain uniform spacing between points
+- Add/remove points to control resolution
+- Interpolation for smooth curves
+
+8.3 Geometric Active Contours (Level Sets)
+-------------------------------------------
+**Level Set Representation:**
+- Implicit representation: φ(x,y,t)
+- Contour is zero level set: {(x,y) | φ(x,y,t) = 0}
+- Evolution: ∂φ/∂t + F|∇φ| = 0
+
+**Advantages:**
+- Handles topology changes automatically
+- Natural merging and splitting
+- Numerical stability
+- Extension to 3D straightforward
+
+**Chan-Vese Model:**
+Minimize: ∫∫[μ|∇H(φ)| + λ₁(I-c₁)²H(φ) + λ₂(I-c₂)²(1-H(φ))]dxdy
+
+where H(φ) is Heaviside function, c₁, c₂ are region means
+
+8.4 Advanced Active Contour Methods
+------------------------------------
+**Multi-phase Level Sets:**
+- Multiple level set functions
+- Segment image into multiple regions
+- Handle complex topologies
+
+**Coupled Active Contours:**
+- Multiple interacting contours
+- Geometric constraints between contours
+- Applications: medical imaging, object tracking
+
+**Active Contours Without Edges:**
+- Region-based energy terms
+- Robust to noise and weak boundaries
+- Mumford-Shah functional approximation
+
+================================================================================
+9. GRAPH-BASED SEGMENTATION
+================================================================================
+
+9.1 Graph Representation
+-------------------------
+**Graph Construction:**
+- Vertices: pixels or superpixels
+- Edges: spatial adjacency or similarity
+- Weights: dissimilarity measure
+
+**Weight Functions:**
+w(i,j) = exp(-||F(i) - F(j)||²/σ²)
+where F(i) is feature vector for pixel i
+
+**Graph Types:**
+- 4-connected or 8-connected grid
+- k-nearest neighbor graphs
+- Fully connected graphs (expensive)
+
+9.2 Minimum Cut Segmentation
+-----------------------------
+**Binary Segmentation:**
+- Source and sink nodes (seeds)
+- Find minimum cost cut separating source/sink
+- Max-flow min-cut theorem for efficient solution
+
+**Energy Minimization:**
+E = ∑ᵢ Dᵢ(lᵢ) + λ ∑ᵢ,ⱼ Vᵢⱼ(lᵢ,lⱼ)
+- Data term: cost of assigning label lᵢ to pixel i
+- Smoothness term: cost of different labels for neighbors
+
+**Interactive Segmentation:**
+- User provides scribbles (seeds)
+- Graph cut finds optimal boundary
+- Real-time feedback possible
+
+9.3 Normalized Cut
+------------------
+**Normalized Cut Criterion:**
+NCut(A,B) = Cut(A,B)/Assoc(A,V) + Cut(A,B)/Assoc(B,V)
+
+where:
+- Cut(A,B) = ∑ᵢ∈A,ⱼ∈B w(i,j)
+- Assoc(A,V) = ∑ᵢ∈A,ⱼ∈V w(i,j)
+
+**Eigenvalue Solution:**
+- Relaxed problem becomes generalized eigenvalue problem
+- (D-W)x = λDx where D is degree matrix, W is adjacency matrix
+- Second smallest eigenvector gives segmentation
+
+**Multi-way Segmentation:**
+- Use multiple eigenvectors
+- k-means clustering in eigenspace
+- Recursive binary partitioning
+
+9.4 Superpixel Segmentation
+----------------------------
+**SLIC (Simple Linear Iterative Clustering):**
+- k-means in 5D space: [x, y, l, a, b]
+- Distance: d = √((dl/ls)² + (dxy/ds)²)
+- Efficient, produces compact superpixels
+
+**Quickshift:**
+- Mode-seeking in feature space
+- Each pixel points to nearest neighbor with higher density
+- Density estimation using Parzen windows
+
+**Applications:**
+- Preprocessing for complex segmentation
+- Reduce computational complexity
+- Preserve important boundaries
+
+================================================================================
+10. PYTHON IMPLEMENTATION EXAMPLES
+================================================================================
+
+```python
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from skimage import feature, segmentation, morphology, measure
+from skimage.filters import gaussian
+from scipy import ndimage
+from sklearn.cluster import KMeans
+
+class EdgeDetector:
+    """Comprehensive edge detection implementations"""
+    
+    @staticmethod
+    def canny_edge_detection(image, low_threshold=50, high_threshold=150, 
+                           sigma=1.0, use_quantiles=False):
+        """
+        Canny edge detection with detailed implementation
+        """
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        # Step 1: Gaussian smoothing
+        if sigma > 0:
+            smoothed = gaussian(image, sigma=sigma)
+        else:
+            smoothed = image.astype(np.float64)
+        
+        # Step 2: Gradient computation
+        gradient_x = cv2.Sobel(smoothed, cv2.CV_64F, 1, 0, ksize=3)
+        gradient_y = cv2.Sobel(smoothed, cv2.CV_64F, 0, 1, ksize=3)
+        
+        gradient_magnitude = np.sqrt(gradient_x**2 + gradient_y**2)
+        gradient_direction = np.arctan2(gradient_y, gradient_x)
+        
+        # Step 3: Non-maximum suppression
+        suppressed = EdgeDetector._non_maximum_suppression(
+            gradient_magnitude, gradient_direction)
+        
+        # Step 4: Determine thresholds
+        if use_quantiles:
+            low_threshold = np.percentile(suppressed[suppressed > 0], 10)
+            high_threshold = np.percentile(suppressed[suppressed > 0], 30)
+        
+        # Step 5: Double thresholding and hysteresis
+        edges = EdgeDetector._hysteresis_thresholding(
+            suppressed, low_threshold, high_threshold)
+        
+        return edges, gradient_magnitude, gradient_direction
+    
+    @staticmethod
+    def _non_maximum_suppression(gradient_magnitude, gradient_direction):
+        """Non-maximum suppression for Canny edge detection"""
+        
+        M, N = gradient_magnitude.shape
+        suppressed = np.zeros((M, N), dtype=np.float64)
+        
+        # Convert angles to 0-180 degrees
+        angle = gradient_direction * 180.0 / np.pi
+        angle[angle < 0] += 180
+        
+        for i in range(1, M-1):
+            for j in range(1, N-1):
+                q = 255
+                r = 255
+                
+                # Angle 0 (horizontal edge)
+                if (0 <= angle[i,j] < 22.5) or (157.5 <= angle[i,j] <= 180):
+                    q = gradient_magnitude[i, j+1]
+                    r = gradient_magnitude[i, j-1]
+                # Angle 45
+                elif (22.5 <= angle[i,j] < 67.5):
+                    q = gradient_magnitude[i+1, j-1]
+                    r = gradient_magnitude[i-1, j+1]
+                # Angle 90 (vertical edge)
+                elif (67.5 <= angle[i,j] < 112.5):
+                    q = gradient_magnitude[i+1, j]
+                    r = gradient_magnitude[i-1, j]
+                # Angle 135
+                elif (112.5 <= angle[i,j] < 157.5):
+                    q = gradient_magnitude[i-1, j-1]
+                    r = gradient_magnitude[i+1, j+1]
+                
+                if (gradient_magnitude[i,j] >= q) and (gradient_magnitude[i,j] >= r):
+                    suppressed[i,j] = gradient_magnitude[i,j]
+                else:
+                    suppressed[i,j] = 0
+        
+        return suppressed
+    
+    @staticmethod
+    def _hysteresis_thresholding(image, low, high):
+        """Hysteresis thresholding for Canny edge detection"""
+        
+        M, N = image.shape
+        
+        # Initialize result
+        result = np.zeros((M, N), dtype=np.uint8)
+        
+        # Strong edges
+        strong_i, strong_j = np.where(image >= high)
+        result[strong_i, strong_j] = 255
+        
+        # Weak edges
+        weak_i, weak_j = np.where((image <= high) & (image >= low))
+        result[weak_i, weak_j] = 75
+        
+        # Connect weak edges to strong edges
+        for i in range(1, M-1):
+            for j in range(1, N-1):
+                if result[i,j] == 75:  # Weak edge
+                    # Check 8-neighborhood for strong edges
+                    if 255 in result[i-1:i+2, j-1:j+2]:
+                        result[i,j] = 255
+                    else:
+                        result[i,j] = 0
+        
+        return result
+
+class RegionSegmentation:
+    """Region-based segmentation methods"""
+    
+    @staticmethod
+    def region_growing(image, seeds, threshold=10):
+        """
+        Region growing segmentation
+        
+        Args:
+            image: Input grayscale image
+            seeds: List of seed points [(x1,y1), (x2,y2), ...]
+            threshold: Similarity threshold
+        """
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        h, w = image.shape
+        segmented = np.zeros((h, w), dtype=np.int32)
+        
+        # 8-connected neighborhood
+        neighbors = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
+        
+        for region_id, (seed_x, seed_y) in enumerate(seeds, 1):
+            # Initialize region
+            region_sum = float(image[seed_y, seed_x])
+            region_size = 1
+            segmented[seed_y, seed_x] = region_id
+            
+            # Queue for region growing
+            queue = [(seed_x, seed_y)]
+            
+            while queue:
+                x, y = queue.pop(0)
+                region_mean = region_sum / region_size
+                
+                # Check neighbors
+                for dx, dy in neighbors:
+                    nx, ny = x + dx, y + dy
+                    
+                    # Check bounds and if already processed
+                    if (0 <= nx < w and 0 <= ny < h and 
+                        segmented[ny, nx] == 0):
+                        
+                        # Check similarity criterion
+                        if abs(float(image[ny, nx]) - region_mean) < threshold:
+                            segmented[ny, nx] = region_id
+                            region_sum += float(image[ny, nx])
+                            region_size += 1
+                            queue.append((nx, ny))
+        
+        return segmented
+    
+    @staticmethod
+    def mean_shift_segmentation(image, spatial_radius=10, color_radius=20, 
+                              min_density=50):
+        """
+        Mean shift segmentation using OpenCV
+        """
+        # Convert to required format
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        
+        # Apply mean shift filtering
+        filtered = cv2.pyrMeanShiftFiltering(image, spatial_radius, 
+                                           color_radius, maxLevel=2, 
+                                           termcrit=(cv2.TERM_CRITERIA_EPS + 
+                                                   cv2.TERM_CRITERIA_MAX_ITER, 
+                                                   5, 1))
+        
+        # Convert to grayscale for segmentation
+        gray = cv2.cvtColor(filtered, cv2.COLOR_BGR2GRAY)
+        
+        # Find connected components
+        _, labels = cv2.connectedComponents(gray)
+        
+        return labels, filtered
+
+class WatershedSegmentation:
+    """Watershed segmentation implementation"""
+    
+    @staticmethod
+    def watershed_segmentation(image, markers=None, compactness=0.001):
+        """
+        Watershed segmentation with optional markers
+        """
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image.copy()
+        
+        # Compute gradient
+        gradient = morphology.gradient(gray, morphology.disk(2))
+        
+        if markers is None:
+            # Automatic marker detection
+            # Find local maxima
+            local_maxima = feature.peak_local_maxima(
+                ndimage.distance_transform_edt(gray > 0),
+                min_distance=20, threshold_abs=0.3 * gray.max())
+            
+            markers = np.zeros_like(gray, dtype=np.int32)
+            for i, (y, x) in enumerate(zip(*local_maxima), 1):
+                markers[y, x] = i
+        
+        # Apply watershed
+        labels = segmentation.watershed(gradient, markers, 
+                                      compactness=compactness)
+        
+        return labels
+
+class ActiveContours:
+    """Active contour (snake) implementation"""
+    
+    @staticmethod
+    def morphological_snakes(image, initial_contour, smoothing=1, 
+                           lambda1=1, lambda2=1, iterations=200):
+        """
+        Morphological Active Contours Without Edges (Chan-Vese)
+        """
+        # Convert to grayscale if needed
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        # Initialize level set
+        init_level_set = np.zeros(image.shape, dtype=np.int8)
+        if isinstance(initial_contour, np.ndarray):
+            # If contour points provided
+            cv2.fillPoly(init_level_set, [initial_contour.astype(np.int32)], 1)
+        else:
+            # If mask provided
+            init_level_set = initial_contour
+        
+        # Apply morphological Chan-Vese
+        segmentation_result = segmentation.morphological_chan_vese(
+            image, iterations=iterations, init_level_set=init_level_set,
+            smoothing=smoothing, lambda1=lambda1, lambda2=lambda2)
+        
+        return segmentation_result
+    
+    @staticmethod
+    def active_contour_optimization(image, initial_snake, alpha=0.01, 
+                                  beta=0.1, gamma=0.01, max_iterations=1000):
+        """
+        Traditional active contour using optimization
+        """
+        from skimage.segmentation import active_contour
+        
+        # Convert to grayscale if needed
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        # Apply active contour
+        snake = active_contour(gaussian(image, 1), initial_snake, 
+                             alpha=alpha, beta=beta, gamma=gamma,
+                             max_iterations=max_iterations)
+        
+        return snake
+
+def demonstrate_edge_segmentation():
+    """Demonstrate edge detection and segmentation algorithms"""
+    
+    # Create test image
+    test_image = create_test_image()
+    
+    # Edge detection
+    edges, grad_mag, grad_dir = EdgeDetector.canny_edge_detection(
+        test_image, low_threshold=0.1, high_threshold=0.3, 
+        sigma=1.0, use_quantiles=True)
+    
+    # Region growing
+    seeds = [(50, 50), (150, 150), (100, 200)]
+    region_seg = RegionSegmentation.region_growing(test_image, seeds, threshold=20)
+    
+    # Watershed segmentation
+    watershed_labels = WatershedSegmentation.watershed_segmentation(test_image)
+    
+    # Mean shift segmentation
+    mean_shift_labels, filtered = RegionSegmentation.mean_shift_segmentation(
+        test_image, spatial_radius=15, color_radius=30)
+    
+    # Display results
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    
+    axes[0,0].imshow(test_image, cmap='gray')
+    axes[0,0].set_title('Original Image')
+    
+    axes[0,1].imshow(edges, cmap='gray')
+    axes[0,1].set_title('Canny Edges')
+    
+    axes[0,2].imshow(grad_mag, cmap='hot')
+    axes[0,2].set_title('Gradient Magnitude')
+    
+    axes[1,0].imshow(region_seg, cmap='nipy_spectral')
+    axes[1,0].set_title('Region Growing')
+    
+    axes[1,1].imshow(watershed_labels, cmap='nipy_spectral')
+    axes[1,1].set_title('Watershed')
+    
+    axes[1,2].imshow(mean_shift_labels, cmap='nipy_spectral')
+    axes[1,2].set_title('Mean Shift')
+    
+    for ax in axes.flat:
+        ax.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+def create_test_image():
+    """Create synthetic test image for demonstration"""
+    # Create image with multiple regions and edges
+    image = np.zeros((300, 300), dtype=np.uint8)
+    
+    # Add geometric shapes
+    cv2.rectangle(image, (50, 50), (150, 150), 100, -1)
+    cv2.circle(image, (200, 100), 50, 200, -1)
+    cv2.ellipse(image, (100, 250), (40, 30), 45, 0, 360, 150, -1)
+    
+    # Add noise
+    noise = np.random.normal(0, 10, image.shape)
+    image = np.clip(image.astype(np.float64) + noise, 0, 255).astype(np.uint8)
+    
+    return image
+
+# Example usage
+if __name__ == "__main__":
+    demonstrate_edge_segmentation()
+```
+
+================================================================================
+11. EVALUATION METRICS AND APPLICATIONS
+================================================================================
+
+11.1 Edge Detection Evaluation
+-------------------------------
+**Quantitative Metrics:**
+- Precision: TP/(TP + FP)
+- Recall: TP/(TP + FN)  
+- F-measure: 2×(Precision×Recall)/(Precision+Recall)
+- Pratt's Figure of Merit (FOM)
+
+**Pratt's FOM:**
+FOM = 1/(max(I_I, I_A)) × ∑(1/(1 + α×d_i²))
+where I_I = ideal edges, I_A = actual edges, d_i = distance to nearest ideal edge
+
+**Challenges:**
+- Ground truth annotation difficulty
+- Subjective edge importance
+- Multi-scale evaluation needs
+
+11.2 Segmentation Evaluation
+-----------------------------
+**Region-Based Metrics:**
+- Rand Index: RI = (TP + TN)/(TP + TN + FP + FN)
+- Adjusted Rand Index (ARI): corrects for chance
+- Variation of Information (VI)
+- Segmentation Covering
+
+**Boundary-Based Metrics:**
+- Boundary Displacement Error (BDE)
+- Bidirectional boundary error
+- F-measure for boundaries
+
+**Information-Theoretic Metrics:**
+- Mutual Information between segmentations
+- Normalized Mutual Information
+- Conditional entropy measures
+
+11.3 Applications
+-----------------
+**Medical Imaging:**
+- Organ segmentation in CT/MRI
+- Tumor boundary detection
+- Blood vessel analysis
+- Automated diagnosis support
+
+**Remote Sensing:**
+- Land cover classification
+- Urban planning
+- Agricultural monitoring
+- Environmental studies
+
+**Industrial Inspection:**
+- Defect detection in manufacturing
+- Quality control automation
+- Surface analysis
+- Assembly verification
+
+**Autonomous Systems:**
+- Object detection for robotics
+- Road segmentation for vehicles
+- Obstacle avoidance
+- Scene understanding
+
+================================================================================
+12. MODERN DEEP LEARNING APPROACHES
+================================================================================
+
+12.1 Deep Learning Edge Detection
+----------------------------------
+**Holistically-Nested Edge Detection (HED):**
+- Multi-scale edge prediction
+- End-to-end learning
+- Side outputs from multiple layers
+- Weighted fusion of predictions
+
+**Richer Convolutional Features (RCF):**
+- Richer feature representations
+- Multi-level feature fusion
+- Better localization accuracy
+
+**Deep Boundary Detection:**
+- Learned edge features
+- Better handling of texture vs. boundaries
+- Integration with object detection
+
+12.2 Deep Segmentation Networks
+-------------------------------
+**Fully Convolutional Networks (FCN):**
+- Adapt classification networks for segmentation
+- Skip connections for fine details
+- End-to-end pixel prediction
+
+**U-Net Architecture:**
+- Encoder-decoder structure
+- Skip connections between levels
+- Excellent for medical imaging
+- Data-efficient training
+
+**DeepLab Series:**
+- Atrous convolution for multi-scale
+- Conditional Random Fields (CRF) post-processing
+- Encoder-decoder with ASPP
+- State-of-the-art semantic segmentation
+
+**Mask R-CNN:**
+- Instance segmentation
+- Combines object detection with segmentation
+- RoI-based pixel-level prediction
+
+12.3 Weakly Supervised Methods
+------------------------------
+**Class Activation Maps (CAM):**
+- Localization from classification
+- Gradient-based attention
+- Minimal supervision requirements
+
+**Grab-Cut with Deep Features:**
+- Interactive segmentation
+- Deep feature representation
+- User-guided refinement
+
+**Self-Supervised Learning:**
+- Contrastive learning for features
+- Pretext tasks for representation
+- Reduced annotation requirements
+
+12.4 Future Directions
+----------------------
+**Vision Transformers for Segmentation:**
+- Self-attention mechanisms
+- Global context modeling
+- Competitive with CNNs
+
+**Neural Architecture Search:**
+- Automated design of segmentation networks
+- Task-specific optimization
+- Efficiency-accuracy trade-offs
+
+**Multi-Modal Segmentation:**
+- RGB-D, hyperspectral, video
+- Cross-modal feature learning
+- Complementary information fusion
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Edge detection and segmentation are fundamental computer vision tasks with rich theoretical foundations and practical applications. Classical methods like Canny edge detection and watershed segmentation remain relevant and are often combined with modern deep learning approaches.
+
+Key insights:
+- Edge detection requires balancing noise reduction with localization accuracy
+- Segmentation benefits from combining multiple cues (edges, regions, context)
+- Parameter selection significantly impacts performance
+- Evaluation requires task-specific metrics and ground truth
+- Deep learning has dramatically improved performance but classical methods provide interpretability and efficiency
+
+Modern applications increasingly combine classical computer vision principles with deep learning for robust, efficient solutions across diverse domains.
+
+================================================================================
+REFERENCES AND FURTHER READING
+================================================================================
+
+1. Canny, J. "A Computational Approach to Edge Detection" (1986)
+2. Vincent, L. & Soille, P. "Watersheds in Digital Spaces" (1991)
+3. Kass, M. et al. "Snakes: Active Contour Models" (1988)
+4. Shi, J. & Malik, J. "Normalized Cuts and Image Segmentation" (2000)
+5. Chan, T.F. & Vese, L.A. "Active Contours Without Edges" (2001)
+6. Comaniciu, D. & Meer, P. "Mean Shift: A Robust Approach" (2002)
+7. Arbelaez, P. et al. "Contour Detection and Hierarchical Image Segmentation" (2011)
+8. Xie, S. & Tu, Z. "Holistically-Nested Edge Detection" (2015)
+9. Long, J. et al. "Fully Convolutional Networks for Semantic Segmentation" (2015)
+10. He, K. et al. "Mask R-CNN" (2017) 
