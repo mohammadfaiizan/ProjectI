@@ -1,0 +1,1304 @@
+A/B TESTING AND CANARY DEPLOYMENT
+=================================
+
+Table of Contents:
+1. A/B Testing Fundamentals
+2. Canary Deployment Strategies
+3. Traffic Splitting and Routing
+4. Statistical Analysis for ML Models
+5. Gradual Rollout Mechanisms
+6. Monitoring and Decision Making
+7. Rollback and Safety Mechanisms
+8. Implementation Examples
+
+================================================================================
+1. A/B TESTING FUNDAMENTALS
+================================================================================
+
+1.1 A/B Testing for ML Models
+-----------------------------
+**Key Differences from Traditional A/B Testing:**
+- Model performance metrics vs. business metrics
+- Longer feedback loops for accuracy assessment
+- Need for prediction-level tracking
+- Complex interactions between features and models
+
+**A/B Test Types:**
+- **Champion vs Challenger:** Current model vs new model
+- **Multi-arm Bandit:** Dynamic traffic allocation based on performance
+- **Holdout Testing:** Reserved control group for unbiased evaluation
+- **Shadow Testing:** Run new model alongside production without affecting users
+
+1.2 Experimental Design
+----------------------
+```python
+import numpy as np
+from scipy import stats
+import math
+
+class ABTestDesigner:
+    def __init__(self):
+        self.minimum_detectable_effect = 0.01  # 1% improvement
+        self.alpha = 0.05  # Type I error rate
+        self.beta = 0.2   # Type II error rate (80% power)
+    
+    def calculate_sample_size(self, baseline_rate, minimum_effect, alpha=None, beta=None):
+        """Calculate required sample size for A/B test"""
+        
+        alpha = alpha or self.alpha
+        beta = beta or self.beta
+        
+        # Z-scores for alpha and beta
+        z_alpha = stats.norm.ppf(1 - alpha/2)
+        z_beta = stats.norm.ppf(1 - beta)
+        
+        # Pooled standard deviation
+        p1 = baseline_rate
+        p2 = baseline_rate + minimum_effect
+        pooled_p = (p1 + p2) / 2
+        pooled_se = math.sqrt(2 * pooled_p * (1 - pooled_p))
+        
+        # Sample size calculation
+        n = ((z_alpha + z_beta) * pooled_se / minimum_effect) ** 2
+        
+        return math.ceil(n)
+    
+    def power_analysis(self, n, baseline_rate, observed_effect, alpha=None):
+        """Calculate statistical power of test"""
+        
+        alpha = alpha or self.alpha
+        
+        # Standard error
+        p1 = baseline_rate
+        p2 = baseline_rate + observed_effect
+        se = math.sqrt((p1 * (1 - p1) + p2 * (1 - p2)) / n)
+        
+        # Z-score for observed effect
+        z_effect = observed_effect / se
+        z_alpha = stats.norm.ppf(1 - alpha/2)
+        
+        # Power calculation
+        power = 1 - stats.norm.cdf(z_alpha - z_effect)
+        
+        return power
+
+class MLModelABTest:
+    def __init__(self, test_name, models, traffic_split=None):
+        self.test_name = test_name
+        self.models = models  # {'control': model_a, 'treatment': model_b}
+        self.traffic_split = traffic_split or {'control': 0.5, 'treatment': 0.5}
+        self.assignments = {}
+        self.results = {'control': [], 'treatment': []}
+        
+    def assign_user(self, user_id):
+        """Assign user to control or treatment group"""
+        
+        if user_id in self.assignments:
+            return self.assignments[user_id]
+        
+        # Deterministic assignment based on user ID hash
+        hash_value = hash(f"{self.test_name}_{user_id}") % 100
+        
+        if hash_value < self.traffic_split['control'] * 100:
+            assignment = 'control'
+        else:
+            assignment = 'treatment'
+        
+        self.assignments[user_id] = assignment
+        return assignment
+    
+    def predict(self, user_id, features):
+        """Make prediction with A/B test assignment"""
+        
+        assignment = self.assign_user(user_id)
+        model = self.models[assignment]
+        
+        prediction = model.predict(features)
+        
+        # Log prediction for analysis
+        self.results[assignment].append({
+            'user_id': user_id,
+            'prediction': prediction,
+            'timestamp': time.time(),
+            'features': features.tolist() if hasattr(features, 'tolist') else features
+        })
+        
+        return {
+            'prediction': prediction,
+            'assignment': assignment,
+            'model_version': getattr(model, 'version', 'unknown')
+        }
+    
+    def record_outcome(self, user_id, actual_outcome):
+        """Record actual outcome for assigned user"""
+        
+        assignment = self.assignments.get(user_id)
+        if assignment:
+            # Find corresponding prediction
+            for result in self.results[assignment]:
+                if result['user_id'] == user_id:
+                    result['actual_outcome'] = actual_outcome
+                    break
+```
+
+================================================================================
+2. CANARY DEPLOYMENT STRATEGIES
+================================================================================
+
+2.1 Progressive Traffic Shifting
+--------------------------------
+```python
+import time
+import threading
+from dataclasses import dataclass
+from typing import Dict, List
+
+@dataclass
+class CanaryConfig:
+    initial_traffic_percent: float = 5.0
+    increment_percent: float = 5.0
+    max_traffic_percent: float = 100.0
+    evaluation_period_minutes: int = 30
+    success_criteria: Dict = None
+    rollback_criteria: Dict = None
+
+class CanaryDeploymentManager:
+    def __init__(self, canary_config: CanaryConfig):
+        self.config = canary_config
+        self.current_traffic_percent = 0.0
+        self.canary_model = None
+        self.stable_model = None
+        self.metrics_collector = MetricsCollector()
+        self.deployment_status = "not_started"
+        
+    def start_canary_deployment(self, canary_model, stable_model):
+        """Start canary deployment process"""
+        
+        self.canary_model = canary_model
+        self.stable_model = stable_model
+        self.current_traffic_percent = self.config.initial_traffic_percent
+        self.deployment_status = "in_progress"
+        
+        # Start monitoring thread
+        monitor_thread = threading.Thread(target=self._monitor_canary)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+        
+        return {
+            'status': 'started',
+            'initial_traffic_percent': self.current_traffic_percent,
+            'next_evaluation': time.time() + (self.config.evaluation_period_minutes * 60)
+        }
+    
+    def route_traffic(self, user_id, features):
+        """Route traffic between stable and canary models"""
+        
+        if self.deployment_status != "in_progress":
+            return self.stable_model.predict(features), "stable"
+        
+        # Determine routing based on traffic percentage
+        hash_value = hash(f"canary_{user_id}") % 100
+        
+        if hash_value < self.current_traffic_percent:
+            prediction = self.canary_model.predict(features)
+            model_type = "canary"
+        else:
+            prediction = self.stable_model.predict(features)
+            model_type = "stable"
+        
+        # Record metrics
+        self.metrics_collector.record_prediction(model_type, prediction, features)
+        
+        return prediction, model_type
+    
+    def _monitor_canary(self):
+        """Monitor canary deployment and make progression decisions"""
+        
+        while self.deployment_status == "in_progress":
+            time.sleep(self.config.evaluation_period_minutes * 60)
+            
+            # Evaluate current performance
+            evaluation_result = self._evaluate_canary_performance()
+            
+            if evaluation_result['should_rollback']:
+                self._rollback_canary(evaluation_result['reason'])
+                break
+                
+            elif evaluation_result['should_progress']:
+                if self.current_traffic_percent >= self.config.max_traffic_percent:
+                    self._complete_canary_deployment()
+                    break
+                else:
+                    self._increase_canary_traffic()
+            
+            # Continue monitoring
+    
+    def _evaluate_canary_performance(self):
+        """Evaluate canary model performance"""
+        
+        canary_metrics = self.metrics_collector.get_metrics("canary")
+        stable_metrics = self.metrics_collector.get_metrics("stable")
+        
+        if not canary_metrics or not stable_metrics:
+            return {'should_progress': False, 'should_rollback': False}
+        
+        # Check rollback criteria
+        if self.config.rollback_criteria:
+            for metric, threshold in self.config.rollback_criteria.items():
+                canary_value = canary_metrics.get(metric, 0)
+                stable_value = stable_metrics.get(metric, 0)
+                
+                if metric == 'error_rate' and canary_value > threshold:
+                    return {
+                        'should_rollback': True,
+                        'reason': f'High error rate: {canary_value} > {threshold}'
+                    }
+                
+                if metric == 'latency_p99' and canary_value > threshold:
+                    return {
+                        'should_rollback': True,
+                        'reason': f'High latency: {canary_value} > {threshold}'
+                    }
+        
+        # Check success criteria
+        if self.config.success_criteria:
+            criteria_met = 0
+            total_criteria = len(self.config.success_criteria)
+            
+            for metric, threshold in self.config.success_criteria.items():
+                canary_value = canary_metrics.get(metric, 0)
+                stable_value = stable_metrics.get(metric, 0)
+                
+                if metric == 'accuracy' and canary_value >= stable_value * threshold:
+                    criteria_met += 1
+                elif metric == 'latency_reduction' and canary_value <= stable_value * threshold:
+                    criteria_met += 1
+            
+            should_progress = criteria_met >= total_criteria * 0.8  # 80% of criteria
+        else:
+            should_progress = True  # No specific criteria, progress based on no failures
+        
+        return {
+            'should_progress': should_progress,
+            'should_rollback': False,
+            'canary_metrics': canary_metrics,
+            'stable_metrics': stable_metrics
+        }
+    
+    def _increase_canary_traffic(self):
+        """Increase canary traffic percentage"""
+        
+        new_traffic = min(
+            self.current_traffic_percent + self.config.increment_percent,
+            self.config.max_traffic_percent
+        )
+        
+        self.current_traffic_percent = new_traffic
+        
+        print(f"Canary traffic increased to {self.current_traffic_percent}%")
+    
+    def _rollback_canary(self, reason):
+        """Rollback canary deployment"""
+        
+        self.current_traffic_percent = 0.0
+        self.deployment_status = "rolled_back"
+        
+        print(f"Canary deployment rolled back: {reason}")
+    
+    def _complete_canary_deployment(self):
+        """Complete canary deployment successfully"""
+        
+        self.deployment_status = "completed"
+        
+        # Replace stable model with canary model
+        self.stable_model = self.canary_model
+        self.current_traffic_percent = 100.0
+        
+        print("Canary deployment completed successfully")
+```
+
+2.2 Blue-Green Deployment
+-------------------------
+```python
+class BlueGreenDeployment:
+    def __init__(self, load_balancer):
+        self.load_balancer = load_balancer
+        self.blue_environment = None
+        self.green_environment = None
+        self.active_environment = 'blue'
+        
+    def deploy_new_version(self, new_model_version):
+        """Deploy new model version using blue-green strategy"""
+        
+        # Determine target environment
+        if self.active_environment == 'blue':
+            target_env = 'green'
+            target_deployment = self.green_environment
+        else:
+            target_env = 'blue'
+            target_deployment = self.blue_environment
+        
+        try:
+            # Deploy to inactive environment
+            deployment_result = self._deploy_to_environment(
+                target_deployment, new_model_version
+            )
+            
+            # Run health checks
+            health_check_result = self._run_health_checks(target_deployment)
+            
+            if not health_check_result['healthy']:
+                raise DeploymentError(f"Health checks failed: {health_check_result['errors']}")
+            
+            # Run smoke tests
+            smoke_test_result = self._run_smoke_tests(target_deployment)
+            
+            if not smoke_test_result['passed']:
+                raise DeploymentError(f"Smoke tests failed: {smoke_test_result['failures']}")
+            
+            # Switch traffic
+            self.load_balancer.switch_traffic(target_env)
+            self.active_environment = target_env
+            
+            return {
+                'status': 'success',
+                'new_active_environment': target_env,
+                'model_version': new_model_version,
+                'switch_time': time.time()
+            }
+            
+        except Exception as e:
+            # Rollback on failure
+            self._cleanup_failed_deployment(target_deployment)
+            raise e
+    
+    def _run_health_checks(self, environment):
+        """Run health checks on environment"""
+        
+        health_checks = [
+            self._check_model_loading,
+            self._check_prediction_endpoint,
+            self._check_resource_usage,
+            self._check_dependencies
+        ]
+        
+        results = []
+        for check in health_checks:
+            try:
+                result = check(environment)
+                results.append(result)
+            except Exception as e:
+                results.append({'check': check.__name__, 'passed': False, 'error': str(e)})
+        
+        all_passed = all(r['passed'] for r in results)
+        
+        return {
+            'healthy': all_passed,
+            'results': results,
+            'errors': [r['error'] for r in results if not r['passed']]
+        }
+    
+    def _run_smoke_tests(self, environment):
+        """Run smoke tests on new deployment"""
+        
+        test_cases = [
+            {'input': [1, 2, 3, 4, 5], 'expected_type': float},
+            {'input': [0, 0, 0, 0, 0], 'expected_type': float},
+            {'input': [10, 20, 30, 40, 50], 'expected_type': float}
+        ]
+        
+        results = []
+        
+        for i, test_case in enumerate(test_cases):
+            try:
+                prediction = environment.predict(test_case['input'])
+                
+                passed = isinstance(prediction, test_case['expected_type'])
+                results.append({
+                    'test_case': i,
+                    'passed': passed,
+                    'prediction': prediction
+                })
+                
+            except Exception as e:
+                results.append({
+                    'test_case': i,
+                    'passed': False,
+                    'error': str(e)
+                })
+        
+        all_passed = all(r['passed'] for r in results)
+        
+        return {
+            'passed': all_passed,
+            'results': results,
+            'failures': [r for r in results if not r['passed']]
+        }
+```
+
+================================================================================
+3. TRAFFIC SPLITTING AND ROUTING
+================================================================================
+
+3.1 Advanced Traffic Routing
+----------------------------
+```python
+class IntelligentTrafficRouter:
+    def __init__(self):
+        self.routing_rules = []
+        self.model_registry = {}
+        self.user_segments = {}
+        
+    def register_model(self, model_id, model, routing_config):
+        """Register model with routing configuration"""
+        
+        self.model_registry[model_id] = {
+            'model': model,
+            'config': routing_config,
+            'metrics': {'requests': 0, 'errors': 0, 'avg_latency': 0}
+        }
+    
+    def add_routing_rule(self, rule):
+        """Add traffic routing rule"""
+        
+        """
+        Rule format:
+        {
+            'name': 'premium_users_new_model',
+            'condition': {'user_segment': 'premium'},
+            'target_model': 'model_v2',
+            'traffic_percentage': 50,
+            'priority': 1
+        }
+        """
+        
+        self.routing_rules.append(rule)
+        self.routing_rules.sort(key=lambda x: x.get('priority', 0))
+    
+    def route_request(self, user_id, features, context=None):
+        """Route request to appropriate model"""
+        
+        # Determine user segment
+        user_segment = self._get_user_segment(user_id, context)
+        
+        # Apply routing rules
+        selected_model_id = self._apply_routing_rules(user_id, user_segment, context)
+        
+        if not selected_model_id:
+            selected_model_id = self._get_default_model()
+        
+        # Make prediction
+        model_info = self.model_registry[selected_model_id]
+        model = model_info['model']
+        
+        start_time = time.time()
+        
+        try:
+            prediction = model.predict(features)
+            latency = (time.time() - start_time) * 1000
+            
+            # Update metrics
+            self._update_model_metrics(selected_model_id, latency, success=True)
+            
+            return {
+                'prediction': prediction,
+                'model_id': selected_model_id,
+                'user_segment': user_segment,
+                'latency_ms': latency
+            }
+            
+        except Exception as e:
+            self._update_model_metrics(selected_model_id, 0, success=False)
+            raise e
+    
+    def _apply_routing_rules(self, user_id, user_segment, context):
+        """Apply routing rules to select model"""
+        
+        for rule in self.routing_rules:
+            if self._evaluate_rule_condition(rule['condition'], user_id, user_segment, context):
+                # Check traffic percentage
+                if 'traffic_percentage' in rule:
+                    hash_value = hash(f"{rule['name']}_{user_id}") % 100
+                    if hash_value < rule['traffic_percentage']:
+                        return rule['target_model']
+                else:
+                    return rule['target_model']
+        
+        return None
+    
+    def _evaluate_rule_condition(self, condition, user_id, user_segment, context):
+        """Evaluate if routing rule condition is met"""
+        
+        # User segment condition
+        if 'user_segment' in condition:
+            if user_segment != condition['user_segment']:
+                return False
+        
+        # Geographic condition
+        if 'region' in condition:
+            user_region = context.get('region') if context else None
+            if user_region != condition['region']:
+                return False
+        
+        # Time-based condition
+        if 'time_range' in condition:
+            current_hour = time.localtime().tm_hour
+            start_hour, end_hour = condition['time_range']
+            if not (start_hour <= current_hour <= end_hour):
+                return False
+        
+        # Feature-based condition
+        if 'feature_condition' in condition:
+            feature_name = condition['feature_condition']['feature']
+            operator = condition['feature_condition']['operator']
+            threshold = condition['feature_condition']['value']
+            
+            feature_value = context.get('features', {}).get(feature_name)
+            if feature_value is None:
+                return False
+            
+            if operator == 'gt' and feature_value <= threshold:
+                return False
+            elif operator == 'lt' and feature_value >= threshold:
+                return False
+            elif operator == 'eq' and feature_value != threshold:
+                return False
+        
+        return True
+
+# Usage example
+router = IntelligentTrafficRouter()
+
+# Register models
+router.register_model('stable_v1', stable_model, {'type': 'stable'})
+router.register_model('canary_v2', canary_model, {'type': 'canary'})
+
+# Add routing rules
+router.add_routing_rule({
+    'name': 'premium_canary',
+    'condition': {'user_segment': 'premium'},
+    'target_model': 'canary_v2',
+    'traffic_percentage': 20,
+    'priority': 1
+})
+
+router.add_routing_rule({
+    'name': 'high_value_features',
+    'condition': {
+        'feature_condition': {
+            'feature': 'customer_value',
+            'operator': 'gt',
+            'value': 1000
+        }
+    },
+    'target_model': 'canary_v2',
+    'traffic_percentage': 10,
+    'priority': 2
+})
+```
+
+================================================================================
+4. STATISTICAL ANALYSIS FOR ML MODELS
+================================================================================
+
+4.1 Statistical Significance Testing
+------------------------------------
+```python
+from scipy import stats
+import numpy as np
+
+class MLStatisticalAnalyzer:
+    def __init__(self, alpha=0.05):
+        self.alpha = alpha
+        
+    def compare_model_accuracy(self, control_predictions, treatment_predictions, 
+                              control_actuals, treatment_actuals):
+        """Compare accuracy between two models"""
+        
+        # Calculate accuracy for each model
+        control_accuracy = np.mean(control_predictions == control_actuals)
+        treatment_accuracy = np.mean(treatment_predictions == treatment_actuals)
+        
+        # Two-proportion z-test
+        n1, n2 = len(control_predictions), len(treatment_predictions)
+        
+        # Pooled proportion
+        x1 = np.sum(control_predictions == control_actuals)
+        x2 = np.sum(treatment_predictions == treatment_actuals)
+        p_pool = (x1 + x2) / (n1 + n2)
+        
+        # Standard error
+        se = np.sqrt(p_pool * (1 - p_pool) * (1/n1 + 1/n2))
+        
+        # Z-statistic
+        z_stat = (treatment_accuracy - control_accuracy) / se
+        
+        # P-value (two-tailed)
+        p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
+        
+        return {
+            'control_accuracy': control_accuracy,
+            'treatment_accuracy': treatment_accuracy,
+            'difference': treatment_accuracy - control_accuracy,
+            'z_statistic': z_stat,
+            'p_value': p_value,
+            'significant': p_value < self.alpha,
+            'confidence_interval': self._accuracy_confidence_interval(
+                treatment_accuracy - control_accuracy, se
+            )
+        }
+    
+    def compare_model_auc(self, control_scores, treatment_scores, 
+                         control_labels, treatment_labels):
+        """Compare AUC between two models"""
+        
+        from sklearn.metrics import roc_auc_score
+        
+        control_auc = roc_auc_score(control_labels, control_scores)
+        treatment_auc = roc_auc_score(treatment_labels, treatment_scores)
+        
+        # DeLong test for AUC comparison
+        auc_diff = treatment_auc - control_auc
+        
+        # Simplified statistical test (for production, use proper DeLong test)
+        se_auc = self._estimate_auc_standard_error(
+            control_scores, control_labels, treatment_scores, treatment_labels
+        )
+        
+        z_stat = auc_diff / se_auc
+        p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
+        
+        return {
+            'control_auc': control_auc,
+            'treatment_auc': treatment_auc,
+            'difference': auc_diff,
+            'z_statistic': z_stat,
+            'p_value': p_value,
+            'significant': p_value < self.alpha
+        }
+    
+    def sequential_testing(self, control_results, treatment_results):
+        """Perform sequential testing for early stopping"""
+        
+        # Simple sequential probability ratio test (SPRT)
+        n = min(len(control_results), len(treatment_results))
+        
+        if n < 100:  # Minimum sample size
+            return {'decision': 'continue', 'reason': 'insufficient_data'}
+        
+        # Calculate cumulative metrics
+        control_successes = np.sum(control_results[:n])
+        treatment_successes = np.sum(treatment_results[:n])
+        
+        # Likelihood ratio
+        p_control = control_successes / n
+        p_treatment = treatment_successes / n
+        
+        if p_control == 0 or p_treatment == 0:
+            return {'decision': 'continue', 'reason': 'zero_rates'}
+        
+        # Log likelihood ratio
+        llr = (treatment_successes * np.log(p_treatment / p_control) + 
+               (n - treatment_successes) * np.log((1 - p_treatment) / (1 - p_control)))
+        
+        # Decision boundaries (simplified)
+        upper_bound = np.log(0.95 / 0.05)  # Accept treatment
+        lower_bound = np.log(0.05 / 0.95)  # Reject treatment
+        
+        if llr >= upper_bound:
+            return {'decision': 'accept_treatment', 'llr': llr, 'n': n}
+        elif llr <= lower_bound:
+            return {'decision': 'reject_treatment', 'llr': llr, 'n': n}
+        else:
+            return {'decision': 'continue', 'llr': llr, 'n': n}
+    
+    def _accuracy_confidence_interval(self, diff, se, confidence=0.95):
+        """Calculate confidence interval for accuracy difference"""
+        
+        z_score = stats.norm.ppf(1 - (1 - confidence) / 2)
+        margin_error = z_score * se
+        
+        return {
+            'lower': diff - margin_error,
+            'upper': diff + margin_error
+        }
+    
+    def _estimate_auc_standard_error(self, control_scores, control_labels, 
+                                    treatment_scores, treatment_labels):
+        """Estimate standard error for AUC difference (simplified)"""
+        
+        # This is a simplified estimation
+        # In practice, use proper DeLong method
+        n1, n2 = len(control_scores), len(treatment_scores)
+        
+        # Rough estimate based on sample sizes and class distributions
+        p1 = np.mean(control_labels)
+        p2 = np.mean(treatment_labels)
+        
+        se1 = np.sqrt(0.0099 * (1 + p1) / (p1 * (1 - p1) * n1))
+        se2 = np.sqrt(0.0099 * (1 + p2) / (p2 * (1 - p2) * n2))
+        
+        return np.sqrt(se1**2 + se2**2)
+```
+
+================================================================================
+5. GRADUAL ROLLOUT MECHANISMS
+================================================================================
+
+5.1 Feature Flag Integration
+----------------------------
+```python
+class FeatureFlagManager:
+    def __init__(self):
+        self.flags = {}
+        self.user_assignments = {}
+        
+    def create_flag(self, flag_name, model_variants, rollout_config):
+        """Create feature flag for model rollout"""
+        
+        self.flags[flag_name] = {
+            'variants': model_variants,
+            'config': rollout_config,
+            'enabled': True,
+            'created_at': time.time()
+        }
+    
+    def get_model_for_user(self, flag_name, user_id, context=None):
+        """Get model variant for user based on feature flag"""
+        
+        if flag_name not in self.flags:
+            return None
+        
+        flag = self.flags[flag_name]
+        
+        if not flag['enabled']:
+            return flag['variants'].get('control')
+        
+        # Check if user already assigned
+        assignment_key = f"{flag_name}_{user_id}"
+        if assignment_key in self.user_assignments:
+            variant = self.user_assignments[assignment_key]
+            return flag['variants'].get(variant)
+        
+        # Assign user to variant
+        variant = self._assign_variant(flag, user_id, context)
+        self.user_assignments[assignment_key] = variant
+        
+        return flag['variants'].get(variant)
+    
+    def _assign_variant(self, flag, user_id, context):
+        """Assign user to variant based on rollout configuration"""
+        
+        config = flag['config']
+        
+        # Check targeting rules
+        if 'targeting' in config:
+            for rule in config['targeting']:
+                if self._matches_targeting_rule(rule, user_id, context):
+                    return rule['variant']
+        
+        # Use percentage rollout
+        rollout_percentages = config.get('rollout_percentages', {'control': 100})
+        
+        hash_value = hash(f"{flag['config'].get('salt', '')}_{user_id}") % 100
+        cumulative_percent = 0
+        
+        for variant, percentage in rollout_percentages.items():
+            cumulative_percent += percentage
+            if hash_value < cumulative_percent:
+                return variant
+        
+        return 'control'  # Default fallback
+    
+    def update_rollout_percentage(self, flag_name, new_percentages):
+        """Update rollout percentages for gradual deployment"""
+        
+        if flag_name in self.flags:
+            self.flags[flag_name]['config']['rollout_percentages'] = new_percentages
+    
+    def _matches_targeting_rule(self, rule, user_id, context):
+        """Check if user matches targeting rule"""
+        
+        if 'user_ids' in rule and user_id in rule['user_ids']:
+            return True
+        
+        if 'attributes' in rule and context:
+            for attr, expected_value in rule['attributes'].items():
+                if context.get(attr) != expected_value:
+                    return False
+            return True
+        
+        return False
+
+# Usage example
+flag_manager = FeatureFlagManager()
+
+# Create feature flag for model rollout
+flag_manager.create_flag(
+    'new_recommendation_model',
+    {
+        'control': old_model,
+        'treatment': new_model
+    },
+    {
+        'rollout_percentages': {'control': 95, 'treatment': 5},
+        'targeting': [
+            {
+                'variant': 'treatment',
+                'attributes': {'user_tier': 'premium'}
+            }
+        ]
+    }
+)
+
+# Gradually increase rollout
+stages = [
+    {'control': 95, 'treatment': 5},    # Initial
+    {'control': 90, 'treatment': 10},   # Week 1
+    {'control': 80, 'treatment': 20},   # Week 2
+    {'control': 50, 'treatment': 50},   # Week 3
+    {'control': 0, 'treatment': 100}    # Full rollout
+]
+```
+
+================================================================================
+6. MONITORING AND DECISION MAKING
+================================================================================
+
+6.1 Real-Time Monitoring Dashboard
+----------------------------------
+```python
+class ABTestMonitor:
+    def __init__(self):
+        self.metrics_store = {}
+        self.alerts = []
+        
+    def track_experiment_metrics(self, experiment_id, variant, metrics):
+        """Track metrics for A/B test"""
+        
+        if experiment_id not in self.metrics_store:
+            self.metrics_store[experiment_id] = {}
+        
+        if variant not in self.metrics_store[experiment_id]:
+            self.metrics_store[experiment_id][variant] = []
+        
+        metrics['timestamp'] = time.time()
+        self.metrics_store[experiment_id][variant].append(metrics)
+        
+        # Check for alerts
+        self._check_for_alerts(experiment_id, variant, metrics)
+    
+    def get_experiment_summary(self, experiment_id, time_window_hours=24):
+        """Get experiment summary for dashboard"""
+        
+        cutoff_time = time.time() - (time_window_hours * 3600)
+        summary = {}
+        
+        for variant, metrics_list in self.metrics_store.get(experiment_id, {}).items():
+            recent_metrics = [
+                m for m in metrics_list 
+                if m['timestamp'] > cutoff_time
+            ]
+            
+            if recent_metrics:
+                summary[variant] = {
+                    'sample_size': len(recent_metrics),
+                    'avg_accuracy': np.mean([m.get('accuracy', 0) for m in recent_metrics]),
+                    'avg_latency': np.mean([m.get('latency_ms', 0) for m in recent_metrics]),
+                    'error_rate': np.mean([m.get('error', 0) for m in recent_metrics]),
+                    'conversion_rate': np.mean([m.get('conversion', 0) for m in recent_metrics])
+                }
+        
+        return summary
+    
+    def _check_for_alerts(self, experiment_id, variant, metrics):
+        """Check for performance alerts"""
+        
+        # High error rate alert
+        if metrics.get('error_rate', 0) > 0.05:  # 5% error rate
+            self.alerts.append({
+                'type': 'high_error_rate',
+                'experiment_id': experiment_id,
+                'variant': variant,
+                'value': metrics['error_rate'],
+                'timestamp': time.time()
+            })
+        
+        # High latency alert
+        if metrics.get('latency_ms', 0) > 1000:  # 1 second
+            self.alerts.append({
+                'type': 'high_latency',
+                'experiment_id': experiment_id,
+                'variant': variant,
+                'value': metrics['latency_ms'],
+                'timestamp': time.time()
+            })
+    
+    def get_recommendation(self, experiment_id):
+        """Get recommendation for experiment continuation"""
+        
+        summary = self.get_experiment_summary(experiment_id)
+        
+        if len(summary) < 2:
+            return {'action': 'continue', 'reason': 'insufficient_variants'}
+        
+        variants = list(summary.keys())
+        control = summary.get('control', summary[variants[0]])
+        treatment = summary.get('treatment', summary[variants[1]])
+        
+        # Sample size check
+        min_sample_size = 1000
+        if control['sample_size'] < min_sample_size or treatment['sample_size'] < min_sample_size:
+            return {'action': 'continue', 'reason': 'insufficient_sample_size'}
+        
+        # Performance comparison
+        accuracy_improvement = treatment['avg_accuracy'] - control['avg_accuracy']
+        latency_change = treatment['avg_latency'] - control['avg_latency']
+        
+        # Decision logic
+        if accuracy_improvement > 0.02 and latency_change < 100:  # 2% accuracy improvement, <100ms latency increase
+            return {
+                'action': 'promote_treatment',
+                'reason': f'Significant improvement: +{accuracy_improvement:.3f} accuracy',
+                'confidence': 'high'
+            }
+        elif accuracy_improvement < -0.01 or latency_change > 500:  # 1% accuracy decrease or >500ms latency increase
+            return {
+                'action': 'stop_experiment',
+                'reason': f'Performance degradation detected',
+                'confidence': 'high'
+            }
+        else:
+            return {
+                'action': 'continue',
+                'reason': 'No significant difference yet',
+                'confidence': 'medium'
+            }
+```
+
+================================================================================
+7. ROLLBACK AND SAFETY MECHANISMS
+================================================================================
+
+7.1 Automated Rollback System
+-----------------------------
+```python
+class AutomatedRollbackSystem:
+    def __init__(self, rollback_criteria):
+        self.rollback_criteria = rollback_criteria
+        self.deployment_history = []
+        self.monitoring_active = False
+        
+    def monitor_deployment(self, deployment_id, monitoring_duration_minutes=60):
+        """Monitor deployment and trigger rollback if needed"""
+        
+        self.monitoring_active = True
+        start_time = time.time()
+        end_time = start_time + (monitoring_duration_minutes * 60)
+        
+        while time.time() < end_time and self.monitoring_active:
+            metrics = self._collect_current_metrics(deployment_id)
+            
+            rollback_decision = self._evaluate_rollback_criteria(metrics)
+            
+            if rollback_decision['should_rollback']:
+                self._execute_rollback(deployment_id, rollback_decision['reason'])
+                return {
+                    'status': 'rolled_back',
+                    'reason': rollback_decision['reason'],
+                    'rollback_time': time.time()
+                }
+            
+            time.sleep(60)  # Check every minute
+        
+        return {'status': 'monitoring_completed', 'no_rollback_needed': True}
+    
+    def _evaluate_rollback_criteria(self, metrics):
+        """Evaluate if rollback criteria are met"""
+        
+        for criterion in self.rollback_criteria:
+            metric_name = criterion['metric']
+            threshold = criterion['threshold']
+            operator = criterion['operator']
+            
+            if metric_name not in metrics:
+                continue
+            
+            metric_value = metrics[metric_name]
+            
+            if operator == 'greater_than' and metric_value > threshold:
+                return {
+                    'should_rollback': True,
+                    'reason': f'{metric_name} ({metric_value}) exceeds threshold ({threshold})'
+                }
+            elif operator == 'less_than' and metric_value < threshold:
+                return {
+                    'should_rollback': True,
+                    'reason': f'{metric_name} ({metric_value}) below threshold ({threshold})'
+                }
+        
+        return {'should_rollback': False}
+    
+    def _execute_rollback(self, deployment_id, reason):
+        """Execute rollback to previous stable version"""
+        
+        # Find previous stable deployment
+        previous_deployment = self._get_previous_stable_deployment()
+        
+        if not previous_deployment:
+            raise Exception("No previous stable deployment found for rollback")
+        
+        # Perform rollback
+        rollback_result = self._perform_rollback(previous_deployment)
+        
+        # Log rollback
+        self.deployment_history.append({
+            'action': 'rollback',
+            'from_deployment': deployment_id,
+            'to_deployment': previous_deployment['id'],
+            'reason': reason,
+            'timestamp': time.time(),
+            'success': rollback_result['success']
+        })
+        
+        return rollback_result
+    
+    def _get_previous_stable_deployment(self):
+        """Get the most recent stable deployment"""
+        
+        for deployment in reversed(self.deployment_history):
+            if deployment.get('status') == 'stable':
+                return deployment
+        
+        return None
+
+# Circuit breaker for model serving
+class ModelCircuitBreaker:
+    def __init__(self, failure_threshold=5, timeout_seconds=60):
+        self.failure_threshold = failure_threshold
+        self.timeout_seconds = timeout_seconds
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+        
+    def call(self, model_predict_func, *args, **kwargs):
+        """Call model prediction with circuit breaker protection"""
+        
+        if self.state == 'OPEN':
+            if time.time() - self.last_failure_time > self.timeout_seconds:
+                self.state = 'HALF_OPEN'
+            else:
+                raise CircuitBreakerOpenException("Circuit breaker is OPEN")
+        
+        try:
+            result = model_predict_func(*args, **kwargs)
+            self._on_success()
+            return result
+            
+        except Exception as e:
+            self._on_failure()
+            raise e
+    
+    def _on_success(self):
+        """Handle successful prediction"""
+        self.failure_count = 0
+        self.state = 'CLOSED'
+    
+    def _on_failure(self):
+        """Handle failed prediction"""
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        
+        if self.failure_count >= self.failure_threshold:
+            self.state = 'OPEN'
+
+class CircuitBreakerOpenException(Exception):
+    pass
+```
+
+================================================================================
+8. IMPLEMENTATION EXAMPLES
+================================================================================
+
+8.1 Complete A/B Testing Pipeline
+---------------------------------
+```python
+class MLABTestingPipeline:
+    def __init__(self):
+        self.experiments = {}
+        self.traffic_router = IntelligentTrafficRouter()
+        self.monitor = ABTestMonitor()
+        self.statistical_analyzer = MLStatisticalAnalyzer()
+        
+    def create_experiment(self, experiment_config):
+        """Create new A/B test experiment"""
+        
+        experiment_id = experiment_config['experiment_id']
+        
+        # Register models
+        for variant_name, model in experiment_config['models'].items():
+            model_id = f"{experiment_id}_{variant_name}"
+            self.traffic_router.register_model(model_id, model, {})
+        
+        # Set up traffic routing
+        traffic_split = experiment_config.get('traffic_split', {'control': 50, 'treatment': 50})
+        
+        for variant_name, percentage in traffic_split.items():
+            self.traffic_router.add_routing_rule({
+                'name': f"{experiment_id}_{variant_name}",
+                'condition': {'experiment': experiment_id},
+                'target_model': f"{experiment_id}_{variant_name}",
+                'traffic_percentage': percentage,
+                'priority': 1
+            })
+        
+        # Store experiment
+        self.experiments[experiment_id] = {
+            'config': experiment_config,
+            'start_time': time.time(),
+            'status': 'running'
+        }
+        
+        return {'experiment_id': experiment_id, 'status': 'created'}
+    
+    def serve_prediction(self, user_id, features, experiment_id):
+        """Serve prediction with A/B testing"""
+        
+        # Route to appropriate model
+        context = {'experiment': experiment_id}
+        result = self.traffic_router.route_request(user_id, features, context)
+        
+        # Extract variant from model_id
+        variant = result['model_id'].split('_')[-1]
+        
+        # Track metrics
+        self.monitor.track_experiment_metrics(
+            experiment_id, variant, {
+                'prediction': result['prediction'],
+                'latency_ms': result['latency_ms'],
+                'user_id': user_id
+            }
+        )
+        
+        return result
+    
+    def record_outcome(self, user_id, experiment_id, actual_outcome):
+        """Record actual outcome for experiment"""
+        
+        # Find which variant the user was assigned to
+        assignment_key = f"{experiment_id}_{user_id}"
+        
+        # Track outcome
+        # Implementation depends on your metrics tracking system
+        pass
+    
+    def analyze_experiment(self, experiment_id):
+        """Analyze experiment results"""
+        
+        # Get experiment data
+        summary = self.monitor.get_experiment_summary(experiment_id)
+        
+        if 'control' in summary and 'treatment' in summary:
+            # Perform statistical analysis
+            # This would require collecting actual outcomes
+            analysis_result = {
+                'summary': summary,
+                'recommendation': self.monitor.get_recommendation(experiment_id)
+            }
+        else:
+            analysis_result = {
+                'summary': summary,
+                'status': 'insufficient_data'
+            }
+        
+        return analysis_result
+    
+    def stop_experiment(self, experiment_id, winning_variant=None):
+        """Stop experiment and promote winning variant"""
+        
+        if experiment_id not in self.experiments:
+            raise ValueError(f"Experiment {experiment_id} not found")
+        
+        # Update experiment status
+        self.experiments[experiment_id]['status'] = 'completed'
+        self.experiments[experiment_id]['end_time'] = time.time()
+        
+        # Promote winning variant if specified
+        if winning_variant:
+            self.experiments[experiment_id]['winner'] = winning_variant
+            # Redirect all traffic to winning variant
+            # Implementation depends on your traffic routing system
+        
+        return {'status': 'completed', 'winner': winning_variant}
+
+# Usage example
+pipeline = MLABTestingPipeline()
+
+# Create experiment
+experiment_config = {
+    'experiment_id': 'recommendation_model_v2_test',
+    'models': {
+        'control': current_model,
+        'treatment': new_model
+    },
+    'traffic_split': {'control': 80, 'treatment': 20},
+    'success_metrics': ['click_through_rate', 'conversion_rate'],
+    'minimum_sample_size': 10000
+}
+
+pipeline.create_experiment(experiment_config)
+
+# Serve predictions
+for user_request in user_requests:
+    result = pipeline.serve_prediction(
+        user_request['user_id'],
+        user_request['features'],
+        'recommendation_model_v2_test'
+    )
+    
+    # Record outcome when available
+    # pipeline.record_outcome(user_id, experiment_id, actual_outcome)
+
+# Analyze results
+analysis = pipeline.analyze_experiment('recommendation_model_v2_test')
+print(analysis)
+```
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+A/B testing and canary deployments are essential for safe ML model deployment:
+
+**A/B Testing for ML:**
+- Design experiments with proper statistical power
+- Account for ML-specific metrics and longer feedback loops
+- Use intelligent traffic routing based on user segments and features
+- Implement real-time monitoring and automated decision making
+
+**Canary Deployment:**
+- Start with small traffic percentages and gradually increase
+- Define clear success and rollback criteria
+- Monitor performance continuously during rollout
+- Implement automated rollback for safety
+
+**Traffic Management:**
+- Use feature flags for fine-grained control
+- Implement intelligent routing based on user context
+- Support multiple deployment strategies simultaneously
+- Maintain detailed logging for analysis and debugging
+
+**Safety Mechanisms:**
+- Circuit breakers to prevent cascading failures
+- Automated rollback based on performance criteria
+- Comprehensive monitoring and alerting
+- Clear escalation procedures for manual intervention
+
+**Best Practices:**
+- Start conservative with small traffic allocations
+- Define success criteria upfront based on business impact
+- Implement comprehensive monitoring before deployment
+- Have clear rollback procedures and criteria
+- Document all experiments and their outcomes
+
+Success requires balancing innovation with safety, ensuring that new models improve user experience while maintaining system reliability and performance. 

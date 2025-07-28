@@ -1,0 +1,1425 @@
+BATCH VS REAL-TIME INFERENCE
+============================
+
+Table of Contents:
+1. Inference Patterns Overview
+2. Real-Time Inference Systems
+3. Batch Inference Systems
+4. Stream Processing for ML
+5. Latency Requirements and Trade-offs
+6. Implementation Strategies
+7. Performance Optimization
+8. Best Practices and Use Cases
+
+================================================================================
+1. INFERENCE PATTERNS OVERVIEW
+================================================================================
+
+1.1 Inference Pattern Classification
+-----------------------------------
+**Real-Time (Synchronous):**
+- User waits for immediate response
+- Low latency requirements (< 100ms)
+- Single prediction requests
+- Examples: web recommendations, fraud detection
+
+**Near Real-Time (Micro-batch):**
+- Small batches processed frequently
+- Latency tolerance (100ms - 1s)
+- Balance between throughput and latency
+- Examples: personalized feeds, ad targeting
+
+**Batch (Asynchronous):**
+- Large datasets processed periodically
+- High throughput, latency tolerance (minutes/hours)
+- Bulk processing for efficiency
+- Examples: monthly reports, model training
+
+**Stream Processing:**
+- Continuous data processing
+- Sliding window analytics
+- Event-driven predictions
+- Examples: IoT monitoring, real-time analytics
+
+1.2 Decision Framework
+---------------------
+**Choose Real-Time When:**
+- User experience depends on immediate response
+- Decision impacts current user session
+- Cost of latency exceeds compute costs
+- Regulatory requirements for instant decisions
+
+**Choose Batch When:**
+- Results don't need immediate availability
+- Large volume processing is more efficient
+- Complex feature engineering required
+- Cost optimization is priority
+
+**Choose Stream When:**
+- Continuous data flow processing
+- Time-window aggregations needed
+- Event-driven triggers required
+- Real-time monitoring and alerting
+
+================================================================================
+2. REAL-TIME INFERENCE SYSTEMS
+================================================================================
+
+2.1 Architecture Patterns
+-------------------------
+**Synchronous API Pattern:**
+```
+Client → Load Balancer → Model Server → Response
+```
+
+**Microservices Pattern:**
+```
+Client → API Gateway → [Feature Service | Model Service] → Response
+```
+
+**Edge Computing Pattern:**
+```
+Client → Edge Server → [Local Model | Cloud Fallback] → Response
+```
+
+2.2 Implementation Example
+--------------------------
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import asyncio
+import time
+from typing import List, Dict, Any
+
+app = FastAPI()
+
+class PredictionRequest(BaseModel):
+    features: List[float]
+    model_id: str = "default"
+
+class PredictionResponse(BaseModel):
+    prediction: float
+    confidence: float
+    latency_ms: float
+
+class RealTimePredictor:
+    def __init__(self):
+        self.models = {}
+        self.feature_cache = {}
+        
+    async def predict(self, request: PredictionRequest) -> PredictionResponse:
+        start_time = time.time()
+        
+        try:
+            # Load model (cached)
+            model = await self._get_model(request.model_id)
+            
+            # Feature preprocessing
+            processed_features = await self._preprocess_features(request.features)
+            
+            # Make prediction
+            prediction = await self._async_predict(model, processed_features)
+            
+            latency = (time.time() - start_time) * 1000
+            
+            return PredictionResponse(
+                prediction=float(prediction),
+                confidence=0.95,  # Model-specific confidence
+                latency_ms=latency
+            )
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def _async_predict(self, model, features):
+        """Async wrapper for model prediction"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, model.predict, features)
+
+@app.post("/predict", response_model=PredictionResponse)
+async def predict_endpoint(request: PredictionRequest):
+    predictor = RealTimePredictor()
+    return await predictor.predict(request)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": time.time()}
+```
+
+2.3 Latency Optimization
+------------------------
+**Model Optimization:**
+```python
+import onnxruntime as ort
+import numpy as np
+
+class OptimizedModel:
+    def __init__(self, onnx_model_path):
+        # Use ONNX Runtime for optimized inference
+        self.session = ort.InferenceSession(
+            onnx_model_path,
+            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+        )
+        self.input_name = self.session.get_inputs()[0].name
+    
+    def predict(self, features):
+        input_data = np.array(features, dtype=np.float32).reshape(1, -1)
+        prediction = self.session.run(None, {self.input_name: input_data})
+        return prediction[0][0]
+
+# TensorRT optimization for NVIDIA GPUs
+def optimize_with_tensorrt(model_path, output_path):
+    import tensorflow as tf
+    from tensorflow.python.compiler.tensorrt import trt_convert as trt
+    
+    converter = trt.TrtGraphConverterV2(
+        input_saved_model_dir=model_path,
+        precision_mode=trt.TrtPrecisionMode.FP16
+    )
+    converter.convert()
+    converter.save(output_path)
+```
+
+**Feature Caching:**
+```python
+import redis
+import json
+from functools import wraps
+
+class FeatureCache:
+    def __init__(self, redis_url='redis://localhost:6379'):
+        self.redis_client = redis.from_url(redis_url)
+        self.default_ttl = 300  # 5 minutes
+    
+    def get_features(self, user_id, feature_names):
+        """Get cached features for user"""
+        pipeline = self.redis_client.pipeline()
+        
+        for feature_name in feature_names:
+            key = f"feature:{user_id}:{feature_name}"
+            pipeline.get(key)
+        
+        results = pipeline.execute()
+        
+        features = {}
+        for feature_name, result in zip(feature_names, results):
+            if result:
+                features[feature_name] = json.loads(result)
+        
+        return features
+    
+    def cache_features(self, user_id, features, ttl=None):
+        """Cache features for user"""
+        pipeline = self.redis_client.pipeline()
+        ttl = ttl or self.default_ttl
+        
+        for feature_name, value in features.items():
+            key = f"feature:{user_id}:{feature_name}"
+            pipeline.setex(key, ttl, json.dumps(value))
+        
+        pipeline.execute()
+
+def cached_features(cache, feature_names):
+    """Decorator for feature caching"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(user_id, *args, **kwargs):
+            # Try cache first
+            cached = cache.get_features(user_id, feature_names)
+            
+            if len(cached) == len(feature_names):
+                return cached
+            
+            # Compute missing features
+            computed = func(user_id, *args, **kwargs)
+            
+            # Cache for future use
+            cache.cache_features(user_id, computed)
+            
+            return computed
+        return wrapper
+    return decorator
+```
+
+================================================================================
+3. BATCH INFERENCE SYSTEMS
+================================================================================
+
+3.1 Batch Processing Architecture
+---------------------------------
+**Scheduled Batch Pattern:**
+```
+Scheduler → Data Extraction → Batch Processing → Result Storage → Notification
+```
+
+**Event-Driven Batch Pattern:**
+```
+Data Arrival → Trigger → Batch Job → Processing → Results → Downstream Systems
+```
+
+3.2 Apache Spark Implementation
+-------------------------------
+```python
+from pyspark.sql import SparkSession
+from pyspark.ml import Pipeline
+from pyspark.sql.functions import col, when, lit
+import mlflow.spark
+
+class BatchInferenceJob:
+    def __init__(self, app_name="BatchInference"):
+        self.spark = SparkSession.builder \
+            .appName(app_name) \
+            .config("spark.sql.adaptive.enabled", "true") \
+            .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+            .getOrCreate()
+    
+    def run_batch_inference(self, input_path, output_path, model_uri):
+        """Run batch inference on large dataset"""
+        
+        # Load data
+        df = self.spark.read.parquet(input_path)
+        
+        # Load MLflow model
+        model = mlflow.spark.load_model(model_uri)
+        
+        # Apply model to dataset
+        predictions_df = model.transform(df)
+        
+        # Add metadata
+        predictions_df = predictions_df.withColumn("prediction_timestamp", lit(current_timestamp()))
+        
+        # Repartition for optimal output
+        output_df = predictions_df.repartition(200)
+        
+        # Write results
+        output_df.write \
+            .mode("overwrite") \
+            .option("compression", "snappy") \
+            .parquet(output_path)
+        
+        # Collect statistics
+        stats = {
+            "total_records": df.count(),
+            "prediction_records": predictions_df.count(),
+            "output_partitions": output_df.rdd.getNumPartitions()
+        }
+        
+        return stats
+    
+    def process_with_feature_engineering(self, input_path, output_path, model_uri):
+        """Batch inference with feature engineering"""
+        
+        # Load raw data
+        raw_df = self.spark.read.parquet(input_path)
+        
+        # Feature engineering
+        features_df = self._engineer_features(raw_df)
+        
+        # Load and apply model
+        model = mlflow.spark.load_model(model_uri)
+        predictions_df = model.transform(features_df)
+        
+        # Post-processing
+        final_df = self._post_process_predictions(predictions_df)
+        
+        # Write results with partitioning
+        final_df.write \
+            .mode("overwrite") \
+            .partitionBy("prediction_date") \
+            .parquet(output_path)
+    
+    def _engineer_features(self, df):
+        """Feature engineering transformations"""
+        return df.withColumn("age_group", 
+                           when(col("age") < 25, "young")
+                           .when(col("age") < 65, "adult")
+                           .otherwise("senior")) \
+                 .withColumn("tenure_years", col("tenure_months") / 12)
+    
+    def _post_process_predictions(self, df):
+        """Post-process predictions"""
+        return df.withColumn("risk_category",
+                           when(col("prediction") > 0.8, "high")
+                           .when(col("prediction") > 0.5, "medium")
+                           .otherwise("low"))
+
+# Airflow DAG for batch inference
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from datetime import datetime, timedelta
+
+def run_batch_inference_task(**context):
+    job = BatchInferenceJob()
+    
+    execution_date = context['execution_date']
+    input_path = f"s3://data-bucket/raw/{execution_date.strftime('%Y/%m/%d')}"
+    output_path = f"s3://data-bucket/predictions/{execution_date.strftime('%Y/%m/%d')}"
+    model_uri = "models:/customer_churn/production"
+    
+    stats = job.run_batch_inference(input_path, output_path, model_uri)
+    return stats
+
+dag = DAG(
+    'batch_inference',
+    default_args={
+        'owner': 'ml-team',
+        'depends_on_past': False,
+        'start_date': datetime(2023, 1, 1),
+        'email_on_failure': True,
+        'retries': 2,
+        'retry_delay': timedelta(minutes=5)
+    },
+    schedule_interval='@daily',
+    catchup=False
+)
+
+inference_task = PythonOperator(
+    task_id='run_inference',
+    python_callable=run_batch_inference_task,
+    dag=dag
+)
+```
+
+3.3 Distributed Processing Optimization
+---------------------------------------
+```python
+import dask.dataframe as dd
+from dask.distributed import Client
+import joblib
+
+class DaskBatchProcessor:
+    def __init__(self, scheduler_address=None):
+        self.client = Client(scheduler_address) if scheduler_address else Client()
+        
+    def process_large_dataset(self, input_path, model_path, output_path):
+        """Process large dataset using Dask"""
+        
+        # Load data as Dask DataFrame
+        df = dd.read_parquet(input_path)
+        
+        # Load model
+        model = joblib.load(model_path)
+        
+        # Define prediction function
+        def predict_partition(partition):
+            predictions = model.predict(partition[['feature1', 'feature2', 'feature3']])
+            partition['prediction'] = predictions
+            return partition
+        
+        # Apply predictions to each partition
+        predictions_df = df.map_partitions(predict_partition, meta=df)
+        
+        # Compute and save results
+        predictions_df.to_parquet(output_path, compression='snappy')
+        
+        return {
+            'partitions_processed': df.npartitions,
+            'total_rows': len(df),
+            'output_path': output_path
+        }
+    
+    def batch_inference_with_monitoring(self, input_path, model_path, output_path):
+        """Batch inference with progress monitoring"""
+        
+        from dask.diagnostics import ProgressBar
+        
+        # Load data
+        df = dd.read_parquet(input_path)
+        
+        # Load model
+        model = joblib.load(model_path)
+        
+        # Feature preprocessing
+        features = df[['feature1', 'feature2', 'feature3']]
+        
+        # Predict with progress bar
+        with ProgressBar():
+            predictions = features.map_partitions(
+                lambda x: model.predict(x),
+                meta=('predictions', 'f8')
+            )
+            
+            # Add predictions to DataFrame
+            result_df = df.assign(prediction=predictions)
+            
+            # Compute and save
+            result_df.to_parquet(output_path)
+```
+
+================================================================================
+4. STREAM PROCESSING FOR ML
+================================================================================
+
+4.1 Apache Kafka Streams
+------------------------
+```python
+from kafka import KafkaConsumer, KafkaProducer
+import json
+import joblib
+import numpy as np
+from threading import Thread
+import logging
+
+class StreamMLProcessor:
+    def __init__(self, kafka_config, model_path):
+        self.kafka_config = kafka_config
+        self.model = joblib.load(model_path)
+        self.consumer = None
+        self.producer = None
+        
+    def start_processing(self, input_topic, output_topic):
+        """Start stream processing"""
+        
+        # Initialize Kafka consumer and producer
+        self.consumer = KafkaConsumer(
+            input_topic,
+            bootstrap_servers=self.kafka_config['bootstrap_servers'],
+            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+            group_id='ml-processor',
+            enable_auto_commit=True
+        )
+        
+        self.producer = KafkaProducer(
+            bootstrap_servers=self.kafka_config['bootstrap_servers'],
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+        
+        # Start processing loop
+        for message in self.consumer:
+            try:
+                # Process message
+                result = self._process_message(message.value)
+                
+                # Send result to output topic
+                self.producer.send(output_topic, result)
+                
+            except Exception as e:
+                logging.error(f"Error processing message: {e}")
+                # Send to dead letter queue or error topic
+                self.producer.send(f"{output_topic}_errors", {
+                    "original_message": message.value,
+                    "error": str(e),
+                    "timestamp": message.timestamp
+                })
+    
+    def _process_message(self, data):
+        """Process individual message"""
+        
+        # Extract features
+        features = np.array([
+            data['feature1'],
+            data['feature2'], 
+            data['feature3']
+        ]).reshape(1, -1)
+        
+        # Make prediction
+        prediction = self.model.predict(features)[0]
+        probability = self.model.predict_proba(features)[0].max()
+        
+        # Return enriched message
+        return {
+            "id": data["id"],
+            "timestamp": data["timestamp"],
+            "prediction": float(prediction),
+            "confidence": float(probability),
+            "model_version": "v1.0.0",
+            "processing_timestamp": time.time()
+        }
+
+# Apache Flink implementation
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.table import StreamTableEnvironment
+
+def create_flink_ml_pipeline():
+    """Create Flink ML pipeline"""
+    
+    env = StreamExecutionEnvironment.get_execution_environment()
+    table_env = StreamTableEnvironment.create(env)
+    
+    # Define source table
+    table_env.execute_sql("""
+        CREATE TABLE input_stream (
+            user_id STRING,
+            feature1 DOUBLE,
+            feature2 DOUBLE,
+            feature3 DOUBLE,
+            event_time TIMESTAMP(3),
+            WATERMARK FOR event_time AS event_time - INTERVAL '5' SECOND
+        ) WITH (
+            'connector' = 'kafka',
+            'topic' = 'ml-input',
+            'properties.bootstrap.servers' = 'localhost:9092',
+            'format' = 'json'
+        )
+    """)
+    
+    # Define output table
+    table_env.execute_sql("""
+        CREATE TABLE predictions (
+            user_id STRING,
+            prediction DOUBLE,
+            confidence DOUBLE,
+            window_start TIMESTAMP(3),
+            window_end TIMESTAMP(3)
+        ) WITH (
+            'connector' = 'kafka',
+            'topic' = 'ml-predictions',
+            'properties.bootstrap.servers' = 'localhost:9092',
+            'format' = 'json'
+        )
+    """)
+    
+    # Process with windowing
+    table_env.execute_sql("""
+        INSERT INTO predictions
+        SELECT 
+            user_id,
+            AVG(feature1 * 0.5 + feature2 * 0.3 + feature3 * 0.2) as prediction,
+            COUNT(*) / 10.0 as confidence,
+            TUMBLE_START(event_time, INTERVAL '1' MINUTE) as window_start,
+            TUMBLE_END(event_time, INTERVAL '1' MINUTE) as window_end
+        FROM input_stream
+        GROUP BY user_id, TUMBLE(event_time, INTERVAL '1' MINUTE)
+    """)
+```
+
+4.2 Real-Time Feature Engineering
+---------------------------------
+```python
+import pandas as pd
+from datetime import datetime, timedelta
+
+class RealTimeFeatureEngine:
+    def __init__(self, window_size_minutes=5):
+        self.window_size = timedelta(minutes=window_size_minutes)
+        self.feature_store = {}
+    
+    def compute_rolling_features(self, user_id, new_event):
+        """Compute rolling window features"""
+        
+        current_time = datetime.now()
+        
+        # Initialize user data if not exists
+        if user_id not in self.feature_store:
+            self.feature_store[user_id] = []
+        
+        # Add new event
+        new_event['timestamp'] = current_time
+        self.feature_store[user_id].append(new_event)
+        
+        # Remove old events outside window
+        cutoff_time = current_time - self.window_size
+        self.feature_store[user_id] = [
+            event for event in self.feature_store[user_id]
+            if event['timestamp'] > cutoff_time
+        ]
+        
+        # Compute features
+        events = self.feature_store[user_id]
+        if not events:
+            return {}
+        
+        df = pd.DataFrame(events)
+        
+        features = {
+            'event_count_5min': len(events),
+            'avg_amount_5min': df['amount'].mean() if 'amount' in df else 0,
+            'total_amount_5min': df['amount'].sum() if 'amount' in df else 0,
+            'distinct_categories_5min': df['category'].nunique() if 'category' in df else 0,
+            'time_since_last_event': (current_time - df['timestamp'].max()).total_seconds()
+        }
+        
+        return features
+
+class StreamFeatureProcessor:
+    def __init__(self):
+        self.feature_engine = RealTimeFeatureEngine()
+        self.model = None
+    
+    def process_event(self, event_data):
+        """Process incoming event and make prediction"""
+        
+        user_id = event_data['user_id']
+        
+        # Compute real-time features
+        rolling_features = self.feature_engine.compute_rolling_features(user_id, event_data)
+        
+        # Combine with static features
+        static_features = self._get_static_features(user_id)
+        
+        # Create feature vector
+        all_features = {**static_features, **rolling_features}
+        
+        # Make prediction if we have enough features
+        if len(all_features) >= self.model.n_features_in_:
+            feature_vector = self._create_feature_vector(all_features)
+            prediction = self.model.predict([feature_vector])[0]
+            
+            return {
+                'user_id': user_id,
+                'prediction': prediction,
+                'features_used': all_features,
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        return None
+```
+
+================================================================================
+5. LATENCY REQUIREMENTS AND TRADE-OFFS
+================================================================================
+
+5.1 Latency Budgeting
+---------------------
+**Latency Breakdown Analysis:**
+```python
+import time
+from contextlib import contextmanager
+
+class LatencyProfiler:
+    def __init__(self):
+        self.measurements = {}
+    
+    @contextmanager
+    def measure(self, operation_name):
+        start_time = time.perf_counter()
+        try:
+            yield
+        finally:
+            end_time = time.perf_counter()
+            duration = (end_time - start_time) * 1000  # Convert to ms
+            
+            if operation_name not in self.measurements:
+                self.measurements[operation_name] = []
+            self.measurements[operation_name].append(duration)
+    
+    def get_stats(self):
+        stats = {}
+        for operation, times in self.measurements.items():
+            stats[operation] = {
+                'mean': sum(times) / len(times),
+                'min': min(times),
+                'max': max(times),
+                'p95': sorted(times)[int(len(times) * 0.95)],
+                'p99': sorted(times)[int(len(times) * 0.99)],
+                'count': len(times)
+            }
+        return stats
+
+# Usage example
+profiler = LatencyProfiler()
+
+def predict_with_profiling(features):
+    with profiler.measure("total_prediction"):
+        
+        with profiler.measure("feature_preprocessing"):
+            processed_features = preprocess_features(features)
+        
+        with profiler.measure("model_inference"):
+            prediction = model.predict(processed_features)
+        
+        with profiler.measure("postprocessing"):
+            result = postprocess_prediction(prediction)
+    
+    return result
+
+# Latency requirements by use case
+LATENCY_REQUIREMENTS = {
+    "fraud_detection": {"target": 50, "max": 100},  # ms
+    "recommendations": {"target": 100, "max": 200},
+    "search_ranking": {"target": 20, "max": 50},
+    "ad_serving": {"target": 10, "max": 25},
+    "chatbot": {"target": 200, "max": 500},
+    "batch_scoring": {"target": 10000, "max": 86400000}  # Up to 1 day
+}
+```
+
+5.2 Performance vs Accuracy Trade-offs
+--------------------------------------
+```python
+class ModelPerformanceOptimizer:
+    def __init__(self):
+        self.models = {}
+        self.performance_targets = {}
+    
+    def register_model_variant(self, name, model, latency_ms, accuracy):
+        """Register model variant with performance characteristics"""
+        self.models[name] = {
+            'model': model,
+            'latency_ms': latency_ms,
+            'accuracy': accuracy,
+            'throughput_rps': 1000 / latency_ms  # Rough estimate
+        }
+    
+    def select_optimal_model(self, max_latency_ms, min_accuracy=None):
+        """Select best model for given constraints"""
+        
+        candidates = []
+        
+        for name, specs in self.models.items():
+            if specs['latency_ms'] <= max_latency_ms:
+                if min_accuracy is None or specs['accuracy'] >= min_accuracy:
+                    candidates.append((name, specs))
+        
+        if not candidates:
+            return None
+        
+        # Select highest accuracy among candidates
+        best_model = max(candidates, key=lambda x: x[1]['accuracy'])
+        return best_model[0]
+    
+    def benchmark_models(self, test_data, iterations=100):
+        """Benchmark all registered models"""
+        
+        results = {}
+        
+        for name, specs in self.models.items():
+            model = specs['model']
+            latencies = []
+            predictions = []
+            
+            for _ in range(iterations):
+                start_time = time.perf_counter()
+                pred = model.predict(test_data)
+                end_time = time.perf_counter()
+                
+                latencies.append((end_time - start_time) * 1000)
+                predictions.append(pred)
+            
+            results[name] = {
+                'avg_latency_ms': sum(latencies) / len(latencies),
+                'p95_latency_ms': sorted(latencies)[int(len(latencies) * 0.95)],
+                'p99_latency_ms': sorted(latencies)[int(len(latencies) * 0.99)],
+                'throughput_rps': 1000 / (sum(latencies) / len(latencies))
+            }
+        
+        return results
+
+# Model selection strategy
+def adaptive_model_selection(request_context):
+    """Select model based on request context"""
+    
+    # High-priority users get best model
+    if request_context.get('user_tier') == 'premium':
+        return 'high_accuracy_model'
+    
+    # Mobile users get optimized model
+    if request_context.get('device') == 'mobile':
+        return 'mobile_optimized_model'
+    
+    # Peak hours use faster model
+    current_hour = datetime.now().hour
+    if 9 <= current_hour <= 17:  # Business hours
+        return 'fast_model'
+    
+    # Default to balanced model
+    return 'balanced_model'
+```
+
+================================================================================
+6. IMPLEMENTATION STRATEGIES
+================================================================================
+
+6.1 Hybrid Batch-Streaming Architecture
+---------------------------------------
+```python
+class HybridMLProcessor:
+    def __init__(self):
+        self.batch_results = {}
+        self.stream_processor = StreamMLProcessor()
+        self.cache = FeatureCache()
+    
+    def predict(self, user_id, features, context=None):
+        """Predict using hybrid approach"""
+        
+        # Check if we have recent batch results
+        batch_result = self._get_batch_result(user_id)
+        
+        # Determine processing mode
+        if context and context.get('priority') == 'high':
+            # High priority: real-time processing
+            return self._real_time_predict(user_id, features)
+        
+        elif batch_result and self._is_recent(batch_result):
+            # Use cached batch result with real-time adjustments
+            return self._adjust_batch_result(batch_result, features)
+        
+        else:
+            # Fallback to real-time
+            return self._real_time_predict(user_id, features)
+    
+    def _get_batch_result(self, user_id):
+        """Get most recent batch prediction for user"""
+        return self.batch_results.get(user_id)
+    
+    def _is_recent(self, batch_result, max_age_hours=24):
+        """Check if batch result is recent enough"""
+        age = datetime.now() - batch_result['timestamp']
+        return age.total_seconds() < max_age_hours * 3600
+    
+    def _adjust_batch_result(self, batch_result, current_features):
+        """Adjust batch prediction with current features"""
+        
+        # Simple adjustment based on feature drift
+        base_prediction = batch_result['prediction']
+        
+        # Calculate feature drift
+        batch_features = batch_result['features']
+        drift_score = self._calculate_drift(batch_features, current_features)
+        
+        # Adjust prediction based on drift
+        if drift_score > 0.1:  # Significant drift
+            adjustment = drift_score * 0.1  # Conservative adjustment
+            adjusted_prediction = base_prediction + adjustment
+        else:
+            adjusted_prediction = base_prediction
+        
+        return {
+            'prediction': adjusted_prediction,
+            'confidence': batch_result['confidence'] * (1 - drift_score),
+            'source': 'hybrid',
+            'drift_score': drift_score
+        }
+    
+    def _calculate_drift(self, batch_features, current_features):
+        """Calculate simple feature drift score"""
+        if len(batch_features) != len(current_features):
+            return 1.0  # Maximum drift for different feature sets
+        
+        diffs = [abs(b - c) for b, c in zip(batch_features, current_features)]
+        return sum(diffs) / len(diffs)
+```
+
+6.2 Multi-Model Serving Strategy
+--------------------------------
+```python
+class MultiModelServingEngine:
+    def __init__(self):
+        self.models = {}
+        self.routing_rules = {}
+        self.fallback_model = None
+        
+    def register_model(self, model_id, model, routing_rule=None):
+        """Register model with optional routing rule"""
+        self.models[model_id] = {
+            'model': model,
+            'created_at': datetime.now(),
+            'request_count': 0,
+            'error_count': 0
+        }
+        
+        if routing_rule:
+            self.routing_rules[model_id] = routing_rule
+    
+    def predict(self, request_data):
+        """Route request to appropriate model"""
+        
+        # Select model based on routing rules
+        selected_model_id = self._route_request(request_data)
+        
+        if not selected_model_id:
+            selected_model_id = self.fallback_model
+        
+        if not selected_model_id:
+            raise ValueError("No suitable model found")
+        
+        # Make prediction with selected model
+        try:
+            model_info = self.models[selected_model_id]
+            model = model_info['model']
+            
+            prediction = model.predict(request_data['features'])
+            
+            # Update metrics
+            model_info['request_count'] += 1
+            
+            return {
+                'prediction': prediction,
+                'model_id': selected_model_id,
+                'model_version': getattr(model, 'version', 'unknown'),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.models[selected_model_id]['error_count'] += 1
+            
+            # Fallback to default model if available
+            if selected_model_id != self.fallback_model and self.fallback_model:
+                return self.predict({**request_data, '_fallback': True})
+            
+            raise e
+    
+    def _route_request(self, request_data):
+        """Apply routing rules to select model"""
+        
+        for model_id, rule in self.routing_rules.items():
+            if self._evaluate_rule(rule, request_data):
+                return model_id
+        
+        return None
+    
+    def _evaluate_rule(self, rule, request_data):
+        """Evaluate routing rule against request"""
+        
+        if 'user_segment' in rule:
+            if request_data.get('user_segment') != rule['user_segment']:
+                return False
+        
+        if 'feature_range' in rule:
+            feature_name, min_val, max_val = rule['feature_range']
+            feature_value = request_data.get('features', {}).get(feature_name)
+            if feature_value is None or not (min_val <= feature_value <= max_val):
+                return False
+        
+        if 'percentage' in rule:
+            # Route percentage of traffic
+            hash_value = hash(str(request_data.get('user_id', ''))) % 100
+            if hash_value >= rule['percentage']:
+                return False
+        
+        return True
+
+# Example usage
+engine = MultiModelServingEngine()
+
+# Register models with routing rules
+engine.register_model('model_v1', model_v1)
+engine.register_model('model_v2_premium', model_v2, {
+    'user_segment': 'premium'
+})
+engine.register_model('model_v2_canary', model_v2, {
+    'percentage': 10  # 10% of traffic
+})
+
+engine.fallback_model = 'model_v1'
+```
+
+================================================================================
+7. PERFORMANCE OPTIMIZATION
+================================================================================
+
+7.1 Batch Size Optimization
+---------------------------
+```python
+import numpy as np
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+class BatchSizeOptimizer:
+    def __init__(self, model):
+        self.model = model
+        self.optimal_batch_size = None
+        
+    def find_optimal_batch_size(self, sample_data, max_batch_size=512):
+        """Find optimal batch size for throughput"""
+        
+        batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+        batch_sizes = [bs for bs in batch_sizes if bs <= max_batch_size]
+        
+        results = {}
+        
+        for batch_size in batch_sizes:
+            throughput = self._measure_throughput(sample_data, batch_size)
+            results[batch_size] = throughput
+            
+        # Find batch size with highest throughput
+        optimal_size = max(results.items(), key=lambda x: x[1])
+        self.optimal_batch_size = optimal_size[0]
+        
+        return results
+    
+    def _measure_throughput(self, sample_data, batch_size, iterations=10):
+        """Measure throughput for given batch size"""
+        
+        total_samples = 0
+        total_time = 0
+        
+        for _ in range(iterations):
+            # Create batch
+            batch = sample_data[:batch_size]
+            
+            # Measure inference time
+            start_time = time.time()
+            predictions = self.model.predict(batch)
+            end_time = time.time()
+            
+            total_samples += len(batch)
+            total_time += (end_time - start_time)
+        
+        return total_samples / total_time  # Samples per second
+
+class AdaptiveBatchProcessor:
+    def __init__(self, model, initial_batch_size=32):
+        self.model = model
+        self.batch_size = initial_batch_size
+        self.pending_requests = []
+        self.batch_timeout = 0.1  # 100ms max wait
+        
+    async def predict(self, features):
+        """Add request to batch processing queue"""
+        
+        future = asyncio.Future()
+        request = {
+            'features': features,
+            'future': future,
+            'timestamp': time.time()
+        }
+        
+        self.pending_requests.append(request)
+        
+        # Trigger batch processing if conditions met
+        if len(self.pending_requests) >= self.batch_size:
+            await self._process_batch()
+        elif len(self.pending_requests) == 1:
+            # Start timeout timer
+            asyncio.create_task(self._timeout_batch())
+        
+        return await future
+    
+    async def _process_batch(self):
+        """Process current batch"""
+        if not self.pending_requests:
+            return
+        
+        current_batch = self.pending_requests
+        self.pending_requests = []
+        
+        try:
+            # Prepare batch input
+            batch_features = [req['features'] for req in current_batch]
+            
+            # Run batch inference
+            start_time = time.time()
+            predictions = await self._async_predict(batch_features)
+            inference_time = time.time() - start_time
+            
+            # Return results
+            for request, prediction in zip(current_batch, predictions):
+                if not request['future'].done():
+                    request['future'].set_result({
+                        'prediction': prediction,
+                        'batch_size': len(current_batch),
+                        'inference_time': inference_time
+                    })
+            
+            # Adapt batch size based on performance
+            self._adapt_batch_size(len(current_batch), inference_time)
+            
+        except Exception as e:
+            # Handle errors
+            for request in current_batch:
+                if not request['future'].done():
+                    request['future'].set_exception(e)
+    
+    def _adapt_batch_size(self, processed_size, inference_time):
+        """Adapt batch size based on performance"""
+        
+        throughput = processed_size / inference_time
+        
+        # Simple adaptation logic
+        if inference_time > 0.2:  # Too slow
+            self.batch_size = max(1, int(self.batch_size * 0.8))
+        elif inference_time < 0.05:  # Room for larger batches
+            self.batch_size = min(512, int(self.batch_size * 1.2))
+```
+
+7.2 GPU Memory Optimization
+---------------------------
+```python
+import torch
+import psutil
+import GPUtil
+
+class GPUMemoryManager:
+    def __init__(self):
+        self.gpu_stats = {}
+        
+    def optimize_batch_size_for_gpu(self, model, sample_input):
+        """Find optimal batch size for available GPU memory"""
+        
+        if not torch.cuda.is_available():
+            return 32  # Default for CPU
+        
+        device = torch.cuda.current_device()
+        gpu_memory = torch.cuda.get_device_properties(device).total_memory
+        
+        # Start with small batch and increase until OOM
+        batch_size = 1
+        max_safe_batch_size = 1
+        
+        while batch_size <= 1024:
+            try:
+                # Create batch
+                batch_input = sample_input.repeat(batch_size, 1)
+                
+                # Test forward pass
+                with torch.no_grad():
+                    output = model(batch_input)
+                
+                # Check memory usage
+                memory_used = torch.cuda.memory_allocated(device)
+                memory_cached = torch.cuda.memory_reserved(device)
+                
+                # Keep 20% memory free for safety
+                if memory_used < gpu_memory * 0.8:
+                    max_safe_batch_size = batch_size
+                    batch_size *= 2
+                else:
+                    break
+                    
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    break
+                else:
+                    raise e
+            finally:
+                torch.cuda.empty_cache()
+        
+        return max_safe_batch_size
+    
+    def monitor_gpu_usage(self):
+        """Monitor GPU memory and utilization"""
+        
+        gpus = GPUtil.getGPUs()
+        
+        for gpu in gpus:
+            self.gpu_stats[gpu.id] = {
+                'memory_used_mb': gpu.memoryUsed,
+                'memory_total_mb': gpu.memoryTotal,
+                'memory_util_percent': gpu.memoryUtil * 100,
+                'gpu_util_percent': gpu.load * 100,
+                'temperature': gpu.temperature
+            }
+        
+        return self.gpu_stats
+    
+    def clear_gpu_cache(self):
+        """Clear GPU cache when memory is low"""
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+```
+
+================================================================================
+8. BEST PRACTICES AND USE CASES
+================================================================================
+
+8.1 Use Case Decision Matrix
+----------------------------
+```python
+def select_inference_pattern(use_case_requirements):
+    """Select optimal inference pattern based on requirements"""
+    
+    latency_req = use_case_requirements.get('max_latency_ms', float('inf'))
+    volume = use_case_requirements.get('requests_per_day', 0)
+    complexity = use_case_requirements.get('model_complexity', 'medium')
+    cost_sensitivity = use_case_requirements.get('cost_sensitivity', 'medium')
+    
+    # Real-time inference
+    if latency_req < 100:
+        if volume < 1_000_000:  # Low volume
+            return {
+                'pattern': 'real_time_sync',
+                'deployment': 'single_instance',
+                'optimization': ['model_quantization', 'caching']
+            }
+        else:  # High volume
+            return {
+                'pattern': 'real_time_sync',
+                'deployment': 'auto_scaling_cluster',
+                'optimization': ['load_balancing', 'batching', 'edge_caching']
+            }
+    
+    # Near real-time
+    elif latency_req < 1000:
+        return {
+            'pattern': 'micro_batch',
+            'deployment': 'kubernetes_hpa',
+            'optimization': ['adaptive_batching', 'feature_caching']
+        }
+    
+    # Batch processing
+    else:
+        if cost_sensitivity == 'high':
+            return {
+                'pattern': 'scheduled_batch',
+                'deployment': 'spot_instances',
+                'optimization': ['large_batches', 'distributed_processing']
+            }
+        else:
+            return {
+                'pattern': 'event_driven_batch',
+                'deployment': 'kubernetes_jobs',
+                'optimization': ['parallel_processing', 'efficient_storage']
+            }
+
+# Common use cases and patterns
+USE_CASE_PATTERNS = {
+    'fraud_detection': {
+        'pattern': 'real_time_sync',
+        'max_latency_ms': 50,
+        'availability': '99.99%',
+        'fallback_required': True
+    },
+    'recommendation_engine': {
+        'pattern': 'hybrid',
+        'max_latency_ms': 100,
+        'precompute_popular': True,
+        'personalization_realtime': True
+    },
+    'credit_scoring': {
+        'pattern': 'batch',
+        'schedule': 'daily',
+        'regulatory_audit': True,
+        'feature_drift_monitoring': True
+    },
+    'search_ranking': {
+        'pattern': 'real_time_sync',
+        'max_latency_ms': 20,
+        'caching_aggressive': True,
+        'ab_testing': True
+    },
+    'demand_forecasting': {
+        'pattern': 'scheduled_batch',
+        'schedule': 'weekly',
+        'distributed_processing': True,
+        'large_datasets': True
+    }
+}
+```
+
+8.2 Implementation Best Practices
+---------------------------------
+```python
+class InferenceSystemDesign:
+    """Best practices for inference system design"""
+    
+    @staticmethod
+    def design_checklist():
+        return {
+            'performance': [
+                'Define clear latency and throughput requirements',
+                'Benchmark different model formats (ONNX, TensorRT, etc.)',
+                'Implement appropriate caching strategies',
+                'Design for horizontal scaling',
+                'Monitor and optimize batch sizes'
+            ],
+            'reliability': [
+                'Implement circuit breakers and fallbacks',
+                'Design graceful degradation strategies', 
+                'Set up comprehensive health checks',
+                'Plan for model rollback procedures',
+                'Implement proper error handling and logging'
+            ],
+            'scalability': [
+                'Use auto-scaling based on relevant metrics',
+                'Implement load balancing with health checks',
+                'Design stateless services where possible',
+                'Plan for multi-region deployment if needed',
+                'Consider edge deployment for global latency'
+            ],
+            'monitoring': [
+                'Track prediction latency and throughput',
+                'Monitor model accuracy and drift',
+                'Set up alerts for performance degradation',
+                'Log detailed prediction metadata',
+                'Implement distributed tracing'
+            ],
+            'cost_optimization': [
+                'Right-size compute resources',
+                'Use spot instances for batch workloads',
+                'Implement intelligent traffic routing',
+                'Optimize data transfer and storage costs',
+                'Consider serverless for variable workloads'
+            ]
+        }
+    
+    @staticmethod
+    def architecture_patterns_guide():
+        return {
+            'start_simple': {
+                'description': 'Begin with simple synchronous API',
+                'when': 'MVP, low volume, simple requirements',
+                'evolution_path': 'Add caching → Load balancing → Auto-scaling'
+            },
+            'optimize_incrementally': {
+                'description': 'Add optimizations based on real usage patterns',
+                'monitoring_first': 'Implement comprehensive monitoring before optimization',
+                'measure_impact': 'Measure performance impact of each optimization'
+            },
+            'plan_for_growth': {
+                'description': 'Design architecture to handle 10x current load',
+                'key_decisions': ['Stateless vs stateful', 'Sync vs async', 'Caching strategy'],
+                'scaling_triggers': ['Response time SLA breaches', 'Resource utilization', 'Cost thresholds']
+            }
+        }
+
+# Implementation timeline template
+IMPLEMENTATION_PHASES = {
+    'phase_1_mvp': {
+        'timeline': '2-4 weeks',
+        'scope': [
+            'Simple REST API with single model',
+            'Basic monitoring and logging',
+            'Container deployment',
+            'Load testing and optimization'
+        ]
+    },
+    'phase_2_production': {
+        'timeline': '4-6 weeks', 
+        'scope': [
+            'Multi-model support',
+            'Caching and optimization',
+            'Auto-scaling and load balancing',
+            'Comprehensive monitoring'
+        ]
+    },
+    'phase_3_scale': {
+        'timeline': '6-8 weeks',
+        'scope': [
+            'Batch processing capabilities',
+            'Advanced optimizations',
+            'Multi-region deployment',
+            'Cost optimization'
+        ]
+    }
+}
+```
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+Choosing between batch and real-time inference depends on multiple factors:
+
+**Real-Time Inference:**
+- Use for user-facing applications requiring immediate responses
+- Optimize for low latency through caching, model optimization, and efficient serving
+- Implement proper load balancing and auto-scaling
+- Monitor performance continuously and have fallback strategies
+
+**Batch Inference:**
+- Use for bulk processing, reporting, and non-time-sensitive applications
+- Optimize for throughput using distributed processing frameworks
+- Schedule efficiently to balance cost and freshness requirements
+- Implement robust error handling and retry mechanisms
+
+**Stream Processing:**
+- Use for continuous data processing and real-time analytics
+- Implement windowing and aggregation for time-based features
+- Design for fault tolerance and exactly-once processing
+- Balance between latency and completeness
+
+**Key Decision Factors:**
+- Latency requirements and user experience impact
+- Volume and traffic patterns
+- Cost constraints and optimization priorities
+- Model complexity and computational requirements
+- Integration with existing systems and data flows
+
+**Success Principles:**
+- Start simple and optimize based on real usage patterns
+- Implement comprehensive monitoring before optimization
+- Design for 10x growth from current requirements
+- Balance performance, cost, and reliability based on business needs
+
+The optimal approach often involves hybrid strategies that combine multiple patterns based on specific use case requirements and constraints. 

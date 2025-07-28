@@ -1,0 +1,1265 @@
+DATA DRIFT AND CONCEPT DRIFT
+============================
+
+Table of Contents:
+1. Drift Fundamentals
+2. Data Drift Detection Methods
+3. Concept Drift Detection
+4. Statistical Tests for Drift
+5. Continuous Monitoring Systems
+6. Adaptation Strategies
+7. Implementation Examples
+8. Best Practices
+
+================================================================================
+1. DRIFT FUNDAMENTALS
+================================================================================
+
+1.1 Types of Drift
+------------------
+**Data Drift (Covariate Shift):**
+- Input feature distributions change over time
+- P(X) changes while P(Y|X) remains stable
+- Example: Customer demographics shifting
+
+**Concept Drift (Posterior Shift):**
+- Relationship between inputs and outputs changes
+- P(Y|X) changes while P(X) may remain stable
+- Example: Economic conditions affecting credit risk
+
+**Label Drift (Prior Shift):**
+- Output distribution changes
+- P(Y) changes while P(X|Y) remains stable
+- Example: Seasonal changes in product demand
+
+**Complete Drift:**
+- Both input distributions and relationships change
+- Both P(X) and P(Y|X) change simultaneously
+
+1.2 Drift Patterns
+------------------
+**Sudden Drift:**
+- Abrupt change at specific time point
+- Clear before/after distinction
+
+**Gradual Drift:**
+- Slow, continuous change over time
+- Difficult to detect without proper monitoring
+
+**Incremental Drift:**
+- Series of small, incremental changes
+- Cumulative effect becomes significant
+
+**Recurring Drift:**
+- Cyclical patterns of change
+- May follow seasonal or business cycles
+
+================================================================================
+2. DATA DRIFT DETECTION METHODS
+================================================================================
+
+2.1 Statistical Distance Measures
+---------------------------------
+```python
+import numpy as np
+from scipy import stats
+from scipy.spatial.distance import jensenshannon
+from sklearn.model_selection import train_test_split
+
+class DataDriftDetector:
+    def __init__(self, reference_data, sensitivity=0.05):
+        self.reference_data = reference_data
+        self.sensitivity = sensitivity
+        self.feature_names = None
+        
+    def detect_drift(self, current_data, method='ks_test'):
+        """Detect drift using specified method"""
+        
+        methods = {
+            'ks_test': self._kolmogorov_smirnov_test,
+            'js_divergence': self._jensen_shannon_divergence,
+            'population_stability': self._population_stability_index,
+            'wasserstein': self._wasserstein_distance
+        }
+        
+        if method not in methods:
+            raise ValueError(f"Unknown method: {method}")
+        
+        return methods[method](current_data)
+    
+    def _kolmogorov_smirnov_test(self, current_data):
+        """Kolmogorov-Smirnov test for distribution comparison"""
+        
+        results = {}
+        
+        if isinstance(self.reference_data, np.ndarray):
+            n_features = self.reference_data.shape[1]
+            feature_names = [f'feature_{i}' for i in range(n_features)]
+        else:
+            feature_names = self.reference_data.columns
+            n_features = len(feature_names)
+        
+        for i, feature_name in enumerate(feature_names):
+            if isinstance(self.reference_data, np.ndarray):
+                ref_feature = self.reference_data[:, i]
+                curr_feature = current_data[:, i]
+            else:
+                ref_feature = self.reference_data[feature_name]
+                curr_feature = current_data[feature_name]
+            
+            # Handle categorical features
+            if ref_feature.dtype == 'object' or curr_feature.dtype == 'object':
+                drift_score = self._categorical_drift_ks(ref_feature, curr_feature)
+                p_value = None  # Chi-square test would be more appropriate
+            else:
+                # Numerical features
+                statistic, p_value = stats.ks_2samp(ref_feature, curr_feature)
+                drift_score = statistic
+            
+            results[feature_name] = {
+                'drift_score': drift_score,
+                'p_value': p_value,
+                'is_drift': drift_score > self.sensitivity if p_value is None else p_value < self.sensitivity,
+                'method': 'ks_test'
+            }
+        
+        overall_drift = any(result['is_drift'] for result in results.values())
+        
+        return {
+            'overall_drift': overall_drift,
+            'feature_results': results,
+            'drift_score': np.mean([r['drift_score'] for r in results.values()])
+        }
+    
+    def _jensen_shannon_divergence(self, current_data):
+        """Jensen-Shannon divergence for distribution comparison"""
+        
+        results = {}
+        
+        if isinstance(self.reference_data, np.ndarray):
+            feature_names = [f'feature_{i}' for i in range(self.reference_data.shape[1])]
+        else:
+            feature_names = self.reference_data.columns
+        
+        for i, feature_name in enumerate(feature_names):
+            if isinstance(self.reference_data, np.ndarray):
+                ref_feature = self.reference_data[:, i]
+                curr_feature = current_data[:, i]
+            else:
+                ref_feature = self.reference_data[feature_name]
+                curr_feature = current_data[feature_name]
+            
+            # Create histograms for comparison
+            if ref_feature.dtype in ['int64', 'float64']:
+                # Numerical features
+                min_val = min(ref_feature.min(), curr_feature.min())
+                max_val = max(ref_feature.max(), curr_feature.max())
+                bins = np.linspace(min_val, max_val, 50)
+                
+                ref_hist, _ = np.histogram(ref_feature, bins=bins, density=True)
+                curr_hist, _ = np.histogram(curr_feature, bins=bins, density=True)
+                
+                # Normalize to probability distributions
+                ref_hist = ref_hist / np.sum(ref_hist)
+                curr_hist = curr_hist / np.sum(curr_hist)
+                
+                # Add small epsilon to avoid log(0)
+                epsilon = 1e-10
+                ref_hist = ref_hist + epsilon
+                curr_hist = curr_hist + epsilon
+                
+                js_distance = jensenshannon(ref_hist, curr_hist)
+                
+            else:
+                # Categorical features
+                ref_counts = ref_feature.value_counts(normalize=True)
+                curr_counts = curr_feature.value_counts(normalize=True)
+                
+                # Align categories
+                all_categories = set(ref_counts.index) | set(curr_counts.index)
+                ref_aligned = ref_counts.reindex(all_categories, fill_value=0)
+                curr_aligned = curr_counts.reindex(all_categories, fill_value=0)
+                
+                js_distance = jensenshannon(ref_aligned.values, curr_aligned.values)
+            
+            results[feature_name] = {
+                'drift_score': js_distance,
+                'is_drift': js_distance > self.sensitivity,
+                'method': 'js_divergence'
+            }
+        
+        overall_drift = any(result['is_drift'] for result in results.values())
+        
+        return {
+            'overall_drift': overall_drift,
+            'feature_results': results,
+            'drift_score': np.mean([r['drift_score'] for r in results.values()])
+        }
+    
+    def _population_stability_index(self, current_data):
+        """Population Stability Index for drift detection"""
+        
+        results = {}
+        
+        if isinstance(self.reference_data, np.ndarray):
+            feature_names = [f'feature_{i}' for i in range(self.reference_data.shape[1])]
+        else:
+            feature_names = self.reference_data.columns
+        
+        for i, feature_name in enumerate(feature_names):
+            if isinstance(self.reference_data, np.ndarray):
+                ref_feature = self.reference_data[:, i]
+                curr_feature = current_data[:, i]
+            else:
+                ref_feature = self.reference_data[feature_name]
+                curr_feature = current_data[feature_name]
+            
+            psi = self._calculate_psi(ref_feature, curr_feature)
+            
+            # PSI interpretation
+            # < 0.1: No significant drift
+            # 0.1-0.2: Moderate drift
+            # > 0.2: Significant drift
+            
+            results[feature_name] = {
+                'drift_score': psi,
+                'is_drift': psi > 0.1,
+                'severity': 'low' if psi < 0.1 else ('moderate' if psi < 0.2 else 'high'),
+                'method': 'psi'
+            }
+        
+        overall_drift = any(result['is_drift'] for result in results.values())
+        
+        return {
+            'overall_drift': overall_drift,
+            'feature_results': results,
+            'drift_score': np.mean([r['drift_score'] for r in results.values()])
+        }
+    
+    def _calculate_psi(self, reference, current, bins=10):
+        """Calculate Population Stability Index"""
+        
+        if reference.dtype in ['int64', 'float64']:
+            # Numerical feature
+            min_val = min(reference.min(), current.min())
+            max_val = max(reference.max(), current.max())
+            bin_edges = np.linspace(min_val, max_val, bins + 1)
+            
+            ref_counts, _ = np.histogram(reference, bins=bin_edges)
+            curr_counts, _ = np.histogram(current, bins=bin_edges)
+        else:
+            # Categorical feature
+            all_categories = list(set(reference) | set(current))
+            ref_counts = reference.value_counts().reindex(all_categories, fill_value=0).values
+            curr_counts = current.value_counts().reindex(all_categories, fill_value=0).values
+        
+        # Convert to proportions
+        ref_props = ref_counts / np.sum(ref_counts)
+        curr_props = curr_counts / np.sum(curr_counts)
+        
+        # Add small epsilon to avoid log(0)
+        epsilon = 1e-6
+        ref_props = np.where(ref_props == 0, epsilon, ref_props)
+        curr_props = np.where(curr_props == 0, epsilon, curr_props)
+        
+        # Calculate PSI
+        psi = np.sum((curr_props - ref_props) * np.log(curr_props / ref_props))
+        
+        return psi
+```
+
+2.2 Advanced Drift Detection
+----------------------------
+```python
+class AdvancedDriftDetector:
+    def __init__(self, reference_data):
+        self.reference_data = reference_data
+        
+    def detect_multivariate_drift(self, current_data, method='mmd'):
+        """Detect multivariate drift using kernel methods"""
+        
+        if method == 'mmd':
+            return self._maximum_mean_discrepancy(current_data)
+        elif method == 'classifier':
+            return self._classifier_based_detection(current_data)
+        else:
+            raise ValueError(f"Unknown method: {method}")
+    
+    def _maximum_mean_discrepancy(self, current_data):
+        """Maximum Mean Discrepancy test for multivariate drift"""
+        
+        def rbf_kernel(X, Y, gamma=1.0):
+            """RBF kernel for MMD"""
+            XX = np.sum(X**2, axis=1)[:, np.newaxis]
+            YY = np.sum(Y**2, axis=1)[np.newaxis, :]
+            XY = np.dot(X, Y.T)
+            
+            distances_sq = XX + YY - 2 * XY
+            return np.exp(-gamma * distances_sq)
+        
+        # Sample data for computational efficiency
+        n_sample = min(1000, len(self.reference_data), len(current_data))
+        ref_sample = self.reference_data.sample(n_sample) if hasattr(self.reference_data, 'sample') else self.reference_data[:n_sample]
+        curr_sample = current_data.sample(n_sample) if hasattr(current_data, 'sample') else current_data[:n_sample]
+        
+        # Convert to numpy arrays
+        X = ref_sample.values if hasattr(ref_sample, 'values') else ref_sample
+        Y = curr_sample.values if hasattr(curr_sample, 'values') else curr_sample
+        
+        # Calculate MMD
+        gamma = 1.0 / X.shape[1]  # Heuristic for gamma
+        
+        K_XX = rbf_kernel(X, X, gamma)
+        K_YY = rbf_kernel(Y, Y, gamma)
+        K_XY = rbf_kernel(X, Y, gamma)
+        
+        mmd = (np.mean(K_XX) + np.mean(K_YY) - 2 * np.mean(K_XY))
+        
+        # Permutation test for significance
+        n_permutations = 100
+        permutation_stats = []
+        
+        combined_data = np.vstack([X, Y])
+        
+        for _ in range(n_permutations):
+            perm_indices = np.random.permutation(len(combined_data))
+            perm_X = combined_data[perm_indices[:len(X)]]
+            perm_Y = combined_data[perm_indices[len(X):]]
+            
+            K_perm_XX = rbf_kernel(perm_X, perm_X, gamma)
+            K_perm_YY = rbf_kernel(perm_Y, perm_Y, gamma)
+            K_perm_XY = rbf_kernel(perm_X, perm_Y, gamma)
+            
+            perm_mmd = (np.mean(K_perm_XX) + np.mean(K_perm_YY) - 2 * np.mean(K_perm_XY))
+            permutation_stats.append(perm_mmd)
+        
+        p_value = np.mean(np.array(permutation_stats) >= mmd)
+        
+        return {
+            'mmd_statistic': mmd,
+            'p_value': p_value,
+            'is_drift': p_value < 0.05,
+            'method': 'mmd'
+        }
+    
+    def _classifier_based_detection(self, current_data):
+        """Classifier-based drift detection"""
+        
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.metrics import roc_auc_score
+        
+        # Create labels (0 for reference, 1 for current)
+        ref_labels = np.zeros(len(self.reference_data))
+        curr_labels = np.ones(len(current_data))
+        
+        # Combine data
+        X = np.vstack([
+            self.reference_data.values if hasattr(self.reference_data, 'values') else self.reference_data,
+            current_data.values if hasattr(current_data, 'values') else current_data
+        ])
+        y = np.hstack([ref_labels, curr_labels])
+        
+        # Train classifier
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y)
+        
+        clf = RandomForestClassifier(n_estimators=100, random_state=42)
+        clf.fit(X_train, y_train)
+        
+        # Evaluate classifier
+        y_pred_proba = clf.predict_proba(X_test)[:, 1]
+        auc_score = roc_auc_score(y_test, y_pred_proba)
+        
+        # If classifier can distinguish well (AUC >> 0.5), there's drift
+        drift_threshold = 0.7  # AUC threshold for drift detection
+        
+        return {
+            'auc_score': auc_score,
+            'is_drift': auc_score > drift_threshold,
+            'feature_importance': clf.feature_importances_.tolist(),
+            'method': 'classifier'
+        }
+```
+
+================================================================================
+3. CONCEPT DRIFT DETECTION
+================================================================================
+
+3.1 Performance-Based Detection
+-------------------------------
+```python
+class ConceptDriftDetector:
+    def __init__(self, baseline_performance, window_size=100):
+        self.baseline_performance = baseline_performance
+        self.window_size = window_size
+        self.performance_history = []
+        
+    def add_prediction(self, prediction, true_label):
+        """Add new prediction for drift monitoring"""
+        
+        is_correct = prediction == true_label
+        self.performance_history.append({
+            'prediction': prediction,
+            'true_label': true_label,
+            'is_correct': is_correct,
+            'timestamp': time.time()
+        })
+        
+        # Keep only recent history
+        if len(self.performance_history) > self.window_size * 2:
+            self.performance_history = self.performance_history[-self.window_size * 2:]
+    
+    def detect_performance_drift(self, method='page_hinkley'):
+        """Detect concept drift using performance metrics"""
+        
+        if len(self.performance_history) < self.window_size:
+            return {'insufficient_data': True}
+        
+        if method == 'page_hinkley':
+            return self._page_hinkley_test()
+        elif method == 'adwin':
+            return self._adwin_detection()
+        elif method == 'ddm':
+            return self._drift_detection_method()
+        else:
+            raise ValueError(f"Unknown method: {method}")
+    
+    def _page_hinkley_test(self, threshold=50, alpha=0.9999):
+        """Page-Hinkley test for concept drift detection"""
+        
+        recent_performance = self.performance_history[-self.window_size:]
+        accuracy_values = [p['is_correct'] for p in recent_performance]
+        
+        # Calculate cumulative sum
+        mean_performance = np.mean(accuracy_values)
+        cumsum = 0
+        min_cumsum = 0
+        
+        drift_detected = False
+        drift_point = None
+        
+        for i, is_correct in enumerate(accuracy_values):
+            cumsum += (is_correct - mean_performance - alpha)
+            
+            if cumsum < min_cumsum:
+                min_cumsum = cumsum
+            
+            ph_value = cumsum - min_cumsum
+            
+            if ph_value > threshold:
+                drift_detected = True
+                drift_point = i
+                break
+        
+        return {
+            'drift_detected': drift_detected,
+            'drift_point': drift_point,
+            'ph_value': ph_value if 'ph_value' in locals() else 0,
+            'threshold': threshold,
+            'method': 'page_hinkley'
+        }
+    
+    def _adwin_detection(self, delta=0.002):
+        """ADWIN (Adaptive Windowing) drift detection"""
+        
+        recent_performance = [p['is_correct'] for p in self.performance_history[-self.window_size:]]
+        
+        if len(recent_performance) < 10:
+            return {'insufficient_data': True}
+        
+        # Simplified ADWIN implementation
+        # In practice, use more sophisticated implementation
+        
+        window_length = len(recent_performance)
+        best_cut = None
+        min_variance_diff = float('inf')
+        
+        for cut_point in range(10, window_length - 10):
+            left_window = recent_performance[:cut_point]
+            right_window = recent_performance[cut_point:]
+            
+            left_mean = np.mean(left_window)
+            right_mean = np.mean(right_window)
+            
+            left_var = np.var(left_window)
+            right_var = np.var(right_window)
+            
+            # Calculate variance difference
+            variance_diff = abs(left_var - right_var)
+            
+            # Check if means are significantly different
+            mean_diff = abs(left_mean - right_mean)
+            
+            if mean_diff > delta and variance_diff < min_variance_diff:
+                min_variance_diff = variance_diff
+                best_cut = cut_point
+        
+        drift_detected = best_cut is not None
+        
+        return {
+            'drift_detected': drift_detected,
+            'cut_point': best_cut,
+            'delta': delta,
+            'method': 'adwin'
+        }
+    
+    def _drift_detection_method(self, alpha_warning=2.0, alpha_drift=3.0):
+        """Drift Detection Method (DDM)"""
+        
+        recent_performance = [p['is_correct'] for p in self.performance_history[-self.window_size:]]
+        
+        # Calculate error rate and standard deviation
+        error_rate = 1 - np.mean(recent_performance)
+        n = len(recent_performance)
+        
+        if n < 30:  # Need minimum samples
+            return {'insufficient_data': True}
+        
+        # Standard deviation of error rate
+        std_error = np.sqrt(error_rate * (1 - error_rate) / n)
+        
+        # Compare with baseline
+        baseline_error = 1 - self.baseline_performance
+        baseline_std = np.sqrt(baseline_error * (1 - baseline_error) / n)
+        
+        # Calculate warning and drift thresholds
+        warning_threshold = baseline_error + alpha_warning * baseline_std
+        drift_threshold = baseline_error + alpha_drift * baseline_std
+        
+        warning_detected = error_rate > warning_threshold
+        drift_detected = error_rate > drift_threshold
+        
+        return {
+            'warning_detected': warning_detected,
+            'drift_detected': drift_detected,
+            'current_error_rate': error_rate,
+            'warning_threshold': warning_threshold,
+            'drift_threshold': drift_threshold,
+            'method': 'ddm'
+        }
+```
+
+================================================================================
+4. STATISTICAL TESTS FOR DRIFT
+================================================================================
+
+4.1 Comprehensive Statistical Testing
+-------------------------------------
+```python
+class StatisticalDriftTests:
+    def __init__(self, alpha=0.05):
+        self.alpha = alpha
+        
+    def chi_square_test(self, reference_data, current_data):
+        """Chi-square test for categorical data drift"""
+        
+        # Get unique categories from both datasets
+        all_categories = list(set(reference_data) | set(current_data))
+        
+        # Create contingency table
+        ref_counts = reference_data.value_counts().reindex(all_categories, fill_value=0)
+        curr_counts = current_data.value_counts().reindex(all_categories, fill_value=0)
+        
+        # Chi-square test
+        observed = np.array([curr_counts.values, ref_counts.values])
+        
+        chi2_stat, p_value, dof, expected = stats.chi2_contingency(observed)
+        
+        return {
+            'chi2_statistic': chi2_stat,
+            'p_value': p_value,
+            'degrees_of_freedom': dof,
+            'is_drift': p_value < self.alpha,
+            'test': 'chi_square'
+        }
+    
+    def mann_whitney_test(self, reference_data, current_data):
+        """Mann-Whitney U test for non-parametric comparison"""
+        
+        statistic, p_value = stats.mannwhitneyu(
+            reference_data, current_data, alternative='two-sided'
+        )
+        
+        return {
+            'statistic': statistic,
+            'p_value': p_value,
+            'is_drift': p_value < self.alpha,
+            'test': 'mann_whitney'
+        }
+    
+    def anderson_darling_test(self, reference_data, current_data):
+        """Anderson-Darling test for distribution comparison"""
+        
+        # Combine samples for Anderson-Darling 2-sample test
+        combined_data = np.concatenate([reference_data, current_data])
+        n1, n2 = len(reference_data), len(current_data)
+        
+        # Sort combined data
+        sorted_data = np.sort(combined_data)
+        
+        # Calculate empirical CDFs
+        def empirical_cdf(data, x):
+            return np.searchsorted(data, x, side='right') / len(data)
+        
+        # Anderson-Darling statistic calculation (simplified)
+        ad_statistic = 0
+        for i, value in enumerate(sorted_data):
+            F1 = empirical_cdf(reference_data, value)
+            F2 = empirical_cdf(current_data, value)
+            
+            if F1 > 0 and F1 < 1 and F2 > 0 and F2 < 1:
+                ad_statistic += (F1 - F2) ** 2 / (F1 * (1 - F1))
+        
+        ad_statistic *= (n1 * n2) / (n1 + n2)
+        
+        # Critical values (approximate)
+        critical_values = {0.1: 1.933, 0.05: 2.492, 0.025: 3.070, 0.01: 3.857}
+        p_value = None
+        
+        for alpha_level, critical_value in critical_values.items():
+            if ad_statistic > critical_value:
+                p_value = alpha_level
+                break
+        
+        if p_value is None:
+            p_value = 0.1 if ad_statistic <= critical_values[0.1] else 0.001
+        
+        return {
+            'ad_statistic': ad_statistic,
+            'p_value': p_value,
+            'is_drift': p_value < self.alpha,
+            'test': 'anderson_darling'
+        }
+
+class EnsembleDriftTest:
+    def __init__(self, tests=None, voting_strategy='majority'):
+        self.tests = tests or [
+            StatisticalDriftTests().chi_square_test,
+            StatisticalDriftTests().mann_whitney_test,
+            StatisticalDriftTests().anderson_darling_test
+        ]
+        self.voting_strategy = voting_strategy
+        
+    def detect_drift(self, reference_data, current_data):
+        """Ensemble drift detection using multiple tests"""
+        
+        results = {}
+        drift_votes = 0
+        total_tests = 0
+        
+        for test_func in self.tests:
+            try:
+                result = test_func(reference_data, current_data)
+                test_name = result['test']
+                results[test_name] = result
+                
+                if result['is_drift']:
+                    drift_votes += 1
+                total_tests += 1
+                
+            except Exception as e:
+                # Handle cases where test is not applicable
+                continue
+        
+        # Determine overall drift based on voting strategy
+        if self.voting_strategy == 'majority':
+            overall_drift = drift_votes > total_tests / 2
+        elif self.voting_strategy == 'unanimous':
+            overall_drift = drift_votes == total_tests
+        elif self.voting_strategy == 'any':
+            overall_drift = drift_votes > 0
+        else:
+            overall_drift = drift_votes > 0
+        
+        return {
+            'overall_drift': overall_drift,
+            'drift_votes': drift_votes,
+            'total_tests': total_tests,
+            'test_results': results,
+            'voting_strategy': self.voting_strategy
+        }
+```
+
+================================================================================
+5. CONTINUOUS MONITORING SYSTEMS
+================================================================================
+
+5.1 Real-Time Drift Monitoring
+------------------------------
+```python
+import asyncio
+from collections import deque
+
+class ContinuousDriftMonitor:
+    def __init__(self, reference_data, window_size=1000, check_interval=60):
+        self.reference_data = reference_data
+        self.window_size = window_size
+        self.check_interval = check_interval
+        
+        self.data_buffer = deque(maxlen=window_size)
+        self.prediction_buffer = deque(maxlen=window_size)
+        
+        self.drift_detector = DataDriftDetector(reference_data)
+        self.concept_detector = ConceptDriftDetector(baseline_performance=0.9)
+        
+        self.monitoring_active = False
+        self.drift_alerts = []
+        
+    async def start_monitoring(self):
+        """Start continuous drift monitoring"""
+        self.monitoring_active = True
+        
+        # Start monitoring tasks
+        await asyncio.gather(
+            self._data_drift_monitoring(),
+            self._concept_drift_monitoring(),
+            self._alert_management()
+        )
+    
+    async def _data_drift_monitoring(self):
+        """Monitor for data drift"""
+        while self.monitoring_active:
+            if len(self.data_buffer) >= 100:  # Minimum samples for detection
+                # Convert buffer to array
+                current_data = np.array(list(self.data_buffer))
+                
+                # Detect drift
+                drift_result = self.drift_detector.detect_drift(current_data, method='ks_test')
+                
+                if drift_result['overall_drift']:
+                    alert = {
+                        'type': 'data_drift',
+                        'timestamp': time.time(),
+                        'severity': 'warning',
+                        'details': drift_result,
+                        'message': f"Data drift detected with score: {drift_result['drift_score']:.4f}"
+                    }
+                    self.drift_alerts.append(alert)
+                    await self._send_alert(alert)
+            
+            await asyncio.sleep(self.check_interval)
+    
+    async def _concept_drift_monitoring(self):
+        """Monitor for concept drift"""
+        while self.monitoring_active:
+            if len(self.prediction_buffer) >= 50:  # Minimum samples
+                # Check for concept drift
+                drift_result = self.concept_detector.detect_performance_drift(method='page_hinkley')
+                
+                if drift_result.get('drift_detected', False):
+                    alert = {
+                        'type': 'concept_drift',
+                        'timestamp': time.time(),
+                        'severity': 'critical',
+                        'details': drift_result,
+                        'message': "Concept drift detected - model performance degraded"
+                    }
+                    self.drift_alerts.append(alert)
+                    await self._send_alert(alert)
+            
+            await asyncio.sleep(self.check_interval)
+    
+    def add_data_point(self, data_point):
+        """Add new data point for monitoring"""
+        self.data_buffer.append(data_point)
+    
+    def add_prediction(self, prediction, true_label):
+        """Add prediction result for concept drift monitoring"""
+        self.concept_detector.add_prediction(prediction, true_label)
+        self.prediction_buffer.append({'prediction': prediction, 'true_label': true_label})
+    
+    async def _send_alert(self, alert):
+        """Send drift alert"""
+        print(f"DRIFT ALERT: {alert['message']}")
+        # In practice, integrate with your alerting system
+    
+    async def _alert_management(self):
+        """Manage and deduplicate alerts"""
+        while self.monitoring_active:
+            # Clean up old alerts
+            current_time = time.time()
+            self.drift_alerts = [
+                alert for alert in self.drift_alerts
+                if current_time - alert['timestamp'] < 3600  # Keep alerts for 1 hour
+            ]
+            
+            await asyncio.sleep(300)  # Clean up every 5 minutes
+    
+    def get_drift_summary(self, hours=24):
+        """Get drift summary for specified time period"""
+        cutoff_time = time.time() - (hours * 3600)
+        
+        recent_alerts = [
+            alert for alert in self.drift_alerts
+            if alert['timestamp'] > cutoff_time
+        ]
+        
+        summary = {
+            'total_alerts': len(recent_alerts),
+            'data_drift_alerts': len([a for a in recent_alerts if a['type'] == 'data_drift']),
+            'concept_drift_alerts': len([a for a in recent_alerts if a['type'] == 'concept_drift']),
+            'latest_alerts': recent_alerts[-5:] if recent_alerts else []
+        }
+        
+        return summary
+```
+
+================================================================================
+6. ADAPTATION STRATEGIES
+================================================================================
+
+6.1 Model Adaptation Methods
+----------------------------
+```python
+class ModelAdaptationManager:
+    def __init__(self, base_model, adaptation_config):
+        self.base_model = base_model
+        self.config = adaptation_config
+        self.adaptation_history = []
+        
+    def adapt_to_drift(self, drift_type, new_data, drift_severity='medium'):
+        """Adapt model based on detected drift"""
+        
+        adaptation_strategies = {
+            'data_drift': {
+                'low': self._update_preprocessing,
+                'medium': self._retrain_with_new_data,
+                'high': self._full_model_retrain
+            },
+            'concept_drift': {
+                'low': self._update_weights,
+                'medium': self._incremental_learning,
+                'high': self._full_model_retrain
+            }
+        }
+        
+        strategy = adaptation_strategies.get(drift_type, {}).get(drift_severity)
+        
+        if strategy:
+            adaptation_result = strategy(new_data)
+            
+            # Log adaptation
+            self.adaptation_history.append({
+                'timestamp': time.time(),
+                'drift_type': drift_type,
+                'severity': drift_severity,
+                'strategy': strategy.__name__,
+                'result': adaptation_result
+            })
+            
+            return adaptation_result
+        else:
+            return {'error': f'No strategy for {drift_type} with severity {drift_severity}'}
+    
+    def _update_preprocessing(self, new_data):
+        """Update preprocessing parameters"""
+        
+        # Example: Update normalization parameters
+        from sklearn.preprocessing import StandardScaler
+        
+        scaler = StandardScaler()
+        scaler.fit(new_data)
+        
+        return {
+            'strategy': 'update_preprocessing',
+            'new_scaler_mean': scaler.mean_.tolist(),
+            'new_scaler_scale': scaler.scale_.tolist(),
+            'success': True
+        }
+    
+    def _retrain_with_new_data(self, new_data):
+        """Retrain model with combination of old and new data"""
+        
+        # This is a simplified example
+        # In practice, you'd need to maintain training data and implement proper retraining
+        
+        try:
+            # Assuming we have access to original training data
+            # combined_data = combine_old_and_new_data(new_data)
+            # self.base_model.fit(combined_data)
+            
+            return {
+                'strategy': 'retrain_with_new_data',
+                'new_data_size': len(new_data),
+                'success': True,
+                'message': 'Model retrained with new data'
+            }
+        except Exception as e:
+            return {
+                'strategy': 'retrain_with_new_data',
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _incremental_learning(self, new_data):
+        """Perform incremental learning"""
+        
+        # Check if model supports incremental learning
+        if hasattr(self.base_model, 'partial_fit'):
+            try:
+                # Extract features and labels
+                X_new = new_data.drop('target', axis=1) if 'target' in new_data.columns else new_data
+                y_new = new_data['target'] if 'target' in new_data.columns else None
+                
+                if y_new is not None:
+                    self.base_model.partial_fit(X_new, y_new)
+                    
+                    return {
+                        'strategy': 'incremental_learning',
+                        'samples_processed': len(X_new),
+                        'success': True
+                    }
+                else:
+                    return {
+                        'strategy': 'incremental_learning',
+                        'success': False,
+                        'error': 'No target labels available for incremental learning'
+                    }
+                    
+            except Exception as e:
+                return {
+                    'strategy': 'incremental_learning',
+                    'success': False,
+                    'error': str(e)
+                }
+        else:
+            return {
+                'strategy': 'incremental_learning',
+                'success': False,
+                'error': 'Model does not support incremental learning'
+            }
+    
+    def _update_weights(self, new_data):
+        """Update model weights (for neural networks)"""
+        
+        # This would be specific to the model type
+        # Example for neural networks with learning rate adjustment
+        
+        return {
+            'strategy': 'update_weights',
+            'learning_rate_adjusted': True,
+            'success': True,
+            'message': 'Model weights updated with reduced learning rate'
+        }
+    
+    def _full_model_retrain(self, new_data):
+        """Perform full model retraining"""
+        
+        try:
+            # This would trigger a complete retraining pipeline
+            # In practice, this might involve:
+            # 1. Data preparation
+            # 2. Model selection
+            # 3. Hyperparameter tuning
+            # 4. Training and validation
+            
+            return {
+                'strategy': 'full_model_retrain',
+                'triggered': True,
+                'success': True,
+                'message': 'Full model retraining initiated'
+            }
+        except Exception as e:
+            return {
+                'strategy': 'full_model_retrain',
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_adaptation_summary(self):
+        """Get summary of adaptation history"""
+        
+        if not self.adaptation_history:
+            return {'message': 'No adaptations performed yet'}
+        
+        strategy_counts = {}
+        success_rate = 0
+        
+        for adaptation in self.adaptation_history:
+            strategy = adaptation['strategy']
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+            
+            if adaptation['result'].get('success', False):
+                success_rate += 1
+        
+        success_rate = success_rate / len(self.adaptation_history)
+        
+        return {
+            'total_adaptations': len(self.adaptation_history),
+            'strategy_distribution': strategy_counts,
+            'success_rate': success_rate,
+            'latest_adaptation': self.adaptation_history[-1] if self.adaptation_history else None
+        }
+```
+
+================================================================================
+7. IMPLEMENTATION EXAMPLES
+================================================================================
+
+7.1 Complete Drift Monitoring Pipeline
+--------------------------------------
+```python
+class CompleteDriftMonitoringPipeline:
+    def __init__(self, reference_data, model):
+        self.reference_data = reference_data
+        self.model = model
+        
+        # Initialize components
+        self.data_drift_detector = DataDriftDetector(reference_data)
+        self.concept_drift_detector = ConceptDriftDetector(baseline_performance=0.9)
+        self.statistical_tests = StatisticalDriftTests()
+        self.adaptation_manager = ModelAdaptationManager(model, {})
+        
+        # Monitoring state
+        self.monitoring_data = []
+        self.drift_alerts = []
+        
+    def process_new_batch(self, new_data, predictions=None, true_labels=None):
+        """Process new batch of data and check for drift"""
+        
+        results = {
+            'timestamp': time.time(),
+            'batch_size': len(new_data),
+            'data_drift': None,
+            'concept_drift': None,
+            'adaptations': []
+        }
+        
+        # Data drift detection
+        data_drift_result = self.data_drift_detector.detect_drift(new_data, method='ks_test')
+        results['data_drift'] = data_drift_result
+        
+        # Concept drift detection (if we have predictions and labels)
+        if predictions is not None and true_labels is not None:
+            # Add predictions to concept drift detector
+            for pred, true_label in zip(predictions, true_labels):
+                self.concept_drift_detector.add_prediction(pred, true_label)
+            
+            concept_drift_result = self.concept_drift_detector.detect_performance_drift()
+            results['concept_drift'] = concept_drift_result
+            
+            # Check if adaptation is needed
+            if concept_drift_result.get('drift_detected', False):
+                adaptation_result = self.adaptation_manager.adapt_to_drift(
+                    'concept_drift', new_data, 'medium'
+                )
+                results['adaptations'].append(adaptation_result)
+        
+        # Check if data drift requires adaptation
+        if data_drift_result['overall_drift']:
+            adaptation_result = self.adaptation_manager.adapt_to_drift(
+                'data_drift', new_data, 'medium'
+            )
+            results['adaptations'].append(adaptation_result)
+        
+        # Store results
+        self.monitoring_data.append(results)
+        
+        return results
+    
+    def generate_drift_report(self, time_period_hours=24):
+        """Generate comprehensive drift report"""
+        
+        cutoff_time = time.time() - (time_period_hours * 3600)
+        recent_data = [
+            entry for entry in self.monitoring_data
+            if entry['timestamp'] > cutoff_time
+        ]
+        
+        if not recent_data:
+            return {'message': 'No data available for the specified time period'}
+        
+        # Analyze data drift patterns
+        data_drift_detections = sum(
+            1 for entry in recent_data
+            if entry['data_drift'] and entry['data_drift']['overall_drift']
+        )
+        
+        # Analyze concept drift patterns
+        concept_drift_detections = sum(
+            1 for entry in recent_data
+            if entry['concept_drift'] and entry['concept_drift'].get('drift_detected', False)
+        )
+        
+        # Analyze adaptations
+        total_adaptations = sum(len(entry['adaptations']) for entry in recent_data)
+        
+        adaptation_success_rate = 0
+        if total_adaptations > 0:
+            successful_adaptations = sum(
+                1 for entry in recent_data
+                for adaptation in entry['adaptations']
+                if adaptation.get('success', False)
+            )
+            adaptation_success_rate = successful_adaptations / total_adaptations
+        
+        return {
+            'time_period_hours': time_period_hours,
+            'total_batches_processed': len(recent_data),
+            'data_drift_detections': data_drift_detections,
+            'concept_drift_detections': concept_drift_detections,
+            'total_adaptations': total_adaptations,
+            'adaptation_success_rate': adaptation_success_rate,
+            'drift_frequency': {
+                'data_drift_rate': data_drift_detections / len(recent_data),
+                'concept_drift_rate': concept_drift_detections / len(recent_data)
+            }
+        }
+
+# Usage example
+pipeline = CompleteDriftMonitoringPipeline(reference_data, trained_model)
+
+# Process new batches
+for new_batch in data_stream:
+    predictions = trained_model.predict(new_batch.drop('target', axis=1))
+    true_labels = new_batch['target']
+    
+    result = pipeline.process_new_batch(
+        new_batch.drop('target', axis=1),
+        predictions,
+        true_labels
+    )
+    
+    print(f"Batch processed: {result}")
+
+# Generate report
+report = pipeline.generate_drift_report(time_period_hours=24)
+print(f"Drift Report: {report}")
+```
+
+================================================================================
+8. BEST PRACTICES
+================================================================================
+
+8.1 Drift Monitoring Best Practices
+-----------------------------------
+```python
+class DriftMonitoringBestPractices:
+    @staticmethod
+    def get_recommendations():
+        return {
+            'detection_strategy': [
+                'Use multiple detection methods for robustness',
+                'Combine statistical tests with ML-based approaches',
+                'Set appropriate sensitivity levels for your use case',
+                'Monitor both univariate and multivariate drift',
+                'Consider domain-specific knowledge in threshold setting'
+            ],
+            'monitoring_frequency': [
+                'Real-time monitoring for critical applications',
+                'Batch monitoring for less time-sensitive systems',
+                'Adjust frequency based on data velocity and drift patterns',
+                'Balance computational cost with detection timeliness',
+                'Implement different frequencies for different drift types'
+            ],
+            'adaptation_strategy': [
+                'Define clear adaptation triggers and thresholds',
+                'Implement gradual adaptation to avoid system shock',
+                'Maintain model versioning for rollback capability',
+                'Test adaptations in staging before production deployment',
+                'Monitor adaptation effectiveness continuously'
+            ],
+            'alert_management': [
+                'Implement alert prioritization based on business impact',
+                'Use escalation procedures for critical drifts',
+                'Provide actionable information in alerts',
+                'Avoid alert fatigue through smart filtering',
+                'Include relevant stakeholders in alert distribution'
+            ]
+        }
+    
+    @staticmethod
+    def get_implementation_checklist():
+        return {
+            'preparation': [
+                'Establish baseline data distributions',
+                'Define drift detection thresholds',
+                'Choose appropriate detection methods',
+                'Set up monitoring infrastructure',
+                'Define adaptation strategies'
+            ],
+            'deployment': [
+                'Implement drift detection in production pipeline',
+                'Set up alerting and notification systems',
+                'Configure monitoring dashboards',
+                'Test adaptation mechanisms',
+                'Train operations team on drift management'
+            ],
+            'maintenance': [
+                'Regular review of detection thresholds',
+                'Update baseline data periodically',
+                'Monitor detection method effectiveness',
+                'Optimize computational performance',
+                'Continuously improve adaptation strategies'
+            ]
+        }
+
+# Performance optimization tips
+DRIFT_MONITORING_OPTIMIZATION = {
+    'computational_efficiency': [
+        'Use sampling for large datasets',
+        'Implement incremental statistical tests',
+        'Cache computation results where possible',
+        'Use parallel processing for multiple features',
+        'Optimize memory usage for streaming data'
+    ],
+    'statistical_robustness': [
+        'Use appropriate statistical tests for data types',
+        'Control for multiple hypothesis testing',
+        'Consider seasonal patterns in baseline data',
+        'Account for natural variability in data',
+        'Validate detection methods on historical data'
+    ],
+    'business_alignment': [
+        'Align drift detection with business metrics',
+        'Consider cost of false positives vs false negatives',
+        'Implement business-rule-based override capabilities',
+        'Provide explainable drift detection results',
+        'Regular stakeholder review of drift impact'
+    ]
+}
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+Data drift and concept drift are critical challenges in production ML systems:
+
+**Key Concepts:**
+- **Data Drift:** Changes in input feature distributions over time
+- **Concept Drift:** Changes in the relationship between inputs and outputs
+- **Detection Methods:** Statistical tests, distance measures, and performance monitoring
+- **Adaptation Strategies:** Model retraining, incremental learning, and preprocessing updates
+
+**Detection Approaches:**
+- Use multiple methods for robust detection (ensemble approach)
+- Combine statistical tests with ML-based detection
+- Monitor both univariate and multivariate drift
+- Implement real-time and batch monitoring based on requirements
+
+**Monitoring Strategy:**
+- Establish proper baselines from representative historical data
+- Set appropriate sensitivity thresholds based on business impact
+- Implement continuous monitoring with intelligent alerting
+- Balance detection accuracy with computational efficiency
+
+**Adaptation Methods:**
+- Define clear adaptation triggers and escalation procedures
+- Implement gradual adaptation to minimize system disruption
+- Maintain model versioning for rollback capabilities
+- Test adaptations thoroughly before production deployment
+
+**Best Practices:**
+- Start with simple methods and increase complexity as needed
+- Align drift detection with business objectives and metrics
+- Implement proper alert management to avoid fatigue
+- Regular review and optimization of detection thresholds
+- Continuous monitoring of adaptation effectiveness
+
+**Success Factors:**
+- Proper baseline establishment and maintenance
+- Appropriate method selection for data types and constraints
+- Integration with existing MLOps infrastructure
+- Clear escalation and response procedures
+- Regular validation and improvement of detection methods
+
+Effective drift monitoring enables proactive maintenance of ML model performance, ensuring continued reliability and business value in dynamic environments. 

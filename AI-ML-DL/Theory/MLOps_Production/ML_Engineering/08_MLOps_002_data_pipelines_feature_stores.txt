@@ -1,0 +1,661 @@
+DATA PIPELINES AND FEATURE STORES
+==================================
+
+Table of Contents:
+1. Data Pipeline Architecture Fundamentals
+2. ETL vs ELT Design Patterns
+3. Feature Engineering at Scale
+4. Feature Store Architecture and Design
+5. Data Versioning and Lineage
+6. Stream Processing and Real-time Pipelines
+7. Data Quality and Validation
+8. Implementation Examples and Best Practices
+
+================================================================================
+1. DATA PIPELINE ARCHITECTURE FUNDAMENTALS
+================================================================================
+
+1.1 Pipeline Architecture Patterns
+----------------------------------
+**Batch Processing Pipeline:**
+```
+Data Sources → Ingestion → Storage → Processing → Feature Store → ML Models
+```
+
+**Lambda Architecture:**
+```
+Data → [Batch Layer + Speed Layer] → Serving Layer → Applications
+```
+
+**Kappa Architecture:**
+```
+Data → Stream Processing → Serving Layer → Applications
+```
+
+1.2 Key Components
+------------------
+**Data Ingestion:**
+- Batch ingestion (scheduled jobs)
+- Stream ingestion (real-time events)
+- Change data capture (CDC)
+- API-based data pulls
+
+**Data Storage:**
+- Data lakes (S3, HDFS)
+- Data warehouses (Snowflake, BigQuery)
+- Operational databases
+- Object storage systems
+
+**Data Processing:**
+- Transformation engines (Spark, Flink)
+- Workflow orchestration (Airflow, Prefect)
+- Serverless functions (Lambda, Cloud Functions)
+
+================================================================================
+2. ETL VS ELT DESIGN PATTERNS
+================================================================================
+
+2.1 Extract-Transform-Load (ETL)
+-------------------------------
+**Traditional ETL Pattern:**
+```python
+def etl_pipeline():
+    # Extract
+    raw_data = extract_from_sources()
+    
+    # Transform
+    cleaned_data = clean_data(raw_data)
+    features = engineer_features(cleaned_data)
+    
+    # Load
+    load_to_warehouse(features)
+```
+
+**Benefits:**
+- Data validation before loading
+- Reduced storage costs
+- Faster query performance
+- Better data quality control
+
+**Challenges:**
+- Longer processing times
+- Less flexibility for ad-hoc analysis
+- Complex transformation logic
+
+2.2 Extract-Load-Transform (ELT)
+-------------------------------
+**Modern ELT Pattern:**
+```python
+def elt_pipeline():
+    # Extract & Load
+    raw_data = extract_from_sources()
+    load_raw_to_warehouse(raw_data)
+    
+    # Transform (in warehouse)
+    create_features_sql = """
+    CREATE TABLE features AS
+    SELECT 
+        user_id,
+        AVG(purchase_amount) as avg_purchase,
+        COUNT(*) as transaction_count
+    FROM raw_transactions
+    GROUP BY user_id
+    """
+    execute_sql(create_features_sql)
+```
+
+**Benefits:**
+- Faster initial data availability
+- Flexibility for multiple transformations
+- Leverage warehouse compute power
+- Support for exploratory analysis
+
+================================================================================
+3. FEATURE ENGINEERING AT SCALE
+================================================================================
+
+3.1 Scalable Feature Engineering
+-------------------------------
+**Distributed Processing with Spark:**
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+
+def create_user_features(transactions_df):
+    """Create user-level features from transaction data"""
+    
+    user_features = transactions_df.groupBy("user_id").agg(
+        count("*").alias("transaction_count"),
+        avg("amount").alias("avg_transaction_amount"),
+        max("timestamp").alias("last_transaction_date"),
+        sum("amount").alias("total_spent"),
+        stddev("amount").alias("spending_variance")
+    )
+    
+    # Add time-based features
+    user_features = user_features.withColumn(
+        "days_since_last_transaction",
+        datediff(current_date(), col("last_transaction_date"))
+    )
+    
+    return user_features
+```
+
+3.2 Time-Based Feature Engineering
+----------------------------------
+**Rolling Window Features:**
+```python
+def create_rolling_features(df, window_days=30):
+    """Create rolling window features"""
+    
+    window_spec = Window.partitionBy("user_id").orderBy("timestamp") \
+                       .rangeBetween(-window_days * 86400, 0)
+    
+    features = df.withColumn(
+        "rolling_avg_amount",
+        avg("amount").over(window_spec)
+    ).withColumn(
+        "rolling_transaction_count", 
+        count("*").over(window_spec)
+    )
+    
+    return features
+```
+
+3.3 Feature Transformation Pipeline
+----------------------------------
+```python
+class FeatureTransformer:
+    def __init__(self):
+        self.transformers = []
+    
+    def add_transformer(self, transformer):
+        self.transformers.append(transformer)
+    
+    def transform(self, data):
+        result = data
+        for transformer in self.transformers:
+            result = transformer.transform(result)
+        return result
+
+# Usage
+pipeline = FeatureTransformer()
+pipeline.add_transformer(NullValueImputer())
+pipeline.add_transformer(NumericScaler())
+pipeline.add_transformer(CategoricalEncoder())
+
+transformed_features = pipeline.transform(raw_data)
+```
+
+================================================================================
+4. FEATURE STORE ARCHITECTURE AND DESIGN
+================================================================================
+
+4.1 Feature Store Components
+---------------------------
+**Core Components:**
+- **Offline Store:** Historical features for training
+- **Online Store:** Low-latency features for serving  
+- **Feature Registry:** Metadata and discovery
+- **Computation Engine:** Feature generation logic
+
+**Architecture:**
+```
+Data Sources → Feature Engineering → [Offline Store | Online Store]
+                                   ↓              ↓
+                              Training Pipeline  Serving Pipeline
+```
+
+4.2 Feature Store Implementation
+-------------------------------
+```python
+class FeatureStore:
+    def __init__(self, offline_store, online_store, registry):
+        self.offline_store = offline_store
+        self.online_store = online_store
+        self.registry = registry
+    
+    def register_feature_view(self, feature_view):
+        """Register a new feature view"""
+        self.registry.register(feature_view)
+    
+    def get_historical_features(self, entity_df, feature_refs, timestamp_col):
+        """Get historical features for training"""
+        return self.offline_store.get_historical_features(
+            entity_df, feature_refs, timestamp_col
+        )
+    
+    def get_online_features(self, entity_keys, feature_refs):
+        """Get online features for serving"""
+        return self.online_store.get_features(entity_keys, feature_refs)
+    
+    def materialize_features(self, start_date, end_date, feature_views):
+        """Materialize features to both stores"""
+        for feature_view in feature_views:
+            # Compute features
+            features = feature_view.compute(start_date, end_date)
+            
+            # Write to offline store
+            self.offline_store.write(features, feature_view.name)
+            
+            # Write latest to online store
+            latest_features = features.filter(
+                col("timestamp") == features.agg(max("timestamp")).collect()[0][0]
+            )
+            self.online_store.write(latest_features, feature_view.name)
+```
+
+4.3 Feature Serving Patterns
+----------------------------
+**Point-in-Time Correct Joins:**
+```python
+def point_in_time_join(entity_df, feature_df, timestamp_col):
+    """Ensure temporal consistency in feature joins"""
+    
+    return entity_df.join(
+        feature_df,
+        (entity_df.entity_id == feature_df.entity_id) &
+        (feature_df.timestamp <= entity_df[timestamp_col]),
+        "left"
+    ).select(
+        entity_df["*"],
+        feature_df.features
+    ).groupBy(entity_df.columns).agg(
+        max(struct(feature_df.timestamp, feature_df.features)).alias("latest")
+    ).select(
+        entity_df.columns + [col("latest.features.*")]
+    )
+```
+
+================================================================================
+5. DATA VERSIONING AND LINEAGE
+================================================================================
+
+5.1 Data Versioning Strategies
+------------------------------
+**Content-Based Versioning:**
+```python
+import hashlib
+
+def version_dataset(data_path):
+    """Create content-based version for dataset"""
+    with open(data_path, 'rb') as f:
+        content = f.read()
+    
+    version_hash = hashlib.sha256(content).hexdigest()[:12]
+    return f"v{version_hash}"
+
+# Usage
+dataset_version = version_dataset("customer_data.parquet")
+versioned_path = f"s3://bucket/datasets/customer_data/{dataset_version}/"
+```
+
+**Schema Evolution:**
+```python
+class SchemaVersion:
+    def __init__(self, version, schema, migration_script=None):
+        self.version = version
+        self.schema = schema
+        self.migration_script = migration_script
+    
+    def migrate_from(self, source_version, data):
+        """Migrate data from source version to this version"""
+        if self.migration_script:
+            return self.migration_script(data)
+        return data
+```
+
+5.2 Lineage Tracking
+--------------------
+**Lineage Graph:**
+```python
+class DataLineage:
+    def __init__(self):
+        self.lineage_graph = {}
+    
+    def add_transformation(self, inputs, outputs, transformation_info):
+        """Track data transformation lineage"""
+        for output in outputs:
+            self.lineage_graph[output] = {
+                'inputs': inputs,
+                'transformation': transformation_info,
+                'timestamp': datetime.now()
+            }
+    
+    def get_upstream_dependencies(self, dataset):
+        """Get all upstream dependencies of a dataset"""
+        dependencies = set()
+        
+        def traverse(ds):
+            if ds in self.lineage_graph:
+                for input_ds in self.lineage_graph[ds]['inputs']:
+                    dependencies.add(input_ds)
+                    traverse(input_ds)
+        
+        traverse(dataset)
+        return dependencies
+```
+
+================================================================================
+6. STREAM PROCESSING AND REAL-TIME PIPELINES
+================================================================================
+
+6.1 Stream Processing Architecture
+---------------------------------
+**Event Streaming Pattern:**
+```
+Event Sources → Message Broker → Stream Processors → Feature Store/Sinks
+```
+
+**Apache Kafka Setup:**
+```python
+from kafka import KafkaProducer, KafkaConsumer
+import json
+
+class EventStreamer:
+    def __init__(self, bootstrap_servers):
+        self.producer = KafkaProducer(
+            bootstrap_servers=bootstrap_servers,
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+        
+    def publish_event(self, topic, event_data):
+        """Publish event to Kafka topic"""
+        self.producer.send(topic, event_data)
+        self.producer.flush()
+    
+    def create_consumer(self, topics, group_id):
+        """Create Kafka consumer"""
+        return KafkaConsumer(
+            *topics,
+            bootstrap_servers=self.bootstrap_servers,
+            group_id=group_id,
+            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+        )
+```
+
+6.2 Real-time Feature Engineering
+---------------------------------
+**Stream Processing with Apache Flink:**
+```python
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.table import StreamTableEnvironment
+
+def create_realtime_features():
+    """Create real-time features using Flink"""
+    
+    env = StreamExecutionEnvironment.get_execution_environment()
+    table_env = StreamTableEnvironment.create(env)
+    
+    # Define source table
+    table_env.execute_sql("""
+        CREATE TABLE user_events (
+            user_id STRING,
+            event_type STRING,
+            timestamp BIGINT,
+            amount DECIMAL(10,2)
+        ) WITH (
+            'connector' = 'kafka',
+            'topic' = 'user-events',
+            'properties.bootstrap.servers' = 'localhost:9092'
+        )
+    """)
+    
+    # Create real-time aggregated features
+    table_env.execute_sql("""
+        CREATE TABLE user_features (
+            user_id STRING,
+            event_count BIGINT,
+            total_amount DECIMAL(10,2),
+            avg_amount DECIMAL(10,2),
+            window_start TIMESTAMP(3),
+            window_end TIMESTAMP(3)
+        ) WITH (
+            'connector' = 'redis',
+            'host' = 'localhost',
+            'port' = '6379'
+        )
+    """)
+    
+    # Tumbling window aggregation
+    table_env.execute_sql("""
+        INSERT INTO user_features
+        SELECT 
+            user_id,
+            COUNT(*) as event_count,
+            SUM(amount) as total_amount,
+            AVG(amount) as avg_amount,
+            TUMBLE_START(PROCTIME(), INTERVAL '1' MINUTE) as window_start,
+            TUMBLE_END(PROCTIME(), INTERVAL '1' MINUTE) as window_end
+        FROM user_events
+        GROUP BY user_id, TUMBLE(PROCTIME(), INTERVAL '1' MINUTE)
+    """)
+```
+
+================================================================================
+7. DATA QUALITY AND VALIDATION
+================================================================================
+
+7.1 Data Quality Framework
+--------------------------
+**Quality Dimensions:**
+- **Completeness:** No missing values where expected
+- **Accuracy:** Values represent real-world entities correctly
+- **Consistency:** Values are uniform across the dataset
+- **Timeliness:** Data is up-to-date and available when needed
+- **Validity:** Data conforms to defined formats and constraints
+
+**Data Quality Checks:**
+```python
+class DataQualityValidator:
+    def __init__(self):
+        self.checks = []
+    
+    def add_check(self, check_function, description):
+        self.checks.append((check_function, description))
+    
+    def validate(self, data):
+        results = []
+        for check_func, description in self.checks:
+            try:
+                result = check_func(data)
+                results.append({
+                    'check': description,
+                    'passed': result,
+                    'timestamp': datetime.now()
+                })
+            except Exception as e:
+                results.append({
+                    'check': description,
+                    'passed': False,
+                    'error': str(e),
+                    'timestamp': datetime.now()
+                })
+        return results
+
+# Example quality checks
+def check_no_nulls(df, column):
+    return df[column].isnull().sum() == 0
+
+def check_range(df, column, min_val, max_val):
+    return df[column].between(min_val, max_val).all()
+
+def check_uniqueness(df, column):
+    return df[column].nunique() == len(df)
+```
+
+7.2 Schema Validation
+---------------------
+**Pydantic Schema Validation:**
+```python
+from pydantic import BaseModel, validator
+from typing import Optional
+from datetime import datetime
+
+class UserEvent(BaseModel):
+    user_id: str
+    event_type: str
+    timestamp: datetime
+    amount: Optional[float] = None
+    
+    @validator('user_id')
+    def user_id_must_not_be_empty(cls, v):
+        if not v.strip():
+            raise ValueError('user_id cannot be empty')
+        return v
+    
+    @validator('amount')
+    def amount_must_be_positive(cls, v):
+        if v is not None and v < 0:
+            raise ValueError('amount must be positive')
+        return v
+
+def validate_event_batch(events):
+    """Validate a batch of events"""
+    validated_events = []
+    errors = []
+    
+    for event in events:
+        try:
+            validated_event = UserEvent(**event)
+            validated_events.append(validated_event)
+        except Exception as e:
+            errors.append({'event': event, 'error': str(e)})
+    
+    return validated_events, errors
+```
+
+================================================================================
+8. IMPLEMENTATION EXAMPLES AND BEST PRACTICES
+================================================================================
+
+8.1 End-to-End Pipeline Example
+------------------------------
+```python
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from datetime import datetime, timedelta
+
+def extract_data(**context):
+    """Extract data from source systems"""
+    execution_date = context['execution_date']
+    
+    # Extract from database
+    query = f"""
+    SELECT * FROM transactions 
+    WHERE created_at >= '{execution_date}' 
+    AND created_at < '{execution_date + timedelta(days=1)}'
+    """
+    
+    data = database.execute_query(query)
+    return data.to_dict('records')
+
+def transform_data(**context):
+    """Transform and engineer features"""
+    ti = context['task_instance']
+    raw_data = ti.xcom_pull(task_ids='extract_data')
+    
+    df = pd.DataFrame(raw_data)
+    
+    # Feature engineering
+    features = create_user_features(df)
+    
+    return features.to_dict('records')
+
+def load_to_feature_store(**context):
+    """Load processed features to feature store"""
+    ti = context['task_instance']
+    features = ti.xcom_pull(task_ids='transform_data')
+    
+    feature_store.write_features(features, feature_group='user_features')
+
+# DAG definition
+dag = DAG(
+    'feature_pipeline',
+    default_args={
+        'owner': 'data-team',
+        'depends_on_past': False,
+        'start_date': datetime(2023, 1, 1),
+        'email_on_failure': True,
+        'retries': 2,
+        'retry_delay': timedelta(minutes=5)
+    },
+    schedule_interval='@daily',
+    catchup=False
+)
+
+extract_task = PythonOperator(
+    task_id='extract_data',
+    python_callable=extract_data,
+    dag=dag
+)
+
+transform_task = PythonOperator(
+    task_id='transform_data',
+    python_callable=transform_data,
+    dag=dag
+)
+
+load_task = PythonOperator(
+    task_id='load_to_feature_store',
+    python_callable=load_to_feature_store,
+    dag=dag
+)
+
+extract_task >> transform_task >> load_task
+```
+
+8.2 Best Practices Summary
+--------------------------
+**Pipeline Design:**
+- Design for idempotency and reprocessing
+- Implement comprehensive error handling
+- Use configuration-driven pipelines
+- Monitor pipeline performance and data quality
+
+**Feature Engineering:**
+- Maintain feature engineering code in version control
+- Document feature definitions and business logic
+- Implement feature validation and testing
+- Design for both batch and streaming scenarios
+
+**Data Management:**
+- Implement data lifecycle management
+- Use consistent naming conventions
+- Maintain data catalogs and documentation
+- Implement proper access controls and governance
+
+**Performance Optimization:**
+- Optimize data formats (Parquet, Delta Lake)
+- Implement efficient partitioning strategies
+- Use appropriate compression techniques
+- Monitor and optimize resource utilization
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+Data pipelines and feature stores form the backbone of production ML systems. Key considerations include:
+
+**Architecture Patterns:**
+- Choose between ETL/ELT based on requirements
+- Implement both batch and stream processing capabilities
+- Design for scalability and fault tolerance
+
+**Feature Store Design:**
+- Separate offline and online stores for different use cases
+- Implement point-in-time correct feature serving
+- Maintain comprehensive feature metadata and lineage
+
+**Data Quality:**
+- Implement comprehensive validation at multiple stages
+- Monitor data quality metrics continuously
+- Design graceful handling of data quality issues
+
+**Best Practices:**
+- Version everything (data, schemas, code)
+- Monitor pipeline performance and data quality
+- Design for reproducibility and debugging
+- Implement proper testing and validation strategies
+
+Success requires balancing performance, reliability, and maintainability while ensuring data quality and consistency across the ML lifecycle. 

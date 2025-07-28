@@ -1,0 +1,1875 @@
+MODEL PERFORMANCE MONITORING
+============================
+
+Table of Contents:
+1. Performance Monitoring Fundamentals
+2. Key Performance Metrics for ML Models
+3. Real-Time Monitoring Systems
+4. Alerting and Notification Systems
+5. Dashboard Design and Visualization
+6. Automated Performance Assessment
+7. Performance Degradation Detection
+8. Best Practices and Implementation
+
+================================================================================
+1. PERFORMANCE MONITORING FUNDAMENTALS
+================================================================================
+
+1.1 Why Monitor ML Model Performance?
+------------------------------------
+**Business Impact:**
+- Prevent revenue loss from poor predictions
+- Maintain user trust and experience
+- Ensure regulatory compliance
+- Enable data-driven optimization decisions
+
+**Technical Challenges:**
+- Models degrade over time due to data drift
+- Performance metrics may not align with business metrics
+- Silent failures are common in ML systems
+- Complex dependencies between data, model, and infrastructure
+
+**Monitoring Objectives:**
+- Detect performance degradation early
+- Understand root causes of model failures
+- Optimize model performance continuously
+- Ensure model reliability and availability
+
+1.2 Types of Performance Monitoring
+----------------------------------
+**Online Monitoring:**
+- Real-time performance tracking during serving
+- Immediate feedback on prediction quality
+- Resource utilization monitoring
+- User experience metrics
+
+**Offline Monitoring:**
+- Batch evaluation on held-out datasets
+- Comprehensive model validation
+- A/B testing analysis
+- Historical performance trending
+
+**Infrastructure Monitoring:**
+- System resource utilization (CPU, memory, GPU)
+- Network latency and throughput
+- Error rates and availability
+- Storage and database performance
+
+1.3 Monitoring Architecture
+--------------------------
+```
+Data Sources → Model Serving → [Metrics Collection] → [Processing & Analysis] → [Dashboards & Alerts]
+```
+
+**Components:**
+- **Metrics Collectors:** Capture performance data
+- **Time Series Database:** Store metrics over time
+- **Analysis Engine:** Detect patterns and anomalies
+- **Alerting System:** Notify stakeholders of issues
+- **Visualization Layer:** Dashboards and reports
+
+================================================================================
+2. KEY PERFORMANCE METRICS FOR ML MODELS
+================================================================================
+
+2.1 Prediction Quality Metrics
+------------------------------
+**Classification Metrics:**
+```python
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
+class ClassificationMetrics:
+    def __init__(self):
+        self.predictions = []
+        self.actuals = []
+        self.timestamps = []
+    
+    def record_prediction(self, prediction, actual, timestamp=None):
+        """Record prediction and actual outcome"""
+        self.predictions.append(prediction)
+        self.actuals.append(actual)
+        self.timestamps.append(timestamp or time.time())
+    
+    def calculate_metrics(self, window_hours=24):
+        """Calculate metrics for specified time window"""
+        
+        if not self.predictions:
+            return {}
+        
+        # Filter by time window if specified
+        cutoff_time = time.time() - (window_hours * 3600)
+        indices = [i for i, ts in enumerate(self.timestamps) if ts > cutoff_time]
+        
+        if not indices:
+            return {}
+        
+        preds = np.array([self.predictions[i] for i in indices])
+        actuals = np.array([self.actuals[i] for i in indices])
+        
+        metrics = {
+            'accuracy': accuracy_score(actuals, preds),
+            'precision': precision_score(actuals, preds, average='weighted'),
+            'recall': recall_score(actuals, preds, average='weighted'),
+            'f1_score': f1_score(actuals, preds, average='weighted'),
+            'sample_size': len(indices)
+        }
+        
+        # Add AUC if probabilities available
+        if hasattr(self, 'prediction_probabilities'):
+            probs = np.array([self.prediction_probabilities[i] for i in indices])
+            metrics['auc_roc'] = roc_auc_score(actuals, probs)
+        
+        return metrics
+    
+    def calculate_confusion_matrix(self):
+        """Calculate confusion matrix"""
+        from sklearn.metrics import confusion_matrix
+        
+        if not self.predictions:
+            return None
+        
+        cm = confusion_matrix(self.actuals, self.predictions)
+        
+        return {
+            'matrix': cm.tolist(),
+            'labels': list(set(self.actuals)),
+            'normalized': (cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]).tolist()
+        }
+
+# Regression metrics
+class RegressionMetrics:
+    def __init__(self):
+        self.predictions = []
+        self.actuals = []
+        self.timestamps = []
+    
+    def calculate_metrics(self, window_hours=24):
+        """Calculate regression metrics"""
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        
+        cutoff_time = time.time() - (window_hours * 3600)
+        indices = [i for i, ts in enumerate(self.timestamps) if ts > cutoff_time]
+        
+        if not indices:
+            return {}
+        
+        preds = np.array([self.predictions[i] for i in indices])
+        actuals = np.array([self.actuals[i] for i in indices])
+        
+        metrics = {
+            'mse': mean_squared_error(actuals, preds),
+            'rmse': np.sqrt(mean_squared_error(actuals, preds)),
+            'mae': mean_absolute_error(actuals, preds),
+            'r2_score': r2_score(actuals, preds),
+            'mape': np.mean(np.abs((actuals - preds) / actuals)) * 100,
+            'sample_size': len(indices)
+        }
+        
+        return metrics
+```
+
+2.2 Business Metrics
+--------------------
+```python
+class BusinessMetrics:
+    def __init__(self):
+        self.conversions = []
+        self.revenues = []
+        self.user_sessions = []
+        
+    def track_conversion(self, user_id, predicted_conversion, actual_conversion, value=None):
+        """Track conversion metrics"""
+        self.conversions.append({
+            'user_id': user_id,
+            'predicted': predicted_conversion,
+            'actual': actual_conversion,
+            'value': value,
+            'timestamp': time.time()
+        })
+    
+    def calculate_conversion_metrics(self, window_hours=24):
+        """Calculate conversion-related business metrics"""
+        
+        cutoff_time = time.time() - (window_hours * 3600)
+        recent_conversions = [
+            c for c in self.conversions 
+            if c['timestamp'] > cutoff_time
+        ]
+        
+        if not recent_conversions:
+            return {}
+        
+        # Conversion rate
+        actual_conversions = sum(1 for c in recent_conversions if c['actual'])
+        conversion_rate = actual_conversions / len(recent_conversions)
+        
+        # Prediction accuracy for conversions
+        correct_predictions = sum(
+            1 for c in recent_conversions 
+            if c['predicted'] == c['actual']
+        )
+        prediction_accuracy = correct_predictions / len(recent_conversions)
+        
+        # Revenue metrics if available
+        revenue_metrics = {}
+        if any(c['value'] for c in recent_conversions):
+            total_revenue = sum(c['value'] or 0 for c in recent_conversions if c['actual'])
+            predicted_revenue = sum(c['value'] or 0 for c in recent_conversions if c['predicted'])
+            
+            revenue_metrics = {
+                'total_revenue': total_revenue,
+                'predicted_revenue': predicted_revenue,
+                'revenue_accuracy': 1 - abs(total_revenue - predicted_revenue) / total_revenue if total_revenue > 0 else 0
+            }
+        
+        return {
+            'conversion_rate': conversion_rate,
+            'prediction_accuracy': prediction_accuracy,
+            'sample_size': len(recent_conversions),
+            **revenue_metrics
+        }
+```
+
+2.3 Infrastructure Metrics
+--------------------------
+```python
+import psutil
+import time
+from prometheus_client import Gauge, Counter, Histogram
+
+class InfrastructureMetrics:
+    def __init__(self):
+        # Prometheus metrics
+        self.prediction_latency = Histogram(
+            'prediction_latency_seconds',
+            'Time spent on predictions',
+            ['model_name', 'model_version']
+        )
+        
+        self.prediction_requests = Counter(
+            'prediction_requests_total',
+            'Total prediction requests',
+            ['model_name', 'status']
+        )
+        
+        self.model_memory_usage = Gauge(
+            'model_memory_usage_bytes',
+            'Memory usage by model',
+            ['model_name']
+        )
+        
+        self.active_connections = Gauge(
+            'active_connections',
+            'Number of active connections'
+        )
+        
+    def record_prediction(self, model_name, model_version, latency, status='success'):
+        """Record prediction metrics"""
+        self.prediction_latency.labels(
+            model_name=model_name,
+            model_version=model_version
+        ).observe(latency)
+        
+        self.prediction_requests.labels(
+            model_name=model_name,
+            status=status
+        ).inc()
+    
+    def get_system_metrics(self):
+        """Get current system metrics"""
+        
+        # CPU metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_count = psutil.cpu_count()
+        
+        # Memory metrics
+        memory = psutil.virtual_memory()
+        
+        # Disk metrics
+        disk = psutil.disk_usage('/')
+        
+        # Network metrics
+        network = psutil.net_io_counters()
+        
+        return {
+            'cpu_percent': cpu_percent,
+            'cpu_count': cpu_count,
+            'memory_total_gb': memory.total / (1024**3),
+            'memory_available_gb': memory.available / (1024**3),
+            'memory_percent': memory.percent,
+            'disk_total_gb': disk.total / (1024**3),
+            'disk_free_gb': disk.free / (1024**3),
+            'disk_percent': (disk.used / disk.total) * 100,
+            'network_bytes_sent': network.bytes_sent,
+            'network_bytes_recv': network.bytes_recv,
+            'timestamp': time.time()
+        }
+    
+    def monitor_gpu_usage(self):
+        """Monitor GPU usage if available"""
+        try:
+            import GPUtil
+            gpus = GPUtil.getGPUs()
+            
+            gpu_metrics = []
+            for gpu in gpus:
+                gpu_metrics.append({
+                    'id': gpu.id,
+                    'name': gpu.name,
+                    'load_percent': gpu.load * 100,
+                    'memory_used_mb': gpu.memoryUsed,
+                    'memory_total_mb': gpu.memoryTotal,
+                    'memory_percent': gpu.memoryUtil * 100,
+                    'temperature': gpu.temperature
+                })
+            
+            return gpu_metrics
+            
+        except ImportError:
+            return []
+```
+
+================================================================================
+3. REAL-TIME MONITORING SYSTEMS
+================================================================================
+
+3.1 Streaming Metrics Collection
+--------------------------------
+```python
+import asyncio
+from collections import deque
+import json
+
+class RealTimeMetricsCollector:
+    def __init__(self, buffer_size=10000):
+        self.metrics_buffer = deque(maxlen=buffer_size)
+        self.subscribers = []
+        self.running = False
+        
+    async def start_collection(self):
+        """Start real-time metrics collection"""
+        self.running = True
+        
+        # Start background tasks
+        await asyncio.gather(
+            self._collect_prediction_metrics(),
+            self._collect_system_metrics(),
+            self._process_metrics_buffer()
+        )
+    
+    async def _collect_prediction_metrics(self):
+        """Collect prediction-related metrics"""
+        while self.running:
+            # This would integrate with your prediction serving system
+            # For example, listening to a message queue or polling an API
+            
+            try:
+                # Simulate metrics collection
+                metric = {
+                    'type': 'prediction',
+                    'model_id': 'recommendation_v1',
+                    'latency_ms': np.random.normal(50, 10),
+                    'timestamp': time.time()
+                }
+                
+                await self._add_metric(metric)
+                
+            except Exception as e:
+                print(f"Error collecting prediction metrics: {e}")
+            
+            await asyncio.sleep(0.1)  # Collect every 100ms
+    
+    async def _collect_system_metrics(self):
+        """Collect system-level metrics"""
+        infrastructure_monitor = InfrastructureMetrics()
+        
+        while self.running:
+            try:
+                system_metrics = infrastructure_monitor.get_system_metrics()
+                system_metrics['type'] = 'system'
+                
+                await self._add_metric(system_metrics)
+                
+            except Exception as e:
+                print(f"Error collecting system metrics: {e}")
+            
+            await asyncio.sleep(5)  # Collect every 5 seconds
+    
+    async def _add_metric(self, metric):
+        """Add metric to buffer and notify subscribers"""
+        self.metrics_buffer.append(metric)
+        
+        # Notify subscribers
+        for subscriber in self.subscribers:
+            try:
+                await subscriber(metric)
+            except Exception as e:
+                print(f"Error notifying subscriber: {e}")
+    
+    async def _process_metrics_buffer(self):
+        """Process buffered metrics for aggregation"""
+        while self.running:
+            if len(self.metrics_buffer) > 100:
+                # Process batch of metrics
+                batch = [self.metrics_buffer.popleft() for _ in range(100)]
+                await self._aggregate_metrics(batch)
+            
+            await asyncio.sleep(1)
+    
+    async def _aggregate_metrics(self, metrics_batch):
+        """Aggregate metrics for dashboards"""
+        
+        # Group by type and time window
+        aggregated = {}
+        
+        for metric in metrics_batch:
+            metric_type = metric.get('type', 'unknown')
+            
+            if metric_type not in aggregated:
+                aggregated[metric_type] = []
+            
+            aggregated[metric_type].append(metric)
+        
+        # Calculate aggregations
+        for metric_type, metrics in aggregated.items():
+            if metric_type == 'prediction':
+                avg_latency = np.mean([m['latency_ms'] for m in metrics])
+                max_latency = np.max([m['latency_ms'] for m in metrics])
+                
+                # Store aggregated metrics
+                await self._store_aggregated_metric({
+                    'type': 'prediction_aggregate',
+                    'avg_latency_ms': avg_latency,
+                    'max_latency_ms': max_latency,
+                    'request_count': len(metrics),
+                    'timestamp': time.time()
+                })
+    
+    def subscribe(self, callback):
+        """Subscribe to real-time metrics"""
+        self.subscribers.append(callback)
+    
+    def unsubscribe(self, callback):
+        """Unsubscribe from metrics"""
+        if callback in self.subscribers:
+            self.subscribers.remove(callback)
+```
+
+3.2 Time Series Data Management
+------------------------------
+```python
+import sqlite3
+from datetime import datetime, timedelta
+
+class TimeSeriesMetricsStore:
+    def __init__(self, db_path="metrics.db"):
+        self.db_path = db_path
+        self._initialize_db()
+    
+    def _initialize_db(self):
+        """Initialize metrics database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Create tables for different metric types
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS prediction_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL,
+                model_id TEXT,
+                model_version TEXT,
+                metric_name TEXT,
+                metric_value REAL,
+                metadata TEXT
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS system_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL,
+                metric_name TEXT,
+                metric_value REAL,
+                hostname TEXT
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS business_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL,
+                metric_name TEXT,
+                metric_value REAL,
+                user_segment TEXT,
+                metadata TEXT
+            )
+        ''')
+        
+        # Create indices for performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_prediction_timestamp ON prediction_metrics(timestamp)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_system_timestamp ON system_metrics(timestamp)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_business_timestamp ON business_metrics(timestamp)')
+        
+        conn.commit()
+        conn.close()
+    
+    def store_prediction_metric(self, model_id, model_version, metric_name, metric_value, metadata=None):
+        """Store prediction metric"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO prediction_metrics 
+            (timestamp, model_id, model_version, metric_name, metric_value, metadata)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (time.time(), model_id, model_version, metric_name, metric_value, 
+              json.dumps(metadata) if metadata else None))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_metrics(self, metric_type, model_id=None, start_time=None, end_time=None):
+        """Retrieve metrics from time series store"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if metric_type == 'prediction':
+            query = '''
+                SELECT timestamp, model_id, model_version, metric_name, metric_value, metadata
+                FROM prediction_metrics
+                WHERE 1=1
+            '''
+            params = []
+            
+            if model_id:
+                query += ' AND model_id = ?'
+                params.append(model_id)
+            
+            if start_time:
+                query += ' AND timestamp >= ?'
+                params.append(start_time)
+            
+            if end_time:
+                query += ' AND timestamp <= ?'
+                params.append(end_time)
+            
+            query += ' ORDER BY timestamp ASC'
+            
+            cursor.execute(query, params)
+            
+        results = cursor.fetchall()
+        conn.close()
+        
+        return results
+    
+    def get_metric_summary(self, metric_name, model_id, time_window_hours=24):
+        """Get metric summary for dashboard"""
+        
+        start_time = time.time() - (time_window_hours * 3600)
+        metrics = self.get_metrics('prediction', model_id, start_time)
+        
+        # Filter by metric name
+        filtered_metrics = [m for m in metrics if m[3] == metric_name]
+        
+        if not filtered_metrics:
+            return None
+        
+        values = [m[4] for m in filtered_metrics]
+        
+        return {
+            'metric_name': metric_name,
+            'model_id': model_id,
+            'count': len(values),
+            'mean': np.mean(values),
+            'median': np.median(values),
+            'std': np.std(values),
+            'min': np.min(values),
+            'max': np.max(values),
+            'p95': np.percentile(values, 95),
+            'p99': np.percentile(values, 99),
+            'time_window_hours': time_window_hours
+        }
+```
+
+================================================================================
+4. ALERTING AND NOTIFICATION SYSTEMS
+================================================================================
+
+4.1 Alert Rule Engine
+---------------------
+```python
+from enum import Enum
+from dataclasses import dataclass
+from typing import List, Dict, Callable
+
+class AlertSeverity(Enum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+@dataclass
+class AlertRule:
+    name: str
+    metric_name: str
+    threshold: float
+    operator: str  # 'gt', 'lt', 'eq', 'gte', 'lte'
+    severity: AlertSeverity
+    time_window_minutes: int = 5
+    min_data_points: int = 5
+    description: str = ""
+
+class AlertRuleEngine:
+    def __init__(self):
+        self.rules = {}
+        self.alert_history = []
+        self.active_alerts = {}
+        self.notification_handlers = []
+    
+    def add_rule(self, rule: AlertRule):
+        """Add alert rule"""
+        self.rules[rule.name] = rule
+    
+    def add_notification_handler(self, handler: Callable):
+        """Add notification handler (email, Slack, etc.)"""
+        self.notification_handlers.append(handler)
+    
+    def evaluate_metrics(self, metrics: List[Dict]):
+        """Evaluate metrics against alert rules"""
+        
+        current_time = time.time()
+        triggered_alerts = []
+        
+        for rule_name, rule in self.rules.items():
+            # Filter metrics by name and time window
+            relevant_metrics = [
+                m for m in metrics
+                if (m.get('metric_name') == rule.metric_name and
+                    current_time - m.get('timestamp', 0) <= rule.time_window_minutes * 60)
+            ]
+            
+            if len(relevant_metrics) < rule.min_data_points:
+                continue
+            
+            # Calculate aggregated value (mean for simplicity)
+            values = [m.get('metric_value', 0) for m in relevant_metrics]
+            aggregated_value = np.mean(values)
+            
+            # Evaluate condition
+            if self._evaluate_condition(aggregated_value, rule.threshold, rule.operator):
+                alert = self._create_alert(rule, aggregated_value, relevant_metrics)
+                
+                # Check if this is a new alert or escalation
+                if rule_name not in self.active_alerts:
+                    triggered_alerts.append(alert)
+                    self.active_alerts[rule_name] = alert
+                else:
+                    # Update existing alert
+                    self.active_alerts[rule_name]['last_triggered'] = current_time
+                    self.active_alerts[rule_name]['value'] = aggregated_value
+            
+            else:
+                # Clear alert if condition no longer met
+                if rule_name in self.active_alerts:
+                    resolved_alert = self.active_alerts.pop(rule_name)
+                    resolved_alert['status'] = 'resolved'
+                    resolved_alert['resolved_at'] = current_time
+                    self.alert_history.append(resolved_alert)
+        
+        # Send notifications for triggered alerts
+        for alert in triggered_alerts:
+            self._send_notifications(alert)
+        
+        return triggered_alerts
+    
+    def _evaluate_condition(self, value, threshold, operator):
+        """Evaluate alert condition"""
+        if operator == 'gt':
+            return value > threshold
+        elif operator == 'lt':
+            return value < threshold
+        elif operator == 'gte':
+            return value >= threshold
+        elif operator == 'lte':
+            return value <= threshold
+        elif operator == 'eq':
+            return abs(value - threshold) < 0.001
+        else:
+            return False
+    
+    def _create_alert(self, rule, value, metrics):
+        """Create alert object"""
+        return {
+            'rule_name': rule.name,
+            'metric_name': rule.metric_name,
+            'severity': rule.severity.value,
+            'threshold': rule.threshold,
+            'current_value': value,
+            'description': rule.description,
+            'triggered_at': time.time(),
+            'last_triggered': time.time(),
+            'status': 'active',
+            'data_points': len(metrics)
+        }
+    
+    def _send_notifications(self, alert):
+        """Send alert notifications"""
+        for handler in self.notification_handlers:
+            try:
+                handler(alert)
+            except Exception as e:
+                print(f"Failed to send notification: {e}")
+
+# Notification handlers
+class EmailNotificationHandler:
+    def __init__(self, smtp_config):
+        self.smtp_config = smtp_config
+    
+    def __call__(self, alert):
+        """Send email notification"""
+        import smtplib
+        from email.mime.text import MIMEText
+        
+        subject = f"ML Alert: {alert['rule_name']} ({alert['severity'].upper()})"
+        
+        body = f"""
+        Alert: {alert['rule_name']}
+        Severity: {alert['severity']}
+        Metric: {alert['metric_name']}
+        Current Value: {alert['current_value']:.4f}
+        Threshold: {alert['threshold']}
+        Description: {alert['description']}
+        Time: {datetime.fromtimestamp(alert['triggered_at'])}
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = self.smtp_config['from_email']
+        msg['To'] = self.smtp_config['to_email']
+        
+        with smtplib.SMTP(self.smtp_config['smtp_server']) as server:
+            server.send_message(msg)
+
+class SlackNotificationHandler:
+    def __init__(self, webhook_url):
+        self.webhook_url = webhook_url
+    
+    def __call__(self, alert):
+        """Send Slack notification"""
+        import requests
+        
+        color = {
+            'info': '#36a64f',
+            'warning': '#ff9900',
+            'critical': '#ff0000'
+        }.get(alert['severity'], '#36a64f')
+        
+        payload = {
+            "attachments": [
+                {
+                    "color": color,
+                    "title": f"ML Alert: {alert['rule_name']}",
+                    "fields": [
+                        {"title": "Severity", "value": alert['severity'], "short": True},
+                        {"title": "Metric", "value": alert['metric_name'], "short": True},
+                        {"title": "Current Value", "value": f"{alert['current_value']:.4f}", "short": True},
+                        {"title": "Threshold", "value": f"{alert['threshold']}", "short": True}
+                    ],
+                    "text": alert['description'],
+                    "ts": alert['triggered_at']
+                }
+            ]
+        }
+        
+        requests.post(self.webhook_url, json=payload)
+
+# Usage example
+alert_engine = AlertRuleEngine()
+
+# Add alert rules
+alert_engine.add_rule(AlertRule(
+    name="high_prediction_latency",
+    metric_name="prediction_latency_ms",
+    threshold=1000,
+    operator="gt",
+    severity=AlertSeverity.WARNING,
+    time_window_minutes=5,
+    description="Prediction latency is too high"
+))
+
+alert_engine.add_rule(AlertRule(
+    name="low_model_accuracy",
+    metric_name="accuracy",
+    threshold=0.8,
+    operator="lt",
+    severity=AlertSeverity.CRITICAL,
+    time_window_minutes=30,
+    description="Model accuracy has dropped below acceptable threshold"
+))
+
+# Add notification handlers
+alert_engine.add_notification_handler(
+    SlackNotificationHandler("https://hooks.slack.com/services/...")
+)
+```
+
+================================================================================
+5. DASHBOARD DESIGN AND VISUALIZATION
+================================================================================
+
+5.1 Dashboard Architecture
+--------------------------
+```python
+from flask import Flask, render_template, jsonify
+import plotly.graph_objs as go
+import plotly.utils
+
+class MLMonitoringDashboard:
+    def __init__(self, metrics_store):
+        self.app = Flask(__name__)
+        self.metrics_store = metrics_store
+        self._setup_routes()
+    
+    def _setup_routes(self):
+        """Setup Flask routes for dashboard"""
+        
+        @self.app.route('/')
+        def dashboard():
+            return render_template('dashboard.html')
+        
+        @self.app.route('/api/metrics/summary')
+        def get_metrics_summary():
+            """Get metrics summary for dashboard"""
+            
+            models = ['recommendation_v1', 'fraud_detection_v2', 'search_ranking_v1']
+            summary = {}
+            
+            for model_id in models:
+                model_metrics = {}
+                
+                # Get key metrics
+                for metric_name in ['accuracy', 'precision', 'recall', 'latency_ms']:
+                    metric_summary = self.metrics_store.get_metric_summary(
+                        metric_name, model_id, time_window_hours=24
+                    )
+                    if metric_summary:
+                        model_metrics[metric_name] = metric_summary
+                
+                summary[model_id] = model_metrics
+            
+            return jsonify(summary)
+        
+        @self.app.route('/api/metrics/timeseries/<model_id>/<metric_name>')
+        def get_timeseries_data(model_id, metric_name):
+            """Get time series data for plotting"""
+            
+            # Get last 24 hours of data
+            start_time = time.time() - (24 * 3600)
+            metrics = self.metrics_store.get_metrics('prediction', model_id, start_time)
+            
+            # Filter by metric name
+            filtered_metrics = [m for m in metrics if m[3] == metric_name]
+            
+            timestamps = [datetime.fromtimestamp(m[0]) for m in filtered_metrics]
+            values = [m[4] for m in filtered_metrics]
+            
+            return jsonify({
+                'timestamps': [ts.isoformat() for ts in timestamps],
+                'values': values,
+                'metric_name': metric_name,
+                'model_id': model_id
+            })
+        
+        @self.app.route('/api/alerts/active')
+        def get_active_alerts():
+            """Get active alerts"""
+            # This would integrate with your alert system
+            return jsonify([])
+    
+    def create_performance_plot(self, model_id, metric_name, time_window_hours=24):
+        """Create performance plot using Plotly"""
+        
+        start_time = time.time() - (time_window_hours * 3600)
+        metrics = self.metrics_store.get_metrics('prediction', model_id, start_time)
+        
+        # Filter by metric name
+        filtered_metrics = [m for m in metrics if m[3] == metric_name]
+        
+        if not filtered_metrics:
+            return None
+        
+        timestamps = [datetime.fromtimestamp(m[0]) for m in filtered_metrics]
+        values = [m[4] for m in filtered_metrics]
+        
+        # Create plot
+        trace = go.Scatter(
+            x=timestamps,
+            y=values,
+            mode='lines+markers',
+            name=f'{model_id} - {metric_name}',
+            line=dict(width=2)
+        )
+        
+        layout = go.Layout(
+            title=f'{metric_name.title()} over Time - {model_id}',
+            xaxis=dict(title='Time'),
+            yaxis=dict(title=metric_name),
+            hovermode='closest'
+        )
+        
+        fig = go.Figure(data=[trace], layout=layout)
+        
+        return plotly.utils.PlotlyJSONEncoder().encode(fig)
+    
+    def create_model_comparison_plot(self, models, metric_name):
+        """Create comparison plot across models"""
+        
+        traces = []
+        
+        for model_id in models:
+            start_time = time.time() - (24 * 3600)
+            metrics = self.metrics_store.get_metrics('prediction', model_id, start_time)
+            
+            filtered_metrics = [m for m in metrics if m[3] == metric_name]
+            
+            if filtered_metrics:
+                timestamps = [datetime.fromtimestamp(m[0]) for m in filtered_metrics]
+                values = [m[4] for m in filtered_metrics]
+                
+                trace = go.Scatter(
+                    x=timestamps,
+                    y=values,
+                    mode='lines',
+                    name=model_id,
+                    line=dict(width=2)
+                )
+                traces.append(trace)
+        
+        layout = go.Layout(
+            title=f'{metric_name.title()} Comparison Across Models',
+            xaxis=dict(title='Time'),
+            yaxis=dict(title=metric_name),
+            hovermode='closest'
+        )
+        
+        fig = go.Figure(data=traces, layout=layout)
+        
+        return plotly.utils.PlotlyJSONEncoder().encode(fig)
+    
+    def run(self, host='0.0.0.0', port=5000, debug=False):
+        """Run dashboard server"""
+        self.app.run(host=host, port=port, debug=debug)
+
+# Dashboard template (dashboard.html)
+dashboard_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ML Model Monitoring Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .metric-card { 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin: 10px; 
+            display: inline-block; 
+            width: 200px; 
+        }
+        .metric-value { font-size: 24px; font-weight: bold; }
+        .metric-name { color: #666; }
+        .alert { 
+            background-color: #ffebee; 
+            border-left: 4px solid #f44336; 
+            padding: 10px; 
+            margin: 10px 0; 
+        }
+    </style>
+</head>
+<body>
+    <h1>ML Model Monitoring Dashboard</h1>
+    
+    <div id="summary-cards"></div>
+    <div id="alerts-section"></div>
+    <div id="plots-section"></div>
+    
+    <script>
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                const summaryResponse = await fetch('/api/metrics/summary');
+                const summaryData = await summaryResponse.json();
+                
+                displaySummaryCards(summaryData);
+                
+                const alertsResponse = await fetch('/api/alerts/active');
+                const alertsData = await alertsResponse.json();
+                
+                displayAlerts(alertsData);
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+        
+        function displaySummaryCards(data) {
+            const container = document.getElementById('summary-cards');
+            container.innerHTML = '<h2>Model Performance Summary</h2>';
+            
+            for (const [modelId, metrics] of Object.entries(data)) {
+                const modelSection = document.createElement('div');
+                modelSection.innerHTML = `<h3>${modelId}</h3>`;
+                
+                for (const [metricName, metricData] of Object.entries(metrics)) {
+                    const card = document.createElement('div');
+                    card.className = 'metric-card';
+                    card.innerHTML = `
+                        <div class="metric-name">${metricName}</div>
+                        <div class="metric-value">${metricData.mean.toFixed(4)}</div>
+                        <div style="font-size: 12px;">±${metricData.std.toFixed(4)}</div>
+                    `;
+                    modelSection.appendChild(card);
+                }
+                
+                container.appendChild(modelSection);
+            }
+        }
+        
+        function displayAlerts(alerts) {
+            const container = document.getElementById('alerts-section');
+            
+            if (alerts.length > 0) {
+                container.innerHTML = '<h2>Active Alerts</h2>';
+                
+                alerts.forEach(alert => {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert';
+                    alertDiv.innerHTML = `
+                        <strong>${alert.rule_name}</strong> (${alert.severity})<br>
+                        ${alert.description}<br>
+                        Current: ${alert.current_value}, Threshold: ${alert.threshold}
+                    `;
+                    container.appendChild(alertDiv);
+                });
+            }
+        }
+        
+        // Load dashboard on page load
+        loadDashboard();
+        
+        // Refresh every 30 seconds
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>
+"""
+```
+
+================================================================================
+6. AUTOMATED PERFORMANCE ASSESSMENT
+================================================================================
+
+6.1 Automated Model Evaluation
+------------------------------
+```python
+class AutomatedModelEvaluator:
+    def __init__(self, metrics_store, evaluation_config):
+        self.metrics_store = metrics_store
+        self.config = evaluation_config
+        self.baseline_metrics = {}
+        
+    def establish_baseline(self, model_id, baseline_period_days=30):
+        """Establish baseline metrics for model"""
+        
+        end_time = time.time()
+        start_time = end_time - (baseline_period_days * 24 * 3600)
+        
+        metrics = self.metrics_store.get_metrics('prediction', model_id, start_time, end_time)
+        
+        # Calculate baseline for each metric
+        baseline = {}
+        metric_groups = {}
+        
+        for metric in metrics:
+            metric_name = metric[3]
+            metric_value = metric[4]
+            
+            if metric_name not in metric_groups:
+                metric_groups[metric_name] = []
+            metric_groups[metric_name].append(metric_value)
+        
+        for metric_name, values in metric_groups.items():
+            baseline[metric_name] = {
+                'mean': np.mean(values),
+                'std': np.std(values),
+                'p50': np.percentile(values, 50),
+                'p95': np.percentile(values, 95),
+                'p99': np.percentile(values, 99),
+                'min': np.min(values),
+                'max': np.max(values),
+                'sample_size': len(values)
+            }
+        
+        self.baseline_metrics[model_id] = baseline
+        return baseline
+    
+    def evaluate_current_performance(self, model_id, evaluation_window_hours=1):
+        """Evaluate current performance against baseline"""
+        
+        if model_id not in self.baseline_metrics:
+            return {'error': 'No baseline established for this model'}
+        
+        baseline = self.baseline_metrics[model_id]
+        
+        # Get current metrics
+        start_time = time.time() - (evaluation_window_hours * 3600)
+        current_metrics = self.metrics_store.get_metrics('prediction', model_id, start_time)
+        
+        # Group current metrics
+        current_groups = {}
+        for metric in current_metrics:
+            metric_name = metric[3]
+            metric_value = metric[4]
+            
+            if metric_name not in current_groups:
+                current_groups[metric_name] = []
+            current_groups[metric_name].append(metric_value)
+        
+        # Compare with baseline
+        evaluation_results = {}
+        
+        for metric_name, current_values in current_groups.items():
+            if metric_name in baseline:
+                current_mean = np.mean(current_values)
+                baseline_mean = baseline[metric_name]['mean']
+                baseline_std = baseline[metric_name]['std']
+                
+                # Calculate z-score
+                z_score = (current_mean - baseline_mean) / baseline_std if baseline_std > 0 else 0
+                
+                # Determine if significant deviation
+                is_significant = abs(z_score) > 2.0  # 2 standard deviations
+                
+                # Determine direction (better/worse depends on metric)
+                improvement_direction = self._get_improvement_direction(metric_name)
+                
+                if improvement_direction == 'higher':
+                    is_better = current_mean > baseline_mean
+                else:
+                    is_better = current_mean < baseline_mean
+                
+                evaluation_results[metric_name] = {
+                    'current_mean': current_mean,
+                    'baseline_mean': baseline_mean,
+                    'z_score': z_score,
+                    'is_significant': is_significant,
+                    'is_better': is_better,
+                    'percent_change': ((current_mean - baseline_mean) / baseline_mean) * 100,
+                    'sample_size': len(current_values)
+                }
+        
+        return evaluation_results
+    
+    def _get_improvement_direction(self, metric_name):
+        """Determine if higher or lower values are better for metric"""
+        
+        higher_is_better = ['accuracy', 'precision', 'recall', 'f1_score', 'auc_roc', 'conversion_rate']
+        lower_is_better = ['latency_ms', 'error_rate', 'mse', 'mae', 'rmse']
+        
+        if metric_name.lower() in higher_is_better:
+            return 'higher'
+        elif metric_name.lower() in lower_is_better:
+            return 'lower'
+        else:
+            return 'unknown'
+    
+    def generate_performance_report(self, model_id):
+        """Generate comprehensive performance report"""
+        
+        evaluation = self.evaluate_current_performance(model_id)
+        
+        if 'error' in evaluation:
+            return evaluation
+        
+        report = {
+            'model_id': model_id,
+            'evaluation_timestamp': time.time(),
+            'overall_status': 'unknown',
+            'metrics_summary': evaluation,
+            'recommendations': [],
+            'alerts': []
+        }
+        
+        # Determine overall status
+        significant_degradations = [
+            metric for metric, data in evaluation.items()
+            if data['is_significant'] and not data['is_better']
+        ]
+        
+        significant_improvements = [
+            metric for metric, data in evaluation.items()
+            if data['is_significant'] and data['is_better']
+        ]
+        
+        if significant_degradations:
+            report['overall_status'] = 'degraded'
+            report['alerts'].extend([
+                f"Significant degradation in {metric}: {evaluation[metric]['percent_change']:.1f}% change"
+                for metric in significant_degradations
+            ])
+        elif significant_improvements:
+            report['overall_status'] = 'improved'
+            report['recommendations'].append("Model showing improvement - consider promoting to production")
+        else:
+            report['overall_status'] = 'stable'
+        
+        return report
+
+# Automated evaluation scheduler
+class PerformanceEvaluationScheduler:
+    def __init__(self, evaluator, schedule_config):
+        self.evaluator = evaluator
+        self.config = schedule_config
+        self.running = False
+    
+    async def start_scheduled_evaluation(self):
+        """Start scheduled performance evaluation"""
+        self.running = True
+        
+        while self.running:
+            try:
+                await self._run_evaluation_cycle()
+            except Exception as e:
+                print(f"Error in evaluation cycle: {e}")
+            
+            # Wait for next evaluation
+            await asyncio.sleep(self.config.get('interval_minutes', 60) * 60)
+    
+    async def _run_evaluation_cycle(self):
+        """Run evaluation for all configured models"""
+        
+        models_to_evaluate = self.config.get('models', [])
+        
+        for model_id in models_to_evaluate:
+            try:
+                report = self.evaluator.generate_performance_report(model_id)
+                
+                # Send report to stakeholders
+                await self._send_performance_report(model_id, report)
+                
+                # Take automated actions if configured
+                await self._handle_automated_actions(model_id, report)
+                
+            except Exception as e:
+                print(f"Error evaluating model {model_id}: {e}")
+    
+    async def _handle_automated_actions(self, model_id, report):
+        """Handle automated actions based on performance report"""
+        
+        if report['overall_status'] == 'degraded':
+            # Trigger alerts
+            for alert in report['alerts']:
+                # Send to alert system
+                print(f"ALERT for {model_id}: {alert}")
+            
+            # Auto-scale if latency issues
+            latency_metrics = [k for k in report['metrics_summary'] if 'latency' in k.lower()]
+            if latency_metrics:
+                for metric in latency_metrics:
+                    if (report['metrics_summary'][metric]['is_significant'] and 
+                        not report['metrics_summary'][metric]['is_better']):
+                        print(f"Triggering auto-scale for {model_id} due to latency issues")
+                        # Trigger auto-scaling logic here
+```
+
+================================================================================
+7. PERFORMANCE DEGRADATION DETECTION
+================================================================================
+
+7.1 Statistical Degradation Detection
+-------------------------------------
+```python
+from scipy import stats
+from sklearn.model_selection import train_test_split
+
+class PerformanceDegradationDetector:
+    def __init__(self, sensitivity=0.05):
+        self.sensitivity = sensitivity  # Alpha level for statistical tests
+        self.baseline_performance = {}
+        self.detection_methods = {
+            'statistical_test': self._statistical_degradation_test,
+            'trend_analysis': self._trend_degradation_analysis,
+            'change_point': self._change_point_detection
+        }
+    
+    def set_baseline_performance(self, model_id, baseline_metrics):
+        """Set baseline performance metrics"""
+        self.baseline_performance[model_id] = {
+            'metrics': baseline_metrics,
+            'timestamp': time.time()
+        }
+    
+    def detect_degradation(self, model_id, current_metrics, method='statistical_test'):
+        """Detect performance degradation using specified method"""
+        
+        if model_id not in self.baseline_performance:
+            return {'error': 'No baseline performance set for this model'}
+        
+        if method not in self.detection_methods:
+            return {'error': f'Unknown detection method: {method}'}
+        
+        detection_func = self.detection_methods[method]
+        return detection_func(model_id, current_metrics)
+    
+    def _statistical_degradation_test(self, model_id, current_metrics):
+        """Detect degradation using statistical hypothesis testing"""
+        
+        baseline = self.baseline_performance[model_id]['metrics']
+        results = {}
+        
+        for metric_name in baseline.keys():
+            if metric_name in current_metrics:
+                baseline_values = baseline[metric_name]
+                current_values = current_metrics[metric_name]
+                
+                # Perform t-test
+                statistic, p_value = stats.ttest_ind(current_values, baseline_values)
+                
+                # Determine if degradation (depends on metric type)
+                improvement_direction = self._get_improvement_direction(metric_name)
+                
+                is_degraded = False
+                if improvement_direction == 'higher':
+                    # For metrics where higher is better (accuracy, etc.)
+                    is_degraded = (statistic < 0) and (p_value < self.sensitivity)
+                elif improvement_direction == 'lower':
+                    # For metrics where lower is better (latency, error rate, etc.)
+                    is_degraded = (statistic > 0) and (p_value < self.sensitivity)
+                
+                results[metric_name] = {
+                    'baseline_mean': np.mean(baseline_values),
+                    'current_mean': np.mean(current_values),
+                    'statistic': statistic,
+                    'p_value': p_value,
+                    'is_degraded': is_degraded,
+                    'confidence': 1 - p_value if is_degraded else p_value
+                }
+        
+        # Overall degradation assessment
+        degraded_metrics = [k for k, v in results.items() if v['is_degraded']]
+        
+        return {
+            'overall_degraded': len(degraded_metrics) > 0,
+            'degraded_metrics': degraded_metrics,
+            'metric_results': results,
+            'detection_method': 'statistical_test'
+        }
+    
+    def _trend_degradation_analysis(self, model_id, current_metrics):
+        """Detect degradation using trend analysis"""
+        
+        results = {}
+        
+        for metric_name, values in current_metrics.items():
+            if len(values) < 10:  # Need minimum data points
+                continue
+            
+            # Create time series (assuming values are ordered by time)
+            x = np.arange(len(values))
+            y = np.array(values)
+            
+            # Linear regression to detect trend
+            slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+            
+            # Determine if trend indicates degradation
+            improvement_direction = self._get_improvement_direction(metric_name)
+            
+            is_degrading_trend = False
+            if improvement_direction == 'higher':
+                is_degrading_trend = (slope < 0) and (p_value < self.sensitivity)
+            elif improvement_direction == 'lower':
+                is_degrading_trend = (slope > 0) and (p_value < self.sensitivity)
+            
+            results[metric_name] = {
+                'slope': slope,
+                'r_squared': r_value ** 2,
+                'p_value': p_value,
+                'is_degrading_trend': is_degrading_trend,
+                'trend_strength': abs(r_value)
+            }
+        
+        degrading_metrics = [k for k, v in results.items() if v['is_degrading_trend']]
+        
+        return {
+            'overall_degraded': len(degrading_metrics) > 0,
+            'degraded_metrics': degrading_metrics,
+            'metric_results': results,
+            'detection_method': 'trend_analysis'
+        }
+    
+    def _change_point_detection(self, model_id, current_metrics):
+        """Detect sudden changes in performance using change point detection"""
+        
+        results = {}
+        
+        for metric_name, values in current_metrics.items():
+            if len(values) < 20:  # Need sufficient data
+                continue
+            
+            change_points = self._detect_change_points(values)
+            
+            if change_points:
+                # Analyze performance before and after change points
+                latest_change_point = max(change_points)
+                
+                before_change = values[:latest_change_point]
+                after_change = values[latest_change_point:]
+                
+                if len(before_change) > 0 and len(after_change) > 0:
+                    before_mean = np.mean(before_change)
+                    after_mean = np.mean(after_change)
+                    
+                    # Determine if change represents degradation
+                    improvement_direction = self._get_improvement_direction(metric_name)
+                    
+                    is_degraded = False
+                    if improvement_direction == 'higher':
+                        is_degraded = after_mean < before_mean
+                    elif improvement_direction == 'lower':
+                        is_degraded = after_mean > before_mean
+                    
+                    results[metric_name] = {
+                        'change_points': change_points,
+                        'latest_change_point': latest_change_point,
+                        'before_mean': before_mean,
+                        'after_mean': after_mean,
+                        'is_degraded': is_degraded,
+                        'change_magnitude': abs(after_mean - before_mean) / before_mean
+                    }
+        
+        degraded_metrics = [k for k, v in results.items() if v['is_degraded']]
+        
+        return {
+            'overall_degraded': len(degraded_metrics) > 0,
+            'degraded_metrics': degraded_metrics,
+            'metric_results': results,
+            'detection_method': 'change_point'
+        }
+    
+    def _detect_change_points(self, values):
+        """Simple change point detection using variance change"""
+        
+        # This is a simplified implementation
+        # In practice, use more sophisticated methods like CUSUM or Bayesian change point detection
+        
+        change_points = []
+        window_size = max(5, len(values) // 10)
+        
+        for i in range(window_size, len(values) - window_size):
+            left_window = values[i-window_size:i]
+            right_window = values[i:i+window_size]
+            
+            # Test for significant difference in means
+            statistic, p_value = stats.ttest_ind(left_window, right_window)
+            
+            if p_value < 0.01:  # Stricter threshold for change points
+                change_points.append(i)
+        
+        return change_points
+    
+    def _get_improvement_direction(self, metric_name):
+        """Determine if higher or lower values are better for metric"""
+        
+        higher_is_better = ['accuracy', 'precision', 'recall', 'f1_score', 'auc_roc', 'conversion_rate']
+        lower_is_better = ['latency_ms', 'error_rate', 'mse', 'mae', 'rmse']
+        
+        metric_lower = metric_name.lower()
+        
+        if any(term in metric_lower for term in higher_is_better):
+            return 'higher'
+        elif any(term in metric_lower for term in lower_is_better):
+            return 'lower'
+        else:
+            return 'unknown'
+
+# Ensemble degradation detection
+class EnsembleDegradationDetector:
+    def __init__(self, detectors):
+        self.detectors = detectors
+        
+    def detect_degradation(self, model_id, current_metrics):
+        """Detect degradation using ensemble of methods"""
+        
+        results = {}
+        degradation_votes = {}
+        
+        for method_name, detector in self.detectors.items():
+            try:
+                result = detector.detect_degradation(model_id, current_metrics)
+                results[method_name] = result
+                
+                # Collect votes for each metric
+                if 'degraded_metrics' in result:
+                    for metric in result['degraded_metrics']:
+                        if metric not in degradation_votes:
+                            degradation_votes[metric] = 0
+                        degradation_votes[metric] += 1
+                        
+            except Exception as e:
+                results[method_name] = {'error': str(e)}
+        
+        # Determine consensus
+        total_methods = len(self.detectors)
+        consensus_threshold = max(1, total_methods // 2)  # Majority vote
+        
+        degraded_metrics = [
+            metric for metric, votes in degradation_votes.items()
+            if votes >= consensus_threshold
+        ]
+        
+        return {
+            'overall_degraded': len(degraded_metrics) > 0,
+            'degraded_metrics': degraded_metrics,
+            'method_results': results,
+            'degradation_votes': degradation_votes,
+            'consensus_threshold': consensus_threshold
+        }
+
+# Usage example
+degradation_detector = PerformanceDegradationDetector()
+
+# Set baseline
+baseline_metrics = {
+    'accuracy': [0.92, 0.91, 0.93, 0.92, 0.94],
+    'latency_ms': [45, 42, 48, 44, 46]
+}
+degradation_detector.set_baseline_performance('model_v1', baseline_metrics)
+
+# Check for degradation
+current_metrics = {
+    'accuracy': [0.87, 0.86, 0.88, 0.85, 0.87],  # Lower accuracy
+    'latency_ms': [52, 55, 58, 54, 56]  # Higher latency
+}
+
+result = degradation_detector.detect_degradation('model_v1', current_metrics)
+print(result)
+```
+
+================================================================================
+8. BEST PRACTICES AND IMPLEMENTATION
+================================================================================
+
+8.1 Monitoring Strategy Framework
+---------------------------------
+```python
+class MonitoringStrategy:
+    def __init__(self):
+        self.monitoring_levels = {
+            'basic': self._basic_monitoring_setup,
+            'standard': self._standard_monitoring_setup,
+            'advanced': self._advanced_monitoring_setup
+        }
+    
+    def _basic_monitoring_setup(self):
+        """Basic monitoring for small-scale deployments"""
+        return {
+            'metrics': [
+                'prediction_latency',
+                'error_rate',
+                'throughput'
+            ],
+            'alerts': [
+                {'metric': 'error_rate', 'threshold': 0.05, 'severity': 'critical'},
+                {'metric': 'prediction_latency', 'threshold': 1000, 'severity': 'warning'}
+            ],
+            'dashboard_refresh_rate': '1m',
+            'data_retention_days': 30
+        }
+    
+    def _standard_monitoring_setup(self):
+        """Standard monitoring for production systems"""
+        return {
+            'metrics': [
+                'prediction_latency',
+                'error_rate',
+                'throughput',
+                'accuracy',
+                'precision',
+                'recall',
+                'resource_utilization'
+            ],
+            'alerts': [
+                {'metric': 'error_rate', 'threshold': 0.03, 'severity': 'critical'},
+                {'metric': 'prediction_latency', 'threshold': 500, 'severity': 'warning'},
+                {'metric': 'accuracy', 'threshold': 0.85, 'severity': 'critical', 'operator': 'lt'}
+            ],
+            'dashboard_refresh_rate': '30s',
+            'data_retention_days': 90,
+            'automated_evaluation': True,
+            'degradation_detection': True
+        }
+    
+    def _advanced_monitoring_setup(self):
+        """Advanced monitoring for enterprise systems"""
+        return {
+            'metrics': [
+                'prediction_latency',
+                'error_rate',
+                'throughput',
+                'accuracy',
+                'precision',
+                'recall',
+                'f1_score',
+                'auc_roc',
+                'resource_utilization',
+                'business_metrics',
+                'data_quality_metrics'
+            ],
+            'alerts': [
+                {'metric': 'error_rate', 'threshold': 0.01, 'severity': 'critical'},
+                {'metric': 'prediction_latency', 'threshold': 200, 'severity': 'warning'},
+                {'metric': 'accuracy', 'threshold': 0.9, 'severity': 'critical', 'operator': 'lt'},
+                {'metric': 'data_drift', 'threshold': 0.1, 'severity': 'warning'}
+            ],
+            'dashboard_refresh_rate': '10s',
+            'data_retention_days': 365,
+            'automated_evaluation': True,
+            'degradation_detection': True,
+            'anomaly_detection': True,
+            'predictive_alerting': True
+        }
+    
+    def get_monitoring_recommendations(self, deployment_scale, criticality, resources):
+        """Get monitoring recommendations based on context"""
+        
+        if deployment_scale == 'small' and criticality == 'low':
+            return self.monitoring_levels['basic']()
+        elif deployment_scale in ['medium', 'large'] or criticality == 'high':
+            return self.monitoring_levels['advanced']()
+        else:
+            return self.monitoring_levels['standard']()
+
+class MonitoringImplementationGuide:
+    @staticmethod
+    def get_implementation_phases():
+        return {
+            'phase_1_foundation': {
+                'duration': '1-2 weeks',
+                'objectives': [
+                    'Set up basic metrics collection',
+                    'Implement simple alerting',
+                    'Create basic dashboard'
+                ],
+                'deliverables': [
+                    'Metrics collection infrastructure',
+                    'Basic alert rules',
+                    'Simple monitoring dashboard'
+                ]
+            },
+            'phase_2_enhancement': {
+                'duration': '2-3 weeks',
+                'objectives': [
+                    'Add business metrics tracking',
+                    'Implement automated evaluation',
+                    'Enhance dashboard with advanced visualizations'
+                ],
+                'deliverables': [
+                    'Business metrics integration',
+                    'Automated performance reports',
+                    'Advanced dashboard features'
+                ]
+            },
+            'phase_3_optimization': {
+                'duration': '3-4 weeks',
+                'objectives': [
+                    'Implement degradation detection',
+                    'Add predictive alerting',
+                    'Optimize monitoring performance'
+                ],
+                'deliverables': [
+                    'Degradation detection system',
+                    'Predictive alerts',
+                    'Performance-optimized monitoring'
+                ]
+            }
+        }
+    
+    @staticmethod
+    def get_technology_recommendations():
+        return {
+            'metrics_collection': {
+                'time_series_db': ['Prometheus', 'InfluxDB', 'TimescaleDB'],
+                'collection_agents': ['Prometheus exporters', 'StatsD', 'OpenTelemetry'],
+                'custom_metrics': ['Python prometheus_client', 'Custom HTTP endpoints']
+            },
+            'visualization': {
+                'dashboards': ['Grafana', 'Tableau', 'Custom Flask/React'],
+                'plotting': ['Plotly', 'Matplotlib', 'D3.js'],
+                'real_time': ['WebSocket', 'Server-Sent Events', 'WebRTC']
+            },
+            'alerting': {
+                'rule_engines': ['Prometheus Alertmanager', 'Custom Python'],
+                'notification': ['Slack', 'Email', 'PagerDuty', 'Microsoft Teams'],
+                'escalation': ['PagerDuty', 'Custom escalation logic']
+            },
+            'storage': {
+                'short_term': ['Redis', 'In-memory'],
+                'long_term': ['PostgreSQL', 'ClickHouse', 'BigQuery'],
+                'archival': ['S3', 'Google Cloud Storage', 'Azure Blob']
+            }
+        }
+```
+
+8.2 Implementation Best Practices
+---------------------------------
+```python
+class MonitoringBestPractices:
+    @staticmethod
+    def get_best_practices():
+        return {
+            'metrics_design': [
+                'Start with business-critical metrics',
+                'Balance comprehensiveness with simplicity',
+                'Use consistent naming conventions',
+                'Include metadata for debugging',
+                'Design for both real-time and batch analysis'
+            ],
+            'alerting_strategy': [
+                'Avoid alert fatigue with smart thresholds',
+                'Implement alert escalation paths',
+                'Use different severity levels appropriately',
+                'Include actionable information in alerts',
+                'Regular review and tuning of alert rules'
+            ],
+            'dashboard_design': [
+                'Design for different user roles',
+                'Use appropriate visualizations for data types',
+                'Provide drill-down capabilities',
+                'Ensure mobile responsiveness',
+                'Include context and explanations'
+            ],
+            'performance_optimization': [
+                'Use appropriate sampling for high-volume metrics',
+                'Implement efficient data aggregation',
+                'Cache frequently accessed data',
+                'Optimize database queries',
+                'Use asynchronous processing where possible'
+            ],
+            'maintenance': [
+                'Regular backup of monitoring data',
+                'Monitor the monitoring system itself',
+                'Regular review of metrics relevance',
+                'Update monitoring as system evolves',
+                'Document monitoring procedures'
+            ]
+        }
+    
+    @staticmethod
+    def get_common_pitfalls():
+        return {
+            'over_monitoring': {
+                'description': 'Collecting too many metrics without clear purpose',
+                'solution': 'Start with essential metrics and add based on need'
+            },
+            'alert_fatigue': {
+                'description': 'Too many false positive alerts',
+                'solution': 'Tune thresholds and implement smart alerting logic'
+            },
+            'vendor_lock_in': {
+                'description': 'Over-dependence on proprietary monitoring tools',
+                'solution': 'Use open standards and maintain data portability'
+            },
+            'insufficient_context': {
+                'description': 'Metrics without enough context for debugging',
+                'solution': 'Include relevant metadata and correlation information'
+            },
+            'neglecting_business_metrics': {
+                'description': 'Focusing only on technical metrics',
+                'solution': 'Include business impact metrics in monitoring'
+            }
+        }
+
+# Implementation checklist
+MONITORING_IMPLEMENTATION_CHECKLIST = {
+    'planning': [
+        'Define monitoring objectives and success criteria',
+        'Identify key stakeholders and their requirements',
+        'Choose appropriate monitoring tools and technologies',
+        'Design metrics taxonomy and naming conventions',
+        'Plan data retention and archival strategies'
+    ],
+    'implementation': [
+        'Set up metrics collection infrastructure',
+        'Implement metrics instrumentation in code',
+        'Configure time series database',
+        'Create monitoring dashboards',
+        'Set up alerting rules and notifications',
+        'Implement automated evaluation logic'
+    ],
+    'testing': [
+        'Test metrics collection under various load conditions',
+        'Validate alert thresholds and escalation paths',
+        'Test dashboard performance and responsiveness',
+        'Verify data accuracy and completeness',
+        'Test disaster recovery procedures'
+    ],
+    'deployment': [
+        'Deploy monitoring infrastructure',
+        'Configure production alerting',
+        'Train operations team on monitoring tools',
+        'Document monitoring procedures',
+        'Set up monitoring for the monitoring system'
+    ],
+    'maintenance': [
+        'Regular review of metrics and alerts',
+        'Update monitoring as system evolves',
+        'Optimize performance based on usage patterns',
+        'Regular backup and disaster recovery testing',
+        'Continuous improvement based on feedback'
+    ]
+}
+```
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+Model performance monitoring is critical for maintaining reliable ML systems in production:
+
+**Key Components:**
+- **Comprehensive Metrics:** Track prediction quality, business impact, and infrastructure health
+- **Real-Time Collection:** Implement streaming metrics collection with appropriate aggregation
+- **Intelligent Alerting:** Use statistical methods to reduce false positives and alert fatigue
+- **Visual Dashboards:** Design role-specific dashboards for different stakeholders
+- **Automated Assessment:** Implement automated evaluation and degradation detection
+
+**Monitoring Strategy:**
+- Start with business-critical metrics and expand based on needs
+- Balance comprehensiveness with maintainability
+- Design for different deployment scales and criticality levels
+- Include both technical and business metrics
+- Plan for long-term data retention and analysis
+
+**Performance Degradation Detection:**
+- Use multiple detection methods (statistical, trend analysis, change point detection)
+- Establish proper baselines for comparison
+- Implement ensemble approaches for robust detection
+- Consider metric-specific improvement directions
+- Automate response to detected degradation
+
+**Implementation Best Practices:**
+- Implement monitoring in phases, starting with foundations
+- Use open standards to avoid vendor lock-in
+- Design for scalability and performance from the beginning
+- Include monitoring of the monitoring system itself
+- Regular review and optimization of monitoring strategies
+
+**Success Factors:**
+- Clear objectives and success criteria
+- Appropriate tool selection for scale and requirements
+- Proper training for operations teams
+- Regular maintenance and improvement
+- Balance between automation and human oversight
+
+Effective monitoring enables proactive identification and resolution of issues, maintaining model performance and user trust while supporting continuous improvement of ML systems. 

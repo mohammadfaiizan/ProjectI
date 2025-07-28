@@ -1,0 +1,1997 @@
+MODEL SERVING ARCHITECTURES AND APIS
+====================================
+
+Table of Contents:
+1. Model Serving Fundamentals
+2. REST API Design for ML Models
+3. gRPC for High-Performance Serving
+4. Model Serving Frameworks
+5. Load Balancing and Scaling Strategies
+6. API Gateway and Service Mesh
+7. Performance Optimization Techniques
+8. Security and Authentication
+9. Monitoring and Observability
+10. Best Practices and Implementation
+
+================================================================================
+1. MODEL SERVING FUNDAMENTALS
+================================================================================
+
+1.1 Serving Architecture Patterns
+---------------------------------
+**Synchronous Serving:**
+```
+Client → API Gateway → Model Server → Response
+```
+- Real-time predictions
+- Low latency requirements
+- Direct request-response pattern
+
+**Asynchronous Serving:**
+```
+Client → Message Queue → Model Worker → Result Store → Client Poll/Callback
+```
+- Batch processing
+- Long-running inference
+- Decoupled architecture
+
+**Hybrid Serving:**
+```
+Client → Router → [Sync Path | Async Path] → Response/Queue
+```
+- Request-type based routing
+- Optimal resource utilization
+- Flexible response patterns
+
+1.2 Serving Infrastructure Components
+------------------------------------
+**Model Server:**
+- Loads and manages model artifacts
+- Handles inference requests
+- Manages model lifecycle
+
+**Model Registry:**
+- Version control for models
+- Metadata management
+- Model discovery and retrieval
+
+**Feature Store:**
+- Real-time feature serving
+- Feature consistency across training/serving
+- Low-latency feature lookups
+
+**Monitoring System:**
+- Performance metrics collection
+- Model drift detection
+- Health check and alerting
+
+1.3 Deployment Topologies
+-------------------------
+**Single Model Server:**
+```python
+class SingleModelServer:
+    def __init__(self, model_path):
+        self.model = self.load_model(model_path)
+        self.preprocessor = self.load_preprocessor()
+    
+    def predict(self, input_data):
+        features = self.preprocessor.transform(input_data)
+        prediction = self.model.predict(features)
+        return self.postprocess(prediction)
+```
+
+**Multi-Model Server:**
+```python
+class MultiModelServer:
+    def __init__(self):
+        self.models = {}
+        self.model_registry = ModelRegistry()
+    
+    def load_model(self, model_id, version=None):
+        if model_id not in self.models:
+            model_path = self.model_registry.get_model_path(model_id, version)
+            self.models[model_id] = self.load_model_from_path(model_path)
+    
+    def predict(self, model_id, input_data):
+        if model_id not in self.models:
+            self.load_model(model_id)
+        
+        return self.models[model_id].predict(input_data)
+```
+
+**Model Ensemble Server:**
+```python
+class EnsembleServer:
+    def __init__(self, model_configs):
+        self.models = []
+        self.weights = []
+        
+        for config in model_configs:
+            model = self.load_model(config['path'])
+            self.models.append(model)
+            self.weights.append(config['weight'])
+    
+    def predict(self, input_data):
+        predictions = []
+        for model in self.models:
+            pred = model.predict(input_data)
+            predictions.append(pred)
+        
+        # Weighted ensemble
+        ensemble_pred = np.average(predictions, weights=self.weights, axis=0)
+        return ensemble_pred
+```
+
+================================================================================
+2. REST API DESIGN FOR ML MODELS
+================================================================================
+
+2.1 RESTful API Principles
+--------------------------
+**Resource-Based URLs:**
+```
+GET    /api/v1/models                    # List models
+GET    /api/v1/models/{model_id}         # Get model info
+POST   /api/v1/models/{model_id}/predict # Make prediction
+PUT    /api/v1/models/{model_id}         # Update model
+DELETE /api/v1/models/{model_id}         # Delete model
+```
+
+**HTTP Status Codes:**
+- 200 OK: Successful prediction
+- 400 Bad Request: Invalid input data
+- 404 Not Found: Model not found
+- 429 Too Many Requests: Rate limit exceeded
+- 500 Internal Server Error: Model error
+
+2.2 API Request/Response Design
+------------------------------
+**Prediction Request Schema:**
+```json
+{
+  "model_id": "customer_churn_v2.1",
+  "model_version": "latest",
+  "inputs": {
+    "features": [
+      {"name": "age", "value": 35, "type": "numeric"},
+      {"name": "tenure_months", "value": 24, "type": "numeric"},
+      {"name": "plan_type", "value": "premium", "type": "categorical"}
+    ]
+  },
+  "options": {
+    "return_probabilities": true,
+    "return_explanations": false,
+    "timeout_ms": 1000
+  }
+}
+```
+
+**Prediction Response Schema:**
+```json
+{
+  "request_id": "req_12345678",
+  "model_id": "customer_churn_v2.1",
+  "model_version": "v2.1.3",
+  "prediction": {
+    "class": "no_churn",
+    "confidence": 0.85,
+    "probabilities": {
+      "churn": 0.15,
+      "no_churn": 0.85
+    }
+  },
+  "metadata": {
+    "inference_time_ms": 45,
+    "timestamp": "2023-12-01T10:30:00Z",
+    "features_used": 12
+  }
+}
+```
+
+2.3 Flask/FastAPI Implementation
+-------------------------------
+**FastAPI Implementation:**
+```python
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from pydantic import BaseModel
+from typing import List, Dict, Optional
+import time
+import uuid
+
+app = FastAPI(title="ML Model API", version="1.0.0")
+
+class Feature(BaseModel):
+    name: str
+    value: float | str
+    type: str
+
+class PredictionRequest(BaseModel):
+    model_id: str
+    model_version: Optional[str] = "latest"
+    features: List[Feature]
+    return_probabilities: Optional[bool] = False
+
+class PredictionResponse(BaseModel):
+    request_id: str
+    model_id: str
+    model_version: str
+    prediction: Dict
+    inference_time_ms: float
+    timestamp: str
+
+# Global model manager
+model_manager = ModelManager()
+
+@app.post("/api/v1/predict", response_model=PredictionResponse)
+async def predict(request: PredictionRequest, background_tasks: BackgroundTasks):
+    """Make prediction using specified model"""
+    
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    try:
+        # Load model if not cached
+        model = model_manager.get_model(request.model_id, request.model_version)
+        
+        # Convert features to model input format
+        input_data = convert_features_to_input(request.features)
+        
+        # Make prediction
+        prediction = model.predict(input_data)
+        
+        # Format response
+        response = PredictionResponse(
+            request_id=request_id,
+            model_id=request.model_id,
+            model_version=model.version,
+            prediction={
+                "value": prediction.tolist() if hasattr(prediction, 'tolist') else prediction,
+                "probabilities": model.predict_proba(input_data).tolist() if request.return_probabilities else None
+            },
+            inference_time_ms=(time.time() - start_time) * 1000,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+        # Log prediction asynchronously
+        background_tasks.add_task(log_prediction, request_id, request, response)
+        
+        return response
+        
+    except ModelNotFoundError:
+        raise HTTPException(status_code=404, detail="Model not found")
+    except InvalidInputError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/v1/models/{model_id}")
+async def get_model_info(model_id: str):
+    """Get model information"""
+    try:
+        model_info = model_manager.get_model_info(model_id)
+        return model_info
+    except ModelNotFoundError:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "models_loaded": len(model_manager.loaded_models)
+    }
+```
+
+**Input Validation and Preprocessing:**
+```python
+from pydantic import BaseModel, validator
+import numpy as np
+
+class ModelInput(BaseModel):
+    features: List[float]
+    
+    @validator('features')
+    def validate_features(cls, v):
+        if len(v) != EXPECTED_FEATURE_COUNT:
+            raise ValueError(f"Expected {EXPECTED_FEATURE_COUNT} features, got {len(v)}")
+        
+        # Check for invalid values
+        if any(np.isnan(x) or np.isinf(x) for x in v):
+            raise ValueError("Features contain NaN or infinite values")
+        
+        return v
+
+def preprocess_input(raw_input: Dict) -> np.ndarray:
+    """Preprocess raw input for model"""
+    
+    # Feature extraction and transformation
+    features = []
+    
+    for feature_name, expected_type in FEATURE_SCHEMA.items():
+        if feature_name not in raw_input:
+            raise ValueError(f"Missing required feature: {feature_name}")
+        
+        value = raw_input[feature_name]
+        
+        if expected_type == "numeric":
+            features.append(float(value))
+        elif expected_type == "categorical":
+            # One-hot encoding or label encoding
+            encoded_value = encode_categorical(feature_name, value)
+            features.extend(encoded_value)
+    
+    return np.array(features).reshape(1, -1)
+```
+
+================================================================================
+3. GRPC FOR HIGH-PERFORMANCE SERVING
+================================================================================
+
+3.1 gRPC Protocol Buffers
+-------------------------
+**Model Service Definition:**
+```protobuf
+// model_service.proto
+syntax = "proto3";
+
+service ModelService {
+    rpc Predict(PredictRequest) returns (PredictResponse);
+    rpc BatchPredict(BatchPredictRequest) returns (BatchPredictResponse);
+    rpc GetModelInfo(ModelInfoRequest) returns (ModelInfoResponse);
+    rpc StreamPredict(stream StreamPredictRequest) returns (stream StreamPredictResponse);
+}
+
+message PredictRequest {
+    string model_id = 1;
+    string model_version = 2;
+    repeated Feature features = 3;
+    PredictOptions options = 4;
+}
+
+message Feature {
+    string name = 1;
+    oneof value {
+        double numeric_value = 2;
+        string categorical_value = 3;
+        repeated double numeric_array = 4;
+    }
+}
+
+message PredictOptions {
+    bool return_probabilities = 1;
+    bool return_explanations = 2;
+    int32 timeout_ms = 3;
+}
+
+message PredictResponse {
+    string request_id = 1;
+    string model_id = 2;
+    string model_version = 3;
+    oneof prediction {
+        double numeric_prediction = 4;
+        string categorical_prediction = 5;
+        repeated double prediction_array = 6;
+    }
+    repeated double probabilities = 7;
+    double inference_time_ms = 8;
+    string timestamp = 9;
+}
+```
+
+3.2 gRPC Server Implementation
+-----------------------------
+```python
+import grpc
+from concurrent import futures
+import model_service_pb2_grpc
+import model_service_pb2
+import time
+import uuid
+from datetime import datetime
+
+class ModelServicer(model_service_pb2_grpc.ModelServiceServicer):
+    def __init__(self, model_manager):
+        self.model_manager = model_manager
+    
+    def Predict(self, request, context):
+        """Single prediction"""
+        start_time = time.time()
+        request_id = str(uuid.uuid4())
+        
+        try:
+            # Get model
+            model = self.model_manager.get_model(request.model_id, request.model_version)
+            
+            # Convert protobuf features to numpy array
+            input_data = self._convert_features(request.features)
+            
+            # Make prediction
+            prediction = model.predict(input_data)
+            
+            # Prepare response
+            response = model_service_pb2.PredictResponse(
+                request_id=request_id,
+                model_id=request.model_id,
+                model_version=model.version,
+                numeric_prediction=float(prediction[0]),
+                inference_time_ms=(time.time() - start_time) * 1000,
+                timestamp=datetime.utcnow().isoformat()
+            )
+            
+            # Add probabilities if requested
+            if request.options.return_probabilities:
+                probabilities = model.predict_proba(input_data)
+                response.probabilities.extend(probabilities[0].tolist())
+            
+            return response
+            
+        except Exception as e:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Prediction failed: {str(e)}")
+            return model_service_pb2.PredictResponse()
+    
+    def BatchPredict(self, request, context):
+        """Batch prediction for multiple inputs"""
+        start_time = time.time()
+        
+        try:
+            model = self.model_manager.get_model(request.model_id, request.model_version)
+            
+            # Process all inputs at once
+            batch_input = []
+            for predict_request in request.requests:
+                input_data = self._convert_features(predict_request.features)
+                batch_input.append(input_data[0])  # Remove batch dimension
+            
+            batch_array = np.array(batch_input)
+            batch_predictions = model.predict(batch_array)
+            
+            # Create response
+            response = model_service_pb2.BatchPredictResponse()
+            
+            for i, prediction in enumerate(batch_predictions):
+                pred_response = model_service_pb2.PredictResponse(
+                    request_id=f"batch_{i}",
+                    model_id=request.model_id,
+                    model_version=model.version,
+                    numeric_prediction=float(prediction)
+                )
+                response.responses.append(pred_response)
+            
+            response.total_inference_time_ms = (time.time() - start_time) * 1000
+            return response
+            
+        except Exception as e:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Batch prediction failed: {str(e)}")
+            return model_service_pb2.BatchPredictResponse()
+    
+    def StreamPredict(self, request_iterator, context):
+        """Streaming prediction"""
+        try:
+            for request in request_iterator:
+                # Process each request
+                response = self.Predict(request, context)
+                yield response
+                
+        except Exception as e:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Stream prediction failed: {str(e)}")
+    
+    def _convert_features(self, features):
+        """Convert protobuf features to numpy array"""
+        feature_values = []
+        
+        for feature in features:
+            if feature.HasField('numeric_value'):
+                feature_values.append(feature.numeric_value)
+            elif feature.HasField('categorical_value'):
+                # Handle categorical encoding
+                encoded = self._encode_categorical(feature.name, feature.categorical_value)
+                feature_values.extend(encoded)
+            elif feature.HasField('numeric_array'):
+                feature_values.extend(list(feature.numeric_array))
+        
+        return np.array(feature_values).reshape(1, -1)
+
+def serve():
+    """Start gRPC server"""
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    
+    model_manager = ModelManager()
+    model_service_pb2_grpc.add_ModelServiceServicer_to_server(
+        ModelServicer(model_manager), server
+    )
+    
+    listen_addr = '[::]:50051'
+    server.add_insecure_port(listen_addr)
+    
+    print(f"Starting gRPC server on {listen_addr}")
+    server.start()
+    server.wait_for_termination()
+
+if __name__ == '__main__':
+    serve()
+```
+
+3.3 gRPC Client Implementation
+-----------------------------
+```python
+import grpc
+import model_service_pb2
+import model_service_pb2_grpc
+import time
+
+class ModelClient:
+    def __init__(self, server_address='localhost:50051'):
+        self.channel = grpc.insecure_channel(server_address)
+        self.stub = model_service_pb2_grpc.ModelServiceStub(self.channel)
+    
+    def predict(self, model_id, features, model_version='latest', return_probabilities=False):
+        """Make single prediction"""
+        
+        # Create features
+        feature_list = []
+        for name, value in features.items():
+            feature = model_service_pb2.Feature(name=name)
+            if isinstance(value, (int, float)):
+                feature.numeric_value = float(value)
+            else:
+                feature.categorical_value = str(value)
+            feature_list.append(feature)
+        
+        # Create request
+        request = model_service_pb2.PredictRequest(
+            model_id=model_id,
+            model_version=model_version,
+            features=feature_list,
+            options=model_service_pb2.PredictOptions(
+                return_probabilities=return_probabilities
+            )
+        )
+        
+        # Make prediction
+        try:
+            response = self.stub.Predict(request)
+            return {
+                'prediction': response.numeric_prediction,
+                'probabilities': list(response.probabilities) if response.probabilities else None,
+                'inference_time_ms': response.inference_time_ms,
+                'model_version': response.model_version
+            }
+        except grpc.RpcError as e:
+            print(f"gRPC error: {e.code()}: {e.details()}")
+            return None
+    
+    def batch_predict(self, model_id, batch_features):
+        """Make batch prediction"""
+        
+        requests = []
+        for features in batch_features:
+            feature_list = []
+            for name, value in features.items():
+                feature = model_service_pb2.Feature(name=name)
+                if isinstance(value, (int, float)):
+                    feature.numeric_value = float(value)
+                else:
+                    feature.categorical_value = str(value)
+                feature_list.append(feature)
+            
+            requests.append(model_service_pb2.PredictRequest(
+                model_id=model_id,
+                features=feature_list
+            ))
+        
+        batch_request = model_service_pb2.BatchPredictRequest(
+            model_id=model_id,
+            requests=requests
+        )
+        
+        try:
+            response = self.stub.BatchPredict(batch_request)
+            return [
+                {
+                    'prediction': resp.numeric_prediction,
+                    'request_id': resp.request_id
+                }
+                for resp in response.responses
+            ]
+        except grpc.RpcError as e:
+            print(f"gRPC error: {e.code()}: {e.details()}")
+            return None
+    
+    def close(self):
+        """Close gRPC channel"""
+        self.channel.close()
+
+# Usage example
+client = ModelClient()
+result = client.predict(
+    model_id='customer_churn',
+    features={'age': 35, 'tenure': 24, 'plan': 'premium'}
+)
+print(result)
+```
+
+================================================================================
+4. MODEL SERVING FRAMEWORKS
+================================================================================
+
+4.1 TensorFlow Serving
+----------------------
+**Model Export for TF Serving:**
+```python
+import tensorflow as tf
+
+def export_model_for_serving(model, export_path, version=1):
+    """Export TensorFlow model for serving"""
+    
+    # Define serving signature
+    @tf.function
+    def serve_function(examples):
+        features = tf.io.parse_example(examples, feature_spec)
+        predictions = model(features)
+        return predictions
+    
+    # Create signatures
+    signatures = {
+        'serving_default': serve_function.get_concrete_function(
+            tf.TensorSpec(shape=[None], dtype=tf.string, name='examples')
+        )
+    }
+    
+    # Save model
+    tf.saved_model.save(
+        model,
+        export_dir=f"{export_path}/{version}",
+        signatures=signatures
+    )
+
+# Docker deployment
+"""
+docker run -t --rm -p 8501:8501 \
+    -v "$(pwd)/models:/models" \
+    -e MODEL_NAME=my_model \
+    tensorflow/serving &
+"""
+
+# REST API call to TF Serving
+import requests
+import json
+
+def predict_tf_serving(data, model_name='my_model', version=1):
+    url = f'http://localhost:8501/v1/models/{model_name}/versions/{version}:predict'
+    
+    payload = {
+        "instances": data
+    }
+    
+    response = requests.post(url, json=payload)
+    return response.json()
+```
+
+4.2 TorchServe
+--------------
+**Model Archive Creation:**
+```bash
+# Create model archive
+torch-model-archiver \
+    --model-name customer_churn \
+    --version 1.0 \
+    --model-file model.py \
+    --serialized-file model.pth \
+    --handler custom_handler.py \
+    --extra-files config.json \
+    --export-path model-store
+
+# Start TorchServe
+torchserve --start \
+    --model-store model-store \
+    --models customer_churn=customer_churn.mar \
+    --ts-config config.properties
+```
+
+**Custom Handler:**
+```python
+from ts.torch_handler.base_handler import BaseHandler
+import torch
+import json
+import numpy as np
+
+class CustomHandler(BaseHandler):
+    def __init__(self):
+        super(CustomHandler, self).__init__()
+        self.model = None
+        self.device = None
+    
+    def initialize(self, context):
+        """Initialize model and device"""
+        properties = context.system_properties
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Load model
+        model_dir = properties.get("model_dir")
+        model_path = f"{model_dir}/model.pth"
+        self.model = torch.jit.load(model_path, map_location=self.device)
+        self.model.eval()
+    
+    def preprocess(self, data):
+        """Preprocess input data"""
+        inputs = []
+        for row in data:
+            input_data = row.get("data") or row.get("body")
+            if isinstance(input_data, str):
+                input_data = json.loads(input_data)
+            
+            # Convert to tensor
+            features = torch.tensor(input_data["features"], dtype=torch.float32)
+            inputs.append(features)
+        
+        return torch.stack(inputs).to(self.device)
+    
+    def inference(self, data):
+        """Run inference"""
+        with torch.no_grad():
+            predictions = self.model(data)
+        return predictions
+    
+    def postprocess(self, data):
+        """Postprocess predictions"""
+        predictions = data.cpu().numpy()
+        return predictions.tolist()
+```
+
+4.3 MLflow Model Serving
+------------------------
+```python
+import mlflow
+import mlflow.sklearn
+from mlflow.models.signature import infer_signature
+
+# Log model with MLflow
+with mlflow.start_run():
+    # Train model
+    model = train_model()
+    
+    # Log model
+    signature = infer_signature(X_train, model.predict(X_train))
+    mlflow.sklearn.log_model(
+        model,
+        "model",
+        signature=signature,
+        registered_model_name="customer_churn"
+    )
+
+# Serve model locally
+# mlflow models serve -m models:/customer_churn/1 -p 1234
+
+# Docker deployment
+"""
+docker run -p 5000:8080 \
+    -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
+    mlflow-pyfunc-model-server:latest \
+    --model-uri models:/customer_churn/1
+"""
+
+# Client code for MLflow serving
+import requests
+import pandas as pd
+
+def predict_mlflow(data, url='http://localhost:1234'):
+    """Make prediction using MLflow serving"""
+    
+    # Convert data to MLflow format
+    if isinstance(data, pd.DataFrame):
+        payload = {
+            "dataframe_split": {
+                "columns": data.columns.tolist(),
+                "data": data.values.tolist()
+            }
+        }
+    else:
+        payload = {"instances": data}
+    
+    response = requests.post(
+        f"{url}/invocations",
+        json=payload,
+        headers={"Content-Type": "application/json"}
+    )
+    
+    return response.json()
+```
+
+4.4 Seldon Core
+---------------
+**Seldon Deployment:**
+```yaml
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: customer-churn-model
+spec:
+  name: customer-churn
+  predictors:
+  - graph:
+      children: []
+      implementation: SKLEARN_SERVER
+      modelUri: gs://my-bucket/models/customer-churn
+      name: classifier
+    name: default
+    replicas: 3
+    traffic: 100
+```
+
+**Custom Seldon Model:**
+```python
+class CustomerChurnModel:
+    def __init__(self):
+        self.model = None
+        self.ready = False
+    
+    def load(self):
+        """Load the model"""
+        self.model = joblib.load('/mnt/models/model.pkl')
+        self.ready = True
+    
+    def predict(self, X, features_names=None):
+        """Make predictions"""
+        if not self.ready:
+            raise Exception("Model not loaded")
+        
+        predictions = self.model.predict_proba(X)
+        return predictions
+    
+    def health_status(self):
+        """Health check"""
+        return self.ready
+```
+
+================================================================================
+5. LOAD BALANCING AND SCALING STRATEGIES
+================================================================================
+
+5.1 Load Balancing Algorithms
+-----------------------------
+**Round Robin with Health Checks:**
+```python
+import requests
+import time
+from typing import List
+
+class ModelServerPool:
+    def __init__(self, servers: List[str]):
+        self.servers = servers
+        self.current_index = 0
+        self.healthy_servers = set(servers)
+        self.health_check_interval = 30
+        self.last_health_check = 0
+    
+    def get_server(self):
+        """Get next healthy server using round robin"""
+        self._check_server_health()
+        
+        if not self.healthy_servers:
+            raise Exception("No healthy servers available")
+        
+        healthy_list = list(self.healthy_servers)
+        server = healthy_list[self.current_index % len(healthy_list)]
+        self.current_index = (self.current_index + 1) % len(healthy_list)
+        
+        return server
+    
+    def _check_server_health(self):
+        """Check health of all servers periodically"""
+        current_time = time.time()
+        
+        if current_time - self.last_health_check < self.health_check_interval:
+            return
+        
+        self.last_health_check = current_time
+        
+        for server in self.servers:
+            try:
+                response = requests.get(f"http://{server}/health", timeout=5)
+                if response.status_code == 200:
+                    self.healthy_servers.add(server)
+                else:
+                    self.healthy_servers.discard(server)
+            except:
+                self.healthy_servers.discard(server)
+    
+    def predict(self, data):
+        """Make prediction with failover"""
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                server = self.get_server()
+                response = requests.post(
+                    f"http://{server}/predict",
+                    json=data,
+                    timeout=10
+                )
+                return response.json()
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise e
+                continue
+```
+
+**Weighted Load Balancing:**
+```python
+import random
+
+class WeightedLoadBalancer:
+    def __init__(self, servers_with_weights):
+        self.servers = []
+        self.weights = []
+        self.total_weight = 0
+        
+        for server, weight in servers_with_weights:
+            self.servers.append(server)
+            self.weights.append(weight)
+            self.total_weight += weight
+    
+    def get_server(self):
+        """Select server based on weights"""
+        r = random.uniform(0, self.total_weight)
+        cumulative_weight = 0
+        
+        for i, weight in enumerate(self.weights):
+            cumulative_weight += weight
+            if r <= cumulative_weight:
+                return self.servers[i]
+        
+        return self.servers[-1]  # Fallback
+
+# Usage
+balancer = WeightedLoadBalancer([
+    ('high-performance-server:8080', 0.5),
+    ('medium-server:8080', 0.3),
+    ('backup-server:8080', 0.2)
+])
+```
+
+5.2 Horizontal Pod Autoscaler for ML
+------------------------------------
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ml-model-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-model-server
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  - type: Pods
+    pods:
+      metric:
+        name: queue_length
+      target:
+        type: AverageValue
+        averageValue: "30"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+```
+
+5.3 Custom Autoscaling
+----------------------
+```python
+import time
+import threading
+from kubernetes import client, config
+
+class CustomAutoscaler:
+    def __init__(self, deployment_name, namespace='default'):
+        config.load_incluster_config()  # or load_kube_config()
+        self.apps_v1 = client.AppsV1Api()
+        self.deployment_name = deployment_name
+        self.namespace = namespace
+        self.metrics_collector = MetricsCollector()
+        
+        self.min_replicas = 2
+        self.max_replicas = 20
+        self.target_queue_length = 30
+        self.target_latency_ms = 500
+        
+        self.scaling_thread = threading.Thread(target=self._scaling_loop)
+        self.scaling_thread.daemon = True
+        self.scaling_thread.start()
+    
+    def _scaling_loop(self):
+        """Main scaling decision loop"""
+        while True:
+            try:
+                # Collect metrics
+                metrics = self.metrics_collector.get_metrics()
+                
+                # Make scaling decision
+                current_replicas = self._get_current_replicas()
+                target_replicas = self._calculate_target_replicas(metrics, current_replicas)
+                
+                # Apply scaling if needed
+                if target_replicas != current_replicas:
+                    self._scale_deployment(target_replicas)
+                
+            except Exception as e:
+                print(f"Scaling error: {e}")
+            
+            time.sleep(30)  # Check every 30 seconds
+    
+    def _calculate_target_replicas(self, metrics, current_replicas):
+        """Calculate target replica count based on metrics"""
+        
+        queue_length = metrics.get('queue_length', 0)
+        avg_latency = metrics.get('avg_latency_ms', 0)
+        cpu_utilization = metrics.get('cpu_utilization', 0)
+        
+        # Scale up conditions
+        if queue_length > self.target_queue_length:
+            scale_factor = min(queue_length / self.target_queue_length, 2.0)
+            target_replicas = int(current_replicas * scale_factor)
+        elif avg_latency > self.target_latency_ms:
+            scale_factor = min(avg_latency / self.target_latency_ms, 1.5)
+            target_replicas = int(current_replicas * scale_factor)
+        # Scale down conditions
+        elif queue_length < self.target_queue_length * 0.3 and cpu_utilization < 30:
+            target_replicas = max(int(current_replicas * 0.8), self.min_replicas)
+        else:
+            target_replicas = current_replicas
+        
+        # Apply limits
+        target_replicas = max(self.min_replicas, min(target_replicas, self.max_replicas))
+        
+        return target_replicas
+    
+    def _get_current_replicas(self):
+        """Get current replica count"""
+        deployment = self.apps_v1.read_namespaced_deployment(
+            name=self.deployment_name,
+            namespace=self.namespace
+        )
+        return deployment.status.replicas or 0
+    
+    def _scale_deployment(self, target_replicas):
+        """Scale deployment to target replica count"""
+        deployment = self.apps_v1.read_namespaced_deployment(
+            name=self.deployment_name,
+            namespace=self.namespace
+        )
+        
+        deployment.spec.replicas = target_replicas
+        
+        self.apps_v1.patch_namespaced_deployment(
+            name=self.deployment_name,
+            namespace=self.namespace,
+            body=deployment
+        )
+        
+        print(f"Scaled {self.deployment_name} to {target_replicas} replicas")
+```
+
+================================================================================
+6. API GATEWAY AND SERVICE MESH
+================================================================================
+
+6.1 API Gateway Configuration
+-----------------------------
+**Kong Gateway:**
+```yaml
+apiVersion: configuration.konghq.com/v1
+kind: KongIngress
+metadata:
+  name: ml-api-config
+upstream:
+  healthchecks:
+    active:
+      http_path: "/health"
+      healthy:
+        interval: 10
+        successes: 3
+      unhealthy:
+        interval: 10
+        http_failures: 3
+proxy:
+  connect_timeout: 10000
+  read_timeout: 60000
+  write_timeout: 60000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ml-api-ingress
+  annotations:
+    konghq.com/override: ml-api-config
+    konghq.com/plugins: rate-limiting, correlation-id
+spec:
+  rules:
+  - host: ml-api.example.com
+    http:
+      paths:
+      - path: /predict
+        pathType: Prefix
+        backend:
+          service:
+            name: ml-model-service
+            port:
+              number: 8080
+```
+
+**Rate Limiting Plugin:**
+```yaml
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate-limiting
+config:
+  minute: 100
+  hour: 1000
+  policy: local
+  fault_tolerant: true
+plugin: rate-limiting
+```
+
+6.2 Istio Service Mesh
+----------------------
+**Virtual Service for A/B Testing:**
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: ml-model-vs
+spec:
+  hosts:
+  - ml-model-service
+  http:
+  - match:
+    - headers:
+        experiment:
+          exact: "model_v2"
+    route:
+    - destination:
+        host: ml-model-service
+        subset: v2
+      weight: 100
+  - route:
+    - destination:
+        host: ml-model-service
+        subset: v1
+      weight: 90
+    - destination:
+        host: ml-model-service
+        subset: v2
+      weight: 10
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: ml-model-dr
+spec:
+  host: ml-model-service
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 10
+        maxRequestsPerConnection: 2
+    circuitBreaker:
+      consecutiveErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+```
+
+================================================================================
+7. PERFORMANCE OPTIMIZATION TECHNIQUES
+================================================================================
+
+7.1 Model Optimization
+----------------------
+**Model Quantization:**
+```python
+import torch
+import torch.quantization as quantization
+
+def quantize_model(model, representative_data):
+    """Quantize PyTorch model for faster inference"""
+    
+    # Set model to evaluation mode
+    model.eval()
+    
+    # Prepare for quantization
+    model.qconfig = quantization.get_default_qconfig('fbgemm')
+    model_prepared = quantization.prepare(model)
+    
+    # Calibrate with representative data
+    with torch.no_grad():
+        for data in representative_data:
+            model_prepared(data)
+    
+    # Convert to quantized model
+    model_quantized = quantization.convert(model_prepared)
+    
+    return model_quantized
+
+# TensorFlow Lite quantization
+def quantize_tf_model(model_path, output_path):
+    """Quantize TensorFlow model"""
+    import tensorflow as tf
+    
+    converter = tf.lite.TFLiteConverter.from_saved_model(model_path)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    
+    # Post-training quantization
+    converter.representative_dataset = representative_dataset
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.int8
+    
+    quantized_model = converter.convert()
+    
+    with open(output_path, 'wb') as f:
+        f.write(quantized_model)
+```
+
+7.2 Caching Strategies
+----------------------
+```python
+import redis
+import pickle
+import hashlib
+from functools import wraps
+
+class PredictionCache:
+    def __init__(self, redis_host='localhost', redis_port=6379, ttl=3600):
+        self.redis_client = redis.Redis(host=redis_host, port=redis_port)
+        self.ttl = ttl
+    
+    def _generate_key(self, model_id, features):
+        """Generate cache key from model and features"""
+        feature_str = str(sorted(features.items()))
+        key_string = f"{model_id}:{feature_str}"
+        return hashlib.md5(key_string.encode()).hexdigest()
+    
+    def get(self, model_id, features):
+        """Get cached prediction"""
+        key = self._generate_key(model_id, features)
+        cached_result = self.redis_client.get(key)
+        
+        if cached_result:
+            return pickle.loads(cached_result)
+        return None
+    
+    def set(self, model_id, features, prediction):
+        """Cache prediction"""
+        key = self._generate_key(model_id, features)
+        self.redis_client.setex(
+            key, 
+            self.ttl, 
+            pickle.dumps(prediction)
+        )
+    
+    def cached_predict(self, predict_func):
+        """Decorator for caching predictions"""
+        @wraps(predict_func)
+        def wrapper(model_id, features, *args, **kwargs):
+            # Try cache first
+            cached_result = self.get(model_id, features)
+            if cached_result is not None:
+                return cached_result
+            
+            # Call original function
+            result = predict_func(model_id, features, *args, **kwargs)
+            
+            # Cache result
+            self.set(model_id, features, result)
+            
+            return result
+        return wrapper
+
+# Usage
+cache = PredictionCache()
+
+@cache.cached_predict
+def predict_with_cache(model_id, features):
+    # Your prediction logic here
+    model = get_model(model_id)
+    return model.predict(features)
+```
+
+7.3 Batch Processing Optimization
+---------------------------------
+```python
+import asyncio
+import time
+from collections import defaultdict
+from typing import Dict, List, Any
+
+class BatchProcessor:
+    def __init__(self, max_batch_size=32, max_wait_time=0.1):
+        self.max_batch_size = max_batch_size
+        self.max_wait_time = max_wait_time
+        self.pending_requests = defaultdict(list)
+        self.model_manager = ModelManager()
+        
+    async def predict(self, model_id: str, features: List[float]) -> Dict[str, Any]:
+        """Add prediction request to batch"""
+        
+        # Create future for this request
+        future = asyncio.Future()
+        request = {
+            'features': features,
+            'future': future,
+            'timestamp': time.time()
+        }
+        
+        self.pending_requests[model_id].append(request)
+        
+        # Trigger batch processing if conditions met
+        if len(self.pending_requests[model_id]) >= self.max_batch_size:
+            asyncio.create_task(self._process_batch(model_id))
+        elif len(self.pending_requests[model_id]) == 1:
+            # Start timer for first request in batch
+            asyncio.create_task(self._batch_timer(model_id))
+        
+        return await future
+    
+    async def _batch_timer(self, model_id: str):
+        """Process batch after timeout"""
+        await asyncio.sleep(self.max_wait_time)
+        if self.pending_requests[model_id]:
+            await self._process_batch(model_id)
+    
+    async def _process_batch(self, model_id: str):
+        """Process accumulated batch"""
+        if not self.pending_requests[model_id]:
+            return
+        
+        # Get current batch
+        batch = self.pending_requests[model_id]
+        self.pending_requests[model_id] = []
+        
+        try:
+            # Prepare batch input
+            batch_features = [req['features'] for req in batch]
+            
+            # Run inference
+            model = self.model_manager.get_model(model_id)
+            predictions = await self._async_predict(model, batch_features)
+            
+            # Return results to individual requests
+            for request, prediction in zip(batch, predictions):
+                if not request['future'].done():
+                    request['future'].set_result({
+                        'prediction': prediction,
+                        'batch_size': len(batch),
+                        'processing_time': time.time() - request['timestamp']
+                    })
+        
+        except Exception as e:
+            # Handle errors
+            for request in batch:
+                if not request['future'].done():
+                    request['future'].set_exception(e)
+    
+    async def _async_predict(self, model, batch_features):
+        """Async wrapper for model prediction"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, 
+            model.predict, 
+            np.array(batch_features)
+        )
+
+# Usage
+batch_processor = BatchProcessor(max_batch_size=16, max_wait_time=0.05)
+
+async def handle_prediction_request(model_id, features):
+    result = await batch_processor.predict(model_id, features)
+    return result
+```
+
+================================================================================
+8. SECURITY AND AUTHENTICATION
+================================================================================
+
+8.1 API Authentication
+----------------------
+**JWT Authentication:**
+```python
+import jwt
+from datetime import datetime, timedelta
+from functools import wraps
+from flask import request, jsonify
+
+class JWTAuth:
+    def __init__(self, secret_key, algorithm='HS256'):
+        self.secret_key = secret_key
+        self.algorithm = algorithm
+    
+    def generate_token(self, user_id, permissions=None, expires_in=3600):
+        """Generate JWT token"""
+        payload = {
+            'user_id': user_id,
+            'permissions': permissions or [],
+            'exp': datetime.utcnow() + timedelta(seconds=expires_in),
+            'iat': datetime.utcnow()
+        }
+        
+        return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
+    
+    def verify_token(self, token):
+        """Verify and decode JWT token"""
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationError("Token expired")
+        except jwt.InvalidTokenError:
+            raise AuthenticationError("Invalid token")
+    
+    def require_auth(self, required_permissions=None):
+        """Decorator for protecting endpoints"""
+        def decorator(f):
+            @wraps(f)
+            def decorated_function(*args, **kwargs):
+                token = None
+                
+                # Get token from header
+                if 'Authorization' in request.headers:
+                    auth_header = request.headers['Authorization']
+                    try:
+                        token = auth_header.split(" ")[1]  # Bearer <token>
+                    except IndexError:
+                        return jsonify({'error': 'Invalid authorization header'}), 401
+                
+                if not token:
+                    return jsonify({'error': 'Token missing'}), 401
+                
+                try:
+                    payload = self.verify_token(token)
+                    current_user = payload['user_id']
+                    user_permissions = payload.get('permissions', [])
+                    
+                    # Check permissions
+                    if required_permissions:
+                        if not all(perm in user_permissions for perm in required_permissions):
+                            return jsonify({'error': 'Insufficient permissions'}), 403
+                    
+                    # Add user info to request context
+                    request.current_user = current_user
+                    request.user_permissions = user_permissions
+                    
+                except AuthenticationError as e:
+                    return jsonify({'error': str(e)}), 401
+                
+                return f(*args, **kwargs)
+            return decorated_function
+        return decorator
+
+# Usage
+auth = JWTAuth(secret_key='your-secret-key')
+
+@app.route('/predict', methods=['POST'])
+@auth.require_auth(required_permissions=['model:predict'])
+def predict():
+    # Your prediction logic here
+    pass
+```
+
+**API Key Authentication:**
+```python
+import hashlib
+import hmac
+from flask import request, jsonify
+
+class APIKeyAuth:
+    def __init__(self):
+        self.api_keys = {}  # In production, use database
+    
+    def register_api_key(self, key_id, secret_key, permissions=None):
+        """Register new API key"""
+        key_hash = hashlib.sha256(secret_key.encode()).hexdigest()
+        self.api_keys[key_id] = {
+            'key_hash': key_hash,
+            'permissions': permissions or [],
+            'created_at': datetime.utcnow()
+        }
+    
+    def verify_api_key(self, key_id, secret_key):
+        """Verify API key"""
+        if key_id not in self.api_keys:
+            return False
+        
+        stored_hash = self.api_keys[key_id]['key_hash']
+        provided_hash = hashlib.sha256(secret_key.encode()).hexdigest()
+        
+        return hmac.compare_digest(stored_hash, provided_hash)
+    
+    def require_api_key(self, required_permissions=None):
+        """Decorator for API key authentication"""
+        def decorator(f):
+            @wraps(f)
+            def decorated_function(*args, **kwargs):
+                # Get API key from headers
+                key_id = request.headers.get('X-API-Key-ID')
+                secret_key = request.headers.get('X-API-Secret-Key')
+                
+                if not key_id or not secret_key:
+                    return jsonify({'error': 'API key missing'}), 401
+                
+                if not self.verify_api_key(key_id, secret_key):
+                    return jsonify({'error': 'Invalid API key'}), 401
+                
+                # Check permissions
+                if required_permissions:
+                    user_permissions = self.api_keys[key_id]['permissions']
+                    if not all(perm in user_permissions for perm in required_permissions):
+                        return jsonify({'error': 'Insufficient permissions'}), 403
+                
+                request.api_key_id = key_id
+                return f(*args, **kwargs)
+            return decorated_function
+        return decorator
+```
+
+8.2 Input Validation and Sanitization
+-------------------------------------
+```python
+from pydantic import BaseModel, validator, Field
+from typing import List, Optional
+import re
+
+class SecurePredictionRequest(BaseModel):
+    model_id: str = Field(..., regex=r'^[a-zA-Z0-9_-]+$', max_length=100)
+    features: List[float] = Field(..., min_items=1, max_items=1000)
+    options: Optional[dict] = Field(default_factory=dict)
+    
+    @validator('model_id')
+    def validate_model_id(cls, v):
+        # Prevent path traversal
+        if '..' in v or '/' in v or '\\' in v:
+            raise ValueError('Invalid model_id format')
+        return v
+    
+    @validator('features')
+    def validate_features(cls, v):
+        # Check for invalid values
+        for feature in v:
+            if not isinstance(feature, (int, float)):
+                raise ValueError('Features must be numeric')
+            if abs(feature) > 1e10:  # Prevent extremely large values
+                raise ValueError('Feature value too large')
+        return v
+    
+    @validator('options')
+    def validate_options(cls, v):
+        # Limit allowed options
+        allowed_keys = {'return_probabilities', 'timeout_ms', 'explain'}
+        if not set(v.keys()).issubset(allowed_keys):
+            raise ValueError('Invalid option keys')
+        return v
+
+def sanitize_input(data):
+    """Additional input sanitization"""
+    
+    # Remove any potential script injection
+    if isinstance(data, str):
+        # Remove HTML/script tags
+        data = re.sub(r'<[^>]*>', '', data)
+        # Remove potential JavaScript
+        data = re.sub(r'javascript:', '', data, flags=re.IGNORECASE)
+    
+    elif isinstance(data, dict):
+        return {k: sanitize_input(v) for k, v in data.items()}
+    
+    elif isinstance(data, list):
+        return [sanitize_input(item) for item in data]
+    
+    return data
+```
+
+================================================================================
+9. MONITORING AND OBSERVABILITY
+================================================================================
+
+9.1 Metrics Collection
+----------------------
+```python
+from prometheus_client import Counter, Histogram, Gauge, Info, start_http_server
+import time
+import functools
+
+# Define metrics
+prediction_requests_total = Counter(
+    'prediction_requests_total',
+    'Total prediction requests',
+    ['model_id', 'model_version', 'status']
+)
+
+prediction_duration_seconds = Histogram(
+    'prediction_duration_seconds',
+    'Time spent on predictions',
+    ['model_id', 'model_version'],
+    buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0]
+)
+
+model_accuracy = Gauge(
+    'model_accuracy',
+    'Current model accuracy',
+    ['model_id', 'model_version']
+)
+
+active_connections = Gauge(
+    'active_connections',
+    'Number of active connections'
+)
+
+model_info = Info(
+    'model_info',
+    'Model information',
+    ['model_id']
+)
+
+class MetricsCollector:
+    def __init__(self):
+        # Start metrics server
+        start_http_server(8000)
+    
+    def record_prediction(self, model_id, model_version, duration, status='success'):
+        """Record prediction metrics"""
+        prediction_requests_total.labels(
+            model_id=model_id,
+            model_version=model_version,
+            status=status
+        ).inc()
+        
+        prediction_duration_seconds.labels(
+            model_id=model_id,
+            model_version=model_version
+        ).observe(duration)
+    
+    def update_model_accuracy(self, model_id, model_version, accuracy):
+        """Update model accuracy metric"""
+        model_accuracy.labels(
+            model_id=model_id,
+            model_version=model_version
+        ).set(accuracy)
+    
+    def set_model_info(self, model_id, info_dict):
+        """Set model information"""
+        model_info.labels(model_id=model_id).info(info_dict)
+    
+    def prediction_metrics(func):
+        """Decorator to automatically collect prediction metrics"""
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            model_id = kwargs.get('model_id', 'unknown')
+            model_version = kwargs.get('model_version', 'unknown')
+            
+            try:
+                result = func(*args, **kwargs)
+                status = 'success'
+                return result
+            except Exception as e:
+                status = 'error'
+                raise e
+            finally:
+                duration = time.time() - start_time
+                prediction_requests_total.labels(
+                    model_id=model_id,
+                    model_version=model_version,
+                    status=status
+                ).inc()
+                
+                prediction_duration_seconds.labels(
+                    model_id=model_id,
+                    model_version=model_version
+                ).observe(duration)
+        
+        return wrapper
+
+# Usage
+metrics = MetricsCollector()
+
+@metrics.prediction_metrics
+def predict(model_id, model_version, features):
+    # Your prediction logic
+    pass
+```
+
+9.2 Distributed Tracing
+-----------------------
+```python
+from opentelemetry import trace
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+# Configure tracing
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer(__name__)
+
+# Configure Jaeger exporter
+jaeger_exporter = JaegerExporter(
+    agent_host_name="jaeger-agent",
+    agent_port=6831,
+)
+
+span_processor = BatchSpanProcessor(jaeger_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# Instrument Flask and requests
+FlaskInstrumentor().instrument_app(app)
+RequestsInstrumentor().instrument()
+
+class TracedModelServer:
+    def __init__(self):
+        self.tracer = trace.get_tracer(__name__)
+    
+    def predict(self, model_id, features):
+        """Traced prediction method"""
+        with self.tracer.start_as_current_span("model_prediction") as span:
+            # Add span attributes
+            span.set_attribute("model.id", model_id)
+            span.set_attribute("model.input_size", len(features))
+            
+            try:
+                # Preprocessing span
+                with self.tracer.start_as_current_span("preprocessing") as preprocess_span:
+                    processed_features = self._preprocess(features)
+                    preprocess_span.set_attribute("preprocessing.output_size", len(processed_features))
+                
+                # Model inference span
+                with self.tracer.start_as_current_span("model_inference") as inference_span:
+                    model = self._get_model(model_id)
+                    prediction = model.predict(processed_features)
+                    
+                    inference_span.set_attribute("model.version", model.version)
+                    inference_span.set_attribute("inference.output_type", type(prediction).__name__)
+                
+                # Postprocessing span
+                with self.tracer.start_as_current_span("postprocessing") as postprocess_span:
+                    result = self._postprocess(prediction)
+                    postprocess_span.set_attribute("postprocessing.format", "json")
+                
+                span.set_attribute("prediction.success", True)
+                return result
+                
+            except Exception as e:
+                span.set_attribute("prediction.success", False)
+                span.set_attribute("error.message", str(e))
+                span.set_attribute("error.type", type(e).__name__)
+                raise e
+```
+
+================================================================================
+10. BEST PRACTICES AND IMPLEMENTATION
+================================================================================
+
+10.1 Production Deployment Checklist
+------------------------------------
+**Pre-Deployment:**
+- [ ] Model validation and testing completed
+- [ ] API documentation generated and reviewed
+- [ ] Security scanning and vulnerability assessment
+- [ ] Performance and load testing
+- [ ] Monitoring and alerting configured
+
+**Infrastructure:**
+- [ ] Container images built and scanned
+- [ ] Kubernetes manifests configured
+- [ ] Load balancer and ingress rules set up
+- [ ] SSL/TLS certificates configured
+- [ ] Resource limits and requests defined
+
+**Monitoring:**
+- [ ] Metrics collection enabled
+- [ ] Distributed tracing configured
+- [ ] Log aggregation set up
+- [ ] Health checks implemented
+- [ ] Alerting rules defined
+
+**Security:**
+- [ ] Authentication and authorization implemented
+- [ ] Input validation and sanitization
+- [ ] Rate limiting configured
+- [ ] Network policies applied
+- [ ] Secrets management in place
+
+10.2 Implementation Best Practices
+----------------------------------
+**API Design:**
+```python
+# Good: Consistent error handling
+class APIError(Exception):
+    def __init__(self, message, status_code=500, error_code=None):
+        self.message = message
+        self.status_code = status_code
+        self.error_code = error_code
+
+@app.errorhandler(APIError)
+def handle_api_error(error):
+    response = {
+        'error': {
+            'message': error.message,
+            'code': error.error_code,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+    }
+    return jsonify(response), error.status_code
+
+# Good: Request/response logging
+def log_request_response(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        request_id = str(uuid.uuid4())
+        
+        # Log request
+        logger.info("Request received", extra={
+            'request_id': request_id,
+            'endpoint': request.endpoint,
+            'method': request.method,
+            'user_agent': request.headers.get('User-Agent'),
+            'content_length': request.content_length
+        })
+        
+        start_time = time.time()
+        
+        try:
+            result = func(*args, **kwargs)
+            status = 'success'
+            return result
+        except Exception as e:
+            status = 'error'
+            logger.error("Request failed", extra={
+                'request_id': request_id,
+                'error': str(e),
+                'error_type': type(e).__name__
+            })
+            raise e
+        finally:
+            duration = time.time() - start_time
+            logger.info("Request completed", extra={
+                'request_id': request_id,
+                'duration_ms': duration * 1000,
+                'status': status
+            })
+    
+    return wrapper
+```
+
+**Model Management:**
+```python
+class ProductionModelManager:
+    def __init__(self, model_registry, cache_size=10):
+        self.model_registry = model_registry
+        self.model_cache = {}
+        self.cache_size = cache_size
+        self.model_locks = {}
+    
+    def get_model(self, model_id, version='latest'):
+        """Thread-safe model loading with caching"""
+        cache_key = f"{model_id}:{version}"
+        
+        # Check cache first
+        if cache_key in self.model_cache:
+            return self.model_cache[cache_key]
+        
+        # Use lock to prevent multiple threads loading same model
+        if cache_key not in self.model_locks:
+            self.model_locks[cache_key] = threading.Lock()
+        
+        with self.model_locks[cache_key]:
+            # Double-check cache after acquiring lock
+            if cache_key in self.model_cache:
+                return self.model_cache[cache_key]
+            
+            # Load model
+            model = self._load_model(model_id, version)
+            
+            # Manage cache size
+            if len(self.model_cache) >= self.cache_size:
+                self._evict_oldest_model()
+            
+            self.model_cache[cache_key] = model
+            return model
+    
+    def _load_model(self, model_id, version):
+        """Load model from registry"""
+        model_path = self.model_registry.get_model_path(model_id, version)
+        
+        # Validate model before loading
+        if not self._validate_model(model_path):
+            raise ModelValidationError(f"Model validation failed: {model_id}:{version}")
+        
+        return self._deserialize_model(model_path)
+    
+    def _validate_model(self, model_path):
+        """Validate model integrity"""
+        # Check file exists and is readable
+        if not os.path.exists(model_path):
+            return False
+        
+        # Verify checksum if available
+        checksum_path = f"{model_path}.sha256"
+        if os.path.exists(checksum_path):
+            return self._verify_checksum(model_path, checksum_path)
+        
+        return True
+```
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+Model serving architectures and APIs are critical for production ML systems:
+
+**Architecture Patterns:**
+- Choose synchronous vs asynchronous based on latency requirements
+- Design for scalability with proper load balancing
+- Implement proper caching and batching strategies
+- Use microservices for complex multi-model systems
+
+**API Design:**
+- RESTful APIs for simplicity and broad compatibility
+- gRPC for high-performance, low-latency requirements
+- Proper input validation and error handling
+- Comprehensive monitoring and observability
+
+**Performance Optimization:**
+- Model quantization and optimization
+- Intelligent caching strategies
+- Batch processing for throughput
+- Horizontal scaling with auto-scaling
+
+**Security and Reliability:**
+- Strong authentication and authorization
+- Input validation and sanitization
+- Circuit breakers and fallback mechanisms
+- Comprehensive monitoring and alerting
+
+**Best Practices:**
+- Start simple and optimize based on requirements
+- Implement comprehensive testing and validation
+- Design for observability from day one
+- Plan for scaling and evolution
+
+Success requires balancing performance, reliability, security, and maintainability while meeting specific latency and throughput requirements. 

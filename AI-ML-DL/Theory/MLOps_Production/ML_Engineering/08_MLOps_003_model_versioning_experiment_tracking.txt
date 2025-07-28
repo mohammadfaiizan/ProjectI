@@ -1,0 +1,1079 @@
+MODEL VERSIONING AND EXPERIMENT TRACKING
+=======================================
+
+Table of Contents:
+1. Model Versioning Fundamentals
+2. Experiment Tracking Systems
+3. MLflow Implementation and Architecture
+4. Model Registry Design Patterns
+5. Metadata Management and Lineage
+6. Reproducibility and Environment Management
+7. Model Performance Tracking
+8. Best Practices and Case Studies
+
+================================================================================
+1. MODEL VERSIONING FUNDAMENTALS
+================================================================================
+
+1.1 Versioning Strategies
+-------------------------
+**Semantic Versioning for ML Models:**
+```
+MAJOR.MINOR.PATCH
+1.2.3
+```
+
+- **MAJOR:** Breaking changes (API, input/output format)
+- **MINOR:** New features, backward compatible improvements
+- **PATCH:** Bug fixes, minor improvements
+
+**Git-based Model Versioning:**
+```
+model_v1.0.0 → feature_branch → model_v1.1.0
+           ↓
+       hotfix_branch → model_v1.0.1
+```
+
+**Content-based Versioning:**
+```python
+import hashlib
+import pickle
+
+def version_model(model, model_metadata):
+    """Generate version based on model content"""
+    model_bytes = pickle.dumps(model)
+    metadata_str = json.dumps(model_metadata, sort_keys=True)
+    
+    combined_content = model_bytes + metadata_str.encode()
+    version_hash = hashlib.sha256(combined_content).hexdigest()[:12]
+    
+    return f"v{version_hash}"
+```
+
+1.2 Model Artifacts and Dependencies
+-----------------------------------
+**Complete Model Package:**
+```
+model_package/
+├── model/
+│   ├── model.pkl              # Serialized model
+│   ├── preprocessor.pkl       # Feature preprocessing
+│   └── metadata.json          # Model metadata
+├── code/
+│   ├── train.py              # Training script
+│   ├── predict.py            # Prediction script
+│   └── utils.py              # Helper functions
+├── data/
+│   ├── train_data_hash.txt   # Training data fingerprint
+│   └── validation_results.json
+├── environment/
+│   ├── requirements.txt      # Python dependencies
+│   ├── conda.yml            # Conda environment
+│   └── Dockerfile           # Container specification
+└── experiments/
+    ├── hyperparameters.json  # Model hyperparameters
+    └── metrics.json          # Performance metrics
+```
+
+1.3 Model State Management
+--------------------------
+**Model Lifecycle States:**
+```python
+class ModelState(Enum):
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
+    ARCHIVED = "archived"
+    DEPRECATED = "deprecated"
+
+class ModelVersion:
+    def __init__(self, model_id, version, state=ModelState.DEVELOPMENT):
+        self.model_id = model_id
+        self.version = version
+        self.state = state
+        self.created_at = datetime.now()
+        self.metadata = {}
+    
+    def promote_to_staging(self):
+        """Promote model to staging environment"""
+        if self.state == ModelState.DEVELOPMENT:
+            self.state = ModelState.STAGING
+            self.metadata['promoted_to_staging_at'] = datetime.now()
+        else:
+            raise ValueError(f"Cannot promote from {self.state} to staging")
+    
+    def promote_to_production(self):
+        """Promote model to production environment"""
+        if self.state == ModelState.STAGING:
+            self.state = ModelState.PRODUCTION
+            self.metadata['promoted_to_production_at'] = datetime.now()
+        else:
+            raise ValueError(f"Cannot promote from {self.state} to production")
+```
+
+================================================================================
+2. EXPERIMENT TRACKING SYSTEMS
+================================================================================
+
+2.1 Experiment Tracking Architecture
+------------------------------------
+**Core Components:**
+- **Experiment Logger:** Records experiments and metrics
+- **Artifact Store:** Stores models, datasets, and outputs
+- **Metadata Database:** Tracks experiment metadata and lineage
+- **UI/API:** Interface for querying and comparing experiments
+
+**Tracking Workflow:**
+```
+Experiment Start → Log Parameters → Train Model → Log Metrics → Store Artifacts → End Experiment
+```
+
+2.2 Experiment Data Model
+-------------------------
+```python
+class Experiment:
+    def __init__(self, experiment_id, name):
+        self.experiment_id = experiment_id
+        self.name = name
+        self.runs = []
+        self.created_at = datetime.now()
+        self.tags = {}
+
+class ExperimentRun:
+    def __init__(self, run_id, experiment_id):
+        self.run_id = run_id
+        self.experiment_id = experiment_id
+        self.start_time = datetime.now()
+        self.end_time = None
+        self.status = "RUNNING"
+        
+        self.parameters = {}    # Hyperparameters
+        self.metrics = {}       # Performance metrics
+        self.artifacts = {}     # File artifacts
+        self.tags = {}         # Metadata tags
+    
+    def log_parameter(self, key, value):
+        self.parameters[key] = value
+    
+    def log_metric(self, key, value, step=None):
+        if key not in self.metrics:
+            self.metrics[key] = []
+        self.metrics[key].append({
+            'value': value,
+            'step': step,
+            'timestamp': datetime.now()
+        })
+    
+    def log_artifact(self, artifact_path, artifact_type="file"):
+        self.artifacts[artifact_path] = {
+            'type': artifact_type,
+            'logged_at': datetime.now()
+        }
+```
+
+2.3 Distributed Experiment Tracking
+-----------------------------------
+```python
+class DistributedTracker:
+    def __init__(self, tracking_uri, artifact_uri):
+        self.tracking_uri = tracking_uri
+        self.artifact_uri = artifact_uri
+        self.client = TrackingClient(tracking_uri)
+    
+    def start_run(self, experiment_name, run_name=None):
+        experiment = self.client.get_or_create_experiment(experiment_name)
+        run = self.client.create_run(experiment.experiment_id, run_name)
+        return ExperimentContext(self.client, run.info.run_id)
+
+class ExperimentContext:
+    def __init__(self, client, run_id):
+        self.client = client
+        self.run_id = run_id
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.client.set_terminated(self.run_id)
+    
+    def log_params(self, params):
+        for key, value in params.items():
+            self.client.log_param(self.run_id, key, value)
+    
+    def log_metrics(self, metrics, step=None):
+        for key, value in metrics.items():
+            self.client.log_metric(self.run_id, key, value, step)
+```
+
+================================================================================
+3. MLFLOW IMPLEMENTATION AND ARCHITECTURE
+================================================================================
+
+3.1 MLflow Components
+---------------------
+**MLflow Tracking:**
+```python
+import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+
+def train_model(data, target):
+    with mlflow.start_run() as run:
+        # Log parameters
+        n_estimators = 100
+        max_depth = 10
+        mlflow.log_param("n_estimators", n_estimators)
+        mlflow.log_param("max_depth", max_depth)
+        
+        # Train model
+        model = RandomForestClassifier(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            random_state=42
+        )
+        model.fit(data, target)
+        
+        # Evaluate and log metrics
+        predictions = model.predict(data)
+        accuracy = accuracy_score(target, predictions)
+        mlflow.log_metric("accuracy", accuracy)
+        
+        # Log model
+        mlflow.sklearn.log_model(
+            model, 
+            "model",
+            registered_model_name="RandomForestClassifier"
+        )
+        
+        # Log artifacts
+        feature_importance = pd.DataFrame({
+            'feature': data.columns,
+            'importance': model.feature_importances_
+        })
+        feature_importance.to_csv("feature_importance.csv", index=False)
+        mlflow.log_artifact("feature_importance.csv")
+        
+        return run.info.run_id
+```
+
+**MLflow Projects:**
+```yaml
+# MLproject file
+name: customer_churn_prediction
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      n_estimators: {type: int, default: 100}
+      max_depth: {type: int, default: 10}
+      data_path: {type: string}
+    command: "python train.py --n-estimators {n_estimators} --max-depth {max_depth} --data-path {data_path}"
+  
+  evaluate:
+    parameters:
+      model_uri: {type: string}
+      test_data_path: {type: string}
+    command: "python evaluate.py --model-uri {model_uri} --test-data-path {test_data_path}"
+```
+
+3.2 MLflow Model Registry
+-------------------------
+```python
+from mlflow.tracking import MlflowClient
+
+class ModelRegistry:
+    def __init__(self, tracking_uri):
+        mlflow.set_tracking_uri(tracking_uri)
+        self.client = MlflowClient()
+    
+    def register_model(self, model_uri, model_name, description=None):
+        """Register a model version"""
+        result = mlflow.register_model(
+            model_uri=model_uri,
+            name=model_name,
+            description=description
+        )
+        return result
+    
+    def promote_model(self, model_name, version, stage):
+        """Promote model to different stage"""
+        self.client.transition_model_version_stage(
+            name=model_name,
+            version=version,
+            stage=stage
+        )
+    
+    def get_latest_model_version(self, model_name, stage=None):
+        """Get latest model version in specific stage"""
+        versions = self.client.get_latest_versions(
+            model_name, 
+            stages=[stage] if stage else None
+        )
+        return versions[0] if versions else None
+    
+    def compare_model_versions(self, model_name, versions):
+        """Compare different model versions"""
+        comparison_data = []
+        
+        for version in versions:
+            mv = self.client.get_model_version(model_name, version)
+            run = self.client.get_run(mv.run_id)
+            
+            comparison_data.append({
+                'version': version,
+                'metrics': run.data.metrics,
+                'parameters': run.data.params,
+                'stage': mv.current_stage
+            })
+        
+        return comparison_data
+```
+
+3.3 Custom MLflow Plugins
+-------------------------
+```python
+from mlflow.tracking.artifact_utils import _download_artifact_from_uri
+from mlflow.models import Model
+import joblib
+
+class CustomModelFlavor:
+    FLAVOR_NAME = "custom_sklearn"
+    
+    @staticmethod
+    def save_model(model, path, conda_env=None, mlflow_model=None, **kwargs):
+        """Save custom model with additional metadata"""
+        
+        if mlflow_model is None:
+            mlflow_model = Model()
+        
+        # Save model using joblib
+        model_path = os.path.join(path, "model.joblib")
+        joblib.dump(model, model_path)
+        
+        # Save additional metadata
+        metadata = {
+            "feature_names": getattr(model, 'feature_names_', None),
+            "model_type": type(model).__name__,
+            "sklearn_version": sklearn.__version__
+        }
+        
+        metadata_path = os.path.join(path, "metadata.json")
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f)
+        
+        # Add flavor to MLmodel file
+        mlflow_model.add_flavor(
+            CustomModelFlavor.FLAVOR_NAME,
+            model_path="model.joblib",
+            metadata_path="metadata.json"
+        )
+        
+        mlflow_model.save(os.path.join(path, "MLmodel"))
+    
+    @staticmethod
+    def load_model(model_uri):
+        """Load custom model"""
+        local_path = _download_artifact_from_uri(model_uri)
+        
+        # Load model
+        model_path = os.path.join(local_path, "model.joblib")
+        model = joblib.load(model_path)
+        
+        # Load metadata
+        metadata_path = os.path.join(local_path, "metadata.json")
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        
+        # Attach metadata to model
+        for key, value in metadata.items():
+            setattr(model, key, value)
+        
+        return model
+```
+
+================================================================================
+4. MODEL REGISTRY DESIGN PATTERNS
+================================================================================
+
+4.1 Registry Architecture
+-------------------------
+**Multi-Environment Registry:**
+```
+Development Registry → Staging Registry → Production Registry
+```
+
+**Centralized Registry with Environment Promotion:**
+```python
+class ModelRegistryManager:
+    def __init__(self):
+        self.environments = {
+            'dev': ModelRegistry('dev-tracking-server'),
+            'staging': ModelRegistry('staging-tracking-server'),
+            'prod': ModelRegistry('prod-tracking-server')
+        }
+    
+    def promote_across_environments(self, model_name, version, source_env, target_env):
+        """Promote model between environments"""
+        
+        # Get model from source environment
+        source_registry = self.environments[source_env]
+        model_version = source_registry.get_model_version(model_name, version)
+        
+        # Validate model before promotion
+        if not self.validate_model_for_promotion(model_version, target_env):
+            raise ValueError("Model validation failed for promotion")
+        
+        # Register in target environment
+        target_registry = self.environments[target_env]
+        target_registry.register_model(
+            model_uri=model_version.source,
+            model_name=model_name,
+            description=f"Promoted from {source_env}"
+        )
+        
+        return True
+    
+    def validate_model_for_promotion(self, model_version, target_env):
+        """Validate model meets requirements for target environment"""
+        
+        validation_checks = {
+            'staging': [
+                self.check_model_performance,
+                self.check_model_size,
+                self.check_dependencies
+            ],
+            'prod': [
+                self.check_model_performance,
+                self.check_model_size,
+                self.check_dependencies,
+                self.check_security_scan,
+                self.check_compliance
+            ]
+        }
+        
+        checks = validation_checks.get(target_env, [])
+        
+        for check in checks:
+            if not check(model_version):
+                return False
+        
+        return True
+```
+
+4.2 Model Lineage and Provenance
+--------------------------------
+```python
+class ModelLineageTracker:
+    def __init__(self):
+        self.lineage_graph = {}
+    
+    def track_model_creation(self, model_id, training_data_id, parent_model_id=None):
+        """Track model creation lineage"""
+        self.lineage_graph[model_id] = {
+            'type': 'model',
+            'training_data': training_data_id,
+            'parent_model': parent_model_id,
+            'created_at': datetime.now(),
+            'children': []
+        }
+        
+        if parent_model_id and parent_model_id in self.lineage_graph:
+            self.lineage_graph[parent_model_id]['children'].append(model_id)
+    
+    def get_model_lineage(self, model_id):
+        """Get complete lineage for a model"""
+        lineage = {
+            'model': self.lineage_graph.get(model_id),
+            'ancestors': self._get_ancestors(model_id),
+            'descendants': self._get_descendants(model_id)
+        }
+        return lineage
+    
+    def _get_ancestors(self, model_id, visited=None):
+        """Get all ancestor models"""
+        if visited is None:
+            visited = set()
+        
+        if model_id in visited or model_id not in self.lineage_graph:
+            return []
+        
+        visited.add(model_id)
+        ancestors = []
+        
+        parent_id = self.lineage_graph[model_id].get('parent_model')
+        if parent_id:
+            ancestors.append(parent_id)
+            ancestors.extend(self._get_ancestors(parent_id, visited))
+        
+        return ancestors
+```
+
+================================================================================
+5. METADATA MANAGEMENT AND LINEAGE
+================================================================================
+
+5.1 Comprehensive Metadata Schema
+---------------------------------
+```python
+from pydantic import BaseModel
+from typing import Dict, List, Optional
+from datetime import datetime
+
+class DatasetMetadata(BaseModel):
+    dataset_id: str
+    name: str
+    version: str
+    schema_version: str
+    location: str
+    format: str
+    size_bytes: int
+    row_count: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+    tags: Dict[str, str]
+
+class ModelMetadata(BaseModel):
+    model_id: str
+    name: str
+    version: str
+    framework: str  # sklearn, tensorflow, pytorch
+    algorithm: str
+    
+    # Training metadata
+    training_dataset_id: str
+    validation_dataset_id: Optional[str]
+    hyperparameters: Dict[str, any]
+    training_duration_seconds: Optional[float]
+    
+    # Performance metadata
+    metrics: Dict[str, float]
+    validation_metrics: Dict[str, float]
+    
+    # Deployment metadata
+    serving_framework: Optional[str]
+    api_schema: Optional[Dict]
+    resource_requirements: Optional[Dict]
+    
+    # Lineage
+    parent_model_id: Optional[str]
+    experiment_id: str
+    run_id: str
+    
+    # Lifecycle
+    created_at: datetime
+    created_by: str
+    current_stage: str
+    tags: Dict[str, str]
+
+class ExperimentMetadata(BaseModel):
+    experiment_id: str
+    name: str
+    description: Optional[str]
+    objective: str  # classification, regression, etc.
+    
+    # Configuration
+    framework_version: str
+    python_version: str
+    environment_hash: str
+    
+    # Tracking
+    total_runs: int
+    best_run_id: Optional[str]
+    created_at: datetime
+    last_updated: datetime
+    tags: Dict[str, str]
+```
+
+5.2 Automated Metadata Collection
+---------------------------------
+```python
+class AutoMetadataCollector:
+    def __init__(self):
+        self.collectors = []
+    
+    def add_collector(self, collector):
+        self.collectors.append(collector)
+    
+    def collect_training_metadata(self, model, training_data, validation_data=None):
+        """Automatically collect metadata during training"""
+        metadata = {}
+        
+        for collector in self.collectors:
+            try:
+                collected = collector.collect(model, training_data, validation_data)
+                metadata.update(collected)
+            except Exception as e:
+                logging.warning(f"Metadata collector {collector} failed: {e}")
+        
+        return metadata
+
+class EnvironmentCollector:
+    def collect(self, model, training_data, validation_data=None):
+        """Collect environment metadata"""
+        return {
+            'python_version': sys.version,
+            'platform': platform.platform(),
+            'cpu_count': psutil.cpu_count(),
+            'memory_gb': psutil.virtual_memory().total / (1024**3),
+            'gpu_info': self._get_gpu_info(),
+            'pip_packages': self._get_pip_packages()
+        }
+    
+    def _get_gpu_info(self):
+        try:
+            import GPUtil
+            gpus = GPUtil.getGPUs()
+            return [{'id': gpu.id, 'name': gpu.name, 'memory': gpu.memoryTotal} for gpu in gpus]
+        except:
+            return []
+    
+    def _get_pip_packages(self):
+        result = subprocess.run(['pip', 'freeze'], capture_output=True, text=True)
+        return result.stdout.splitlines()
+
+class DataCollector:
+    def collect(self, model, training_data, validation_data=None):
+        """Collect data-related metadata"""
+        metadata = {
+            'training_data': {
+                'shape': training_data.shape if hasattr(training_data, 'shape') else None,
+                'dtypes': training_data.dtypes.to_dict() if hasattr(training_data, 'dtypes') else None,
+                'memory_usage_mb': training_data.memory_usage(deep=True).sum() / 1024**2 if hasattr(training_data, 'memory_usage') else None
+            }
+        }
+        
+        if validation_data is not None:
+            metadata['validation_data'] = {
+                'shape': validation_data.shape if hasattr(validation_data, 'shape') else None,
+                'dtypes': validation_data.dtypes.to_dict() if hasattr(validation_data, 'dtypes') else None
+            }
+        
+        return metadata
+```
+
+================================================================================
+6. REPRODUCIBILITY AND ENVIRONMENT MANAGEMENT
+================================================================================
+
+6.1 Environment Reproducibility
+-------------------------------
+**Conda Environment Management:**
+```yaml
+# environment.yml
+name: ml-project
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - scikit-learn=1.0.2
+  - pandas=1.4.2
+  - numpy=1.21.5
+  - pip
+  - pip:
+    - mlflow==1.26.1
+    - optuna==2.10.1
+```
+
+**Docker Environment:**
+```dockerfile
+FROM python:3.8-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY src/ ./src/
+COPY models/ ./models/
+
+# Set environment variables
+ENV PYTHONPATH=/app/src
+ENV MODEL_PATH=/app/models
+
+# Run training script
+CMD ["python", "src/train.py"]
+```
+
+6.2 Experiment Reproducibility
+------------------------------
+```python
+class ReproducibleExperiment:
+    def __init__(self, experiment_name, random_seed=42):
+        self.experiment_name = experiment_name
+        self.random_seed = random_seed
+        self.environment_snapshot = self._capture_environment()
+    
+    def _capture_environment(self):
+        """Capture complete environment state"""
+        return {
+            'python_version': sys.version,
+            'random_seed': self.random_seed,
+            'numpy_version': np.__version__,
+            'sklearn_version': sklearn.__version__,
+            'git_commit': self._get_git_commit(),
+            'environment_variables': dict(os.environ),
+            'working_directory': os.getcwd()
+        }
+    
+    def _get_git_commit(self):
+        try:
+            return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+        except:
+            return None
+    
+    def set_random_seeds(self):
+        """Set all random seeds for reproducibility"""
+        random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
+        
+        # For deep learning frameworks
+        try:
+            import torch
+            torch.manual_seed(self.random_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed(self.random_seed)
+        except ImportError:
+            pass
+        
+        try:
+            import tensorflow as tf
+            tf.random.set_seed(self.random_seed)
+        except ImportError:
+            pass
+    
+    def run_experiment(self, experiment_function, *args, **kwargs):
+        """Run experiment with full reproducibility tracking"""
+        self.set_random_seeds()
+        
+        with mlflow.start_run(run_name=f"{self.experiment_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"):
+            # Log environment information
+            for key, value in self.environment_snapshot.items():
+                mlflow.log_param(f"env_{key}", str(value))
+            
+            # Run experiment
+            result = experiment_function(*args, **kwargs)
+            
+            return result
+```
+
+================================================================================
+7. MODEL PERFORMANCE TRACKING
+================================================================================
+
+7.1 Performance Monitoring Pipeline
+----------------------------------
+```python
+class ModelPerformanceTracker:
+    def __init__(self, model_name, tracking_backend):
+        self.model_name = model_name
+        self.tracking_backend = tracking_backend
+        self.performance_history = []
+    
+    def track_batch_performance(self, predictions, ground_truth, batch_metadata):
+        """Track performance for a batch of predictions"""
+        
+        # Calculate metrics
+        metrics = self._calculate_metrics(predictions, ground_truth)
+        
+        # Add metadata
+        performance_record = {
+            'timestamp': datetime.now(),
+            'model_name': self.model_name,
+            'batch_size': len(predictions),
+            'metrics': metrics,
+            'metadata': batch_metadata
+        }
+        
+        # Store performance record
+        self.performance_history.append(performance_record)
+        self.tracking_backend.log_performance(performance_record)
+        
+        # Check for performance degradation
+        self._check_performance_alerts(metrics)
+    
+    def _calculate_metrics(self, predictions, ground_truth):
+        """Calculate comprehensive performance metrics"""
+        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+        
+        metrics = {
+            'accuracy': accuracy_score(ground_truth, predictions),
+            'precision': precision_score(ground_truth, predictions, average='weighted'),
+            'recall': recall_score(ground_truth, predictions, average='weighted'),
+            'f1_score': f1_score(ground_truth, predictions, average='weighted')
+        }
+        
+        return metrics
+    
+    def _check_performance_alerts(self, current_metrics):
+        """Check for performance degradation alerts"""
+        if len(self.performance_history) < 10:
+            return  # Need baseline
+        
+        # Calculate baseline performance
+        recent_history = self.performance_history[-10:]
+        baseline_accuracy = np.mean([r['metrics']['accuracy'] for r in recent_history])
+        
+        # Check for significant degradation
+        degradation_threshold = 0.05  # 5% degradation
+        if current_metrics['accuracy'] < baseline_accuracy - degradation_threshold:
+            self._send_performance_alert(current_metrics, baseline_accuracy)
+    
+    def _send_performance_alert(self, current_metrics, baseline_accuracy):
+        """Send performance degradation alert"""
+        alert = {
+            'type': 'PERFORMANCE_DEGRADATION',
+            'model_name': self.model_name,
+            'current_accuracy': current_metrics['accuracy'],
+            'baseline_accuracy': baseline_accuracy,
+            'degradation': baseline_accuracy - current_metrics['accuracy'],
+            'timestamp': datetime.now()
+        }
+        
+        # Send to alerting system
+        self.tracking_backend.send_alert(alert)
+```
+
+7.2 A/B Testing for Model Performance
+------------------------------------
+```python
+class ModelABTester:
+    def __init__(self, control_model, treatment_model, traffic_split=0.5):
+        self.control_model = control_model
+        self.treatment_model = treatment_model
+        self.traffic_split = traffic_split
+        self.results = {'control': [], 'treatment': []}
+    
+    def predict_with_assignment(self, features, user_id):
+        """Make prediction with A/B assignment"""
+        
+        # Assign user to variant
+        variant = self._assign_variant(user_id)
+        
+        # Make prediction
+        if variant == 'control':
+            prediction = self.control_model.predict(features)
+            model_version = self.control_model.version
+        else:
+            prediction = self.treatment_model.predict(features)
+            model_version = self.treatment_model.version
+        
+        # Log assignment and prediction
+        self._log_assignment(user_id, variant, prediction, model_version)
+        
+        return prediction, variant
+    
+    def _assign_variant(self, user_id):
+        """Consistent user assignment to variants"""
+        hash_value = hash(f"{user_id}_ab_test") % 100
+        return 'treatment' if hash_value < self.traffic_split * 100 else 'control'
+    
+    def record_outcome(self, user_id, actual_outcome):
+        """Record actual outcome for analysis"""
+        assignment = self._get_user_assignment(user_id)
+        
+        self.results[assignment].append({
+            'user_id': user_id,
+            'outcome': actual_outcome,
+            'timestamp': datetime.now()
+        })
+    
+    def analyze_results(self, minimum_sample_size=1000):
+        """Analyze A/B test results"""
+        control_outcomes = [r['outcome'] for r in self.results['control']]
+        treatment_outcomes = [r['outcome'] for r in self.results['treatment']]
+        
+        if len(control_outcomes) < minimum_sample_size or len(treatment_outcomes) < minimum_sample_size:
+            return {"status": "insufficient_data"}
+        
+        # Statistical significance test
+        from scipy.stats import ttest_ind
+        
+        statistic, p_value = ttest_ind(control_outcomes, treatment_outcomes)
+        
+        control_mean = np.mean(control_outcomes)
+        treatment_mean = np.mean(treatment_outcomes)
+        lift = (treatment_mean - control_mean) / control_mean * 100
+        
+        return {
+            'status': 'complete',
+            'control_mean': control_mean,
+            'treatment_mean': treatment_mean,
+            'lift_percent': lift,
+            'p_value': p_value,
+            'statistically_significant': p_value < 0.05,
+            'sample_sizes': {
+                'control': len(control_outcomes),
+                'treatment': len(treatment_outcomes)
+            }
+        }
+```
+
+================================================================================
+8. BEST PRACTICES AND CASE STUDIES
+================================================================================
+
+8.1 Experiment Organization Best Practices
+------------------------------------------
+**Hierarchical Experiment Structure:**
+```
+Project/
+├── baseline_models/
+│   ├── linear_regression_v1/
+│   ├── random_forest_v1/
+│   └── gradient_boosting_v1/
+├── feature_engineering_experiments/
+│   ├── polynomial_features/
+│   ├── interaction_terms/
+│   └── dimensionality_reduction/
+├── hyperparameter_optimization/
+│   ├── grid_search_rf/
+│   ├── bayesian_opt_gb/
+│   └── random_search_nn/
+└── production_candidates/
+    ├── model_v2_0/
+    ├── model_v2_1/
+    └── model_v2_2/
+```
+
+**Naming Conventions:**
+```python
+# Consistent experiment naming
+experiment_name = f"{project}_{model_type}_{feature_set}_{optimization_method}_{date}"
+
+# Example: "churn_prediction_rf_feature_v2_bayesian_opt_20231201"
+
+# Tag classification
+tags = {
+    'project': 'customer_churn',
+    'model_family': 'tree_based',
+    'feature_version': 'v2.1',
+    'optimization': 'bayesian',
+    'data_version': 'train_20231201',
+    'experiment_type': 'hyperparameter_tuning'
+}
+```
+
+8.2 Netflix Case Study
+----------------------
+**Challenge:** Track thousands of recommendation model experiments across multiple teams
+
+**Solution Architecture:**
+```
+Jupyter Notebooks → MLflow Tracking → Model Registry → Production Deployment
+                 ↓
+           Experiment Database → Analytics Dashboard → A/B Testing Platform
+```
+
+**Key Practices:**
+- Standardized experiment templates
+- Automated model validation pipelines
+- Performance monitoring in production
+- Cross-team experiment sharing
+
+8.3 Uber's Michelangelo Registry
+-------------------------------
+**Features:**
+- Multi-environment model promotion
+- Automated validation gates
+- Integration with feature store
+- Cost and performance tracking
+
+**Registry Schema:**
+```python
+{
+    "model_id": "driver_eta_v3_2",
+    "model_name": "Driver ETA Prediction",
+    "version": "3.2.1",
+    "framework": "xgboost",
+    "training_job_id": "job_12345",
+    "feature_set_version": "eta_features_v1_5",
+    "performance_metrics": {
+        "mae": 1.2,
+        "mape": 0.08,
+        "r2": 0.94
+    },
+    "resource_requirements": {
+        "cpu_cores": 4,
+        "memory_gb": 16,
+        "inference_latency_p99": 50
+    },
+    "environments": {
+        "staging": "deployed",
+        "production": "promoted"
+    }
+}
+```
+
+8.4 Implementation Checklist
+----------------------------
+**Pre-experiment Setup:**
+- [ ] Environment reproducibility (Docker/Conda)
+- [ ] Data versioning and validation
+- [ ] Code version control integration
+- [ ] Experiment naming conventions
+- [ ] Baseline model establishment
+
+**During Experiment:**
+- [ ] Parameter logging (hyperparameters, config)
+- [ ] Metric tracking (train/val/test)
+- [ ] Artifact storage (models, plots, data)
+- [ ] Progress monitoring and logging
+- [ ] Resource usage tracking
+
+**Post-experiment:**
+- [ ] Model validation and testing
+- [ ] Performance comparison with baselines
+- [ ] Model registration and promotion
+- [ ] Documentation and knowledge sharing
+- [ ] Cleanup of temporary resources
+
+**Production Monitoring:**
+- [ ] Performance degradation detection
+- [ ] Data drift monitoring
+- [ ] Model usage analytics
+- [ ] A/B testing capabilities
+- [ ] Rollback procedures
+
+================================================================================
+SUMMARY AND KEY TAKEAWAYS
+================================================================================
+
+Model versioning and experiment tracking are essential for building reliable ML systems at scale:
+
+**Versioning Strategy:**
+- Use semantic versioning for models
+- Track complete model artifacts and dependencies
+- Implement proper model state management
+- Maintain lineage and provenance information
+
+**Experiment Tracking:**
+- Log comprehensive metadata (parameters, metrics, artifacts)
+- Design for reproducibility from day one
+- Implement distributed tracking for team collaboration
+- Automate metadata collection where possible
+
+**Model Registry:**
+- Centralize model artifacts and metadata
+- Implement promotion workflows across environments
+- Enable model comparison and lineage tracking
+- Integrate with deployment and monitoring systems
+
+**Best Practices:**
+- Standardize experiment organization and naming
+- Automate validation and quality gates
+- Monitor model performance continuously
+- Design for team collaboration and knowledge sharing
+
+Success requires balancing comprehensive tracking with practical usability, ensuring that the overhead of experiment management doesn't impede scientific progress while maintaining reproducibility and governance. 
