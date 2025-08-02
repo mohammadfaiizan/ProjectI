@@ -1,0 +1,64 @@
+SIMPLIFIED MODELS REPOSITORY STRUCTURE
+======================================
+
+OVERVIEW
+--------
+This repository contains 4 focused categories of machine learning models. Each model is implemented 
+in a single Python file containing complete pipeline: dataset loading, preprocessing, model 
+architecture, training, validation, and evaluation.
+
+REPOSITORY STRUCTURE
+===================
+
+📷 01_CNN_MODELS/ - Computer Vision Models (15+ models)
+🎨 02_GENERATIVE_AI/ - Generative Models (12+ models)  
+📝 03_NLP_MODELS/ - Natural Language Processing (18+ models)
+📈 04_TIME_SERIES/ - Time Series & Stock Prediction (10+ models)
+
+IMPLEMENTATION APPROACH
+=======================
+
+Each Python file includes:
+- Dataset loading and preprocessing
+- Model architecture definition
+- Training loop with validation
+- Model evaluation and metrics
+- Visualization of results
+- Model saving/loading
+- Complete end-to-end pipeline
+
+FILE NAMING CONVENTION
+======================
+- CNN: 001_lenet.py, 002_alexnet.py, etc.
+- Generative: 001_vanilla_gan.py, 002_dcgan.py, etc.
+- NLP: 001_word2vec.py, 002_lstm_text_classification.py, etc.
+- Time Series: 001_arima.py, 002_lstm_stock_prediction.py, etc.
+
+CATEGORIES BREAKDOWN
+===================
+
+01_CNN_MODELS (15+ models)
+- Classic architectures (LeNet, AlexNet, VGG, ResNet)
+- Modern architectures (EfficientNet, Vision Transformer)
+- Object detection (YOLO, R-CNN variants)
+- Specialized applications (Face recognition, Medical imaging)
+
+02_GENERATIVE_AI (12+ models)
+- GANs (Vanilla, DCGAN, StyleGAN, CycleGAN)
+- VAEs (Vanilla, Beta-VAE, Conditional VAE)
+- Diffusion Models (DDPM, Stable Diffusion)
+- Text Generation (GPT variants, BERT)
+
+03_NLP_MODELS (18+ models)
+- Word embeddings (Word2Vec, GloVe, FastText)
+- Text classification (CNN, LSTM, BERT variants)
+- Language models (GPT, BERT, T5)
+- Specific tasks (NER, Sentiment, Translation)
+
+04_TIME_SERIES (10+ models)
+- Traditional methods (ARIMA, SARIMA)
+- Deep learning (LSTM, GRU, Transformer)
+- Stock prediction specific models
+- Forecasting evaluation methods
+
+Each category will have detailed content specification in separate files.
