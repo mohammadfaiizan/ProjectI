@@ -1,0 +1,19 @@
+\begin{table}[t!]
+\begin{center}
+\resizebox{\linewidth}{!} {
+\begin{tabular}{ c c | c c c c | c}
+& & \textbf{2AFC} & \textbf{JND} & \textbf{Class.} & \textbf{Det.} & \textbf{Avg} \\
+\midrule
+\textbf{Perceptual} & \textbf{2AFC} & -- & .928 & .640 & .363 & .644 \\
+\textbf{Perceptual} & \textbf{JND} & .928 & -- & .612 & .232 & .591 \\
+\textbf{PASCAL} & \textbf{Classification} & .640 & .612 & -- & .429 & .560 \\
+\textbf{PASCAL} & \textbf{Detection} &.363 & .232 & .429 & -- & .341 \\
+\end{tabular}
+}
+% \vspace{5px}
+\vspace{-2mm}
+\caption{\textbf{Task correlation}. We correlate scores between our low-level perceptual tests along with high-level semantic tests across methods. Perceptual scores are averaged between traditional and CNN-based distortion sets. Correlation scores are computed for AlexNet-like architectures.}
+\label{tab:corr}
+\vspace{-8mm}
+\end{center}
+\end{table}

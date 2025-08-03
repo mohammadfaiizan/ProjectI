@@ -1,0 +1,129 @@
+\backcite {iandola2016squeezenet}{{1}{1}{figure.1}}
+\backcite {krizhevsky2014one}{{1}{1}{figure.1}}
+\backcite {simonyan2014very}{{1}{1}{figure.1}}
+\backcite {russakovsky2015imagenet}{{1}{1}{figure.1}}
+\backcite {donahue2016adversarial, noroozi2016unsupervised,pathak2017learning,zhang2017split}{{1}{1}{figure.1}}
+\backcite {krahenbuhl2015data}{{1}{1}{figure.1}}
+\backcite {wang2004image}{{1}{1}{section.1}}
+\backcite {wang2003multiscale}{{1}{1}{section.1}}
+\backcite {zhang2011fsim}{{1}{1}{section.1}}
+\backcite {mantiuk2011hdr}{{1}{1}{section.1}}
+\backcite {wang2004image}{{1}{1}{section.1}}
+\backcite {Goodman1972,medin1993respects,markman2005nonintentional}{{2}{1}{section.1}}
+\backcite {tversky1977features}{{2}{1}{section.1}}
+\backcite {simonyan2014very}{{2}{1}{section.1}}
+\backcite {gatys2016image}{{2}{1}{section.1}}
+\backcite {johnson2016perceptual}{{2}{1}{section.1}}
+\backcite {dosovitskiy2016generating,chen2017photographic}{{2}{1}{section.1}}
+\backcite {johnson2016perceptual,dosovitskiy2016generating}{{2}{1}{section.1}}
+\backcite {iandola2016squeezenet,krizhevsky2012imagenet,simonyan2014very}{{2}{1}{table.caption.2}}
+\backcite {wang2004image, zhang2011fsim}{{2}{1}{table.caption.2}}
+\backcite {sampat2009complex}{{2}{1}{table.caption.2}}
+\backcite {donahue2016adversarial}{{2}{1}{table.caption.2}}
+\backcite {zhang2017split}{{2}{1}{table.caption.2}}
+\backcite {noroozi2016unsupervised}{{2}{1}{table.caption.2}}
+\backcite {krahenbuhl2015data}{{2}{1}{table.caption.2}}
+\backcite {ponomarenko2015image}{{2}{1}{table.caption.2}}
+\backcite {sheikh2006statistical}{{3}{\caption@xref {??}{ on input line 19}}{table.caption.2}}
+\backcite {larson2010most}{{3}{\caption@xref {??}{ on input line 19}}{table.caption.2}}
+\backcite {ponomarenko2009tid2008}{{3}{\caption@xref {??}{ on input line 19}}{table.caption.2}}
+\backcite {ponomarenko2015image}{{3}{\caption@xref {??}{ on input line 19}}{table.caption.2}}
+\backcite {fivek,dang2015raise}{{3}{1}{table.caption.2}}
+\backcite {sheikh2006statistical}{{3}{1}{table.caption.2}}
+\backcite {ponomarenko2009tid2008}{{3}{1}{table.caption.2}}
+\backcite {larson2010most}{{3}{1}{table.caption.2}}
+\backcite {ponomarenko2015image}{{3}{1}{table.caption.2}}
+\backcite {murray2012ava}{{3}{1}{table.caption.2}}
+\backcite {ghadiyaram2016massive}{{3}{1}{table.caption.2}}
+\backcite {kim2017deep}{{3}{1}{table.caption.2}}
+\backcite {talebi2017learned,talebi2018nima}{{3}{1}{table.caption.2}}
+\backcite {gao2017deepsim}{{3}{1}{table.caption.2}}
+\backcite {ali2017image}{{3}{1}{table.caption.2}}
+\backcite {berardino2017eigen}{{3}{1}{table.caption.2}}
+\backcite {russakovsky2015imagenet}{{4}{2.1}{subsection.2.1}}
+\backcite {Agustsson_2017_CVPR_Workshops}{{4}{2.1}{subsection.2.1}}
+\backcite {kim2016accurate,wang2015deep,ledig2016photo,sajjadi2016enhancenet}{{4}{2.1}{subsection.2.1}}
+\backcite {Agustsson_2017_CVPR_Workshops}{{4}{2.1}{subsection.2.1}}
+\backcite {liu2009beyond}{{4}{2.1}{subsection.2.1}}
+\backcite {Niklaus_ICCV_2017}{{4}{2.1}{subsection.2.1}}
+\backcite {meyer2015phase}{{4}{2.1}{subsection.2.1}}
+\backcite {scharstein2002taxonomy}{{4}{2.1}{subsection.2.1}}
+\backcite {Su_2017_CVPR}{{4}{2.1}{subsection.2.1}}
+\backcite {delbracio2015hand}{{4}{2.1}{subsection.2.1}}
+\backcite {Su_2017_CVPR}{{4}{2.1}{subsection.2.1}}
+\backcite {russakovsky2015imagenet}{{4}{2.1}{subsection.2.1}}
+\backcite {isola2015learning}{{4}{2.1}{subsection.2.1}}
+\backcite {larsson2016learning}{{4}{2.1}{subsection.2.1}}
+\backcite {zhang2016colorful}{{4}{2.1}{subsection.2.1}}
+\backcite {ponomarenko2015image}{{4}{2.2}{subsection.2.2}}
+\backcite {medin1993respects}{{5}{2.2}{subsection.2.2}}
+\backcite {chen2017photographic,isola2017image}{{5}{2.2}{subsection.2.2}}
+\backcite {fivek}{{5}{2.2}{subsection.2.2}}
+\backcite {dang2015raise}{{5}{2.2}{subsection.2.2}}
+\backcite {crump2013evaluating}{{5}{2.2}{subsection.2.2}}
+\backcite {medin1993respects}{{5}{2.2}{table.caption.4}}
+\backcite {fivek}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {fivek}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {fivek}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {dang2015raise}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {dang2015raise}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {Lim_2017_CVPR_Workshops}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {scharstein2002taxonomy}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {baker2011database}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {russakovsky2015imagenet}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {dang2015raise}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {dang2015raise}{{5}{\caption@xref {??}{ on input line 26}}{table.caption.4}}
+\backcite {fivek}{{5}{3}{table.caption.4}}
+\backcite {dang2015raise}{{5}{3}{table.caption.4}}
+\backcite {iandola2016squeezenet}{{5}{3}{section.3}}
+\backcite {krizhevsky2012imagenet}{{5}{3}{section.3}}
+\backcite {simonyan2014very}{{5}{3}{section.3}}
+\backcite {gatys2016image,dosovitskiy2016generating,chen2017photographic}{{5}{3}{section.3}}
+\backcite {yamins2016using}{{5}{3}{section.3}}
+\backcite {krizhevsky2014one}{{5}{3}{section.3}}
+\backcite {noroozi2016unsupervised}{{5}{3}{section.3}}
+\backcite {zhang2016colorful,zhang2017split}{{5}{3}{section.3}}
+\backcite {pathak2017learning}{{5}{3}{section.3}}
+\backcite {donahue2016adversarial}{{6}{3}{section.3}}
+\backcite {krizhevsky2012imagenet}{{6}{3}{section.3}}
+\backcite {krahenbuhl2015data}{{7}{5}{figure.caption.7}}
+\backcite {agrawal2015learning,pathakCVPR16context,doersch2015unsupervised,wang2015unsupervised,zhang2016colorful,owens2016visually,pathak2017learning,noroozi2016unsupervised,donahue2016adversarial,zhang2017split}{{7}{5}{figure.caption.7}}
+\backcite {krizhevsky2014one,simonyan2014very,iandola2016squeezenet}{{7}{5}{figure.caption.7}}
+\backcite {sampat2009complex}{{7}{4.1}{figure.caption.7}}
+\backcite {donahue2016adversarial}{{7}{4.1}{figure.caption.7}}
+\backcite {noroozi2016unsupervised}{{7}{4.1}{figure.caption.7}}
+\backcite {zhang2017split}{{7}{4.1}{figure.caption.7}}
+\backcite {pathak2017learning}{{7}{4.1}{figure.caption.7}}
+\backcite {krahenbuhl2015data}{{7}{4.1}{figure.caption.7}}
+\backcite {pascal-voc-2007}{{7}{4.1}{table.caption.8}}
+\backcite {zhang2017split}{{7}{4.1}{table.caption.8}}
+\backcite {agrawal2015learning,pathakCVPR16context,doersch2015unsupervised,wang2015unsupervised,zhang2016colorful,owens2016visually}{{7}{4.1}{table.caption.8}}
+\backcite {pascal-voc-2007}{{7}{4.1}{figure.caption.9}}
+\backcite {wang2004image}{{8}{6}{figure.caption.9}}
+\backcite {donahue2016adversarial}{{8}{6}{figure.caption.9}}
+\backcite {donahue2016adversarial}{{8}{4.1}{figure.caption.9}}
+\backcite {wang2004image}{{8}{4.1}{figure.caption.9}}
+\backcite {doersch2015unsupervised}{{8}{5}{section.5}}
+\backcite {yamins2016using}{{8}{5}{section.5}}
+\backcite {anderson1990adaptive}{{8}{5}{section.5}}
+\backcite {ponomarenko2015image}{{10}{(document)}{Doc-Start}}
+\backcite {wang2004image}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {zhang2011fsim}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {mantiuk2011hdr}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {krahenbuhl2015data}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {pathak2017learning}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {zhang2017split}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {noroozi2016unsupervised}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {donahue2016adversarial}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {iandola2016squeezenet}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {krizhevsky2014one}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {simonyan2014very}{{12}{\caption@xref {??}{ on input line 41}}{table.caption.15}}
+\backcite {paszkepytorch}{{13}{B}{equation.B.2}}
+\backcite {wang2004image}{{14}{11}{figure.caption.17}}
+\backcite {donahue2016adversarial}{{14}{11}{figure.caption.17}}
+\backcite {ponomarenko2015image}{{14}{12}{figure.caption.18}}
+\backcite {ponomarenko2015image}{{14}{C}{appendix.C}}
+\backcite {krizhevsky2014one}{{14}{C}{appendix.C}}
+\backcite {zhang2011fsim}{{14}{C}{appendix.C}}
+\backcite {sampat2009complex}{{14}{C}{appendix.C}}
+\backcite {sampat2009complex}{{14}{D}{appendix.D}}

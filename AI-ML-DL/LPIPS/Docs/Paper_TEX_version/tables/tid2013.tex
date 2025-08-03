@@ -1,0 +1,22 @@
+\begin{table}[t]
+\begin{center}
+\scalebox{0.85} {
+\begin{tabular}{ r c c c } \\
+& \textbf{avg} & \textbf{scale} & \textbf{scale \& layer} \\
+& & \textbf{oracle} & \textbf{oracle} \\ \hline
+SqueezeNet~\cite{iandola2016squeezenet} & .762 & .796 & .813 \\
+AlexNet~\cite{krizhevsky2014one} & .811 & \textbf{.841} & \textbf{.851} \\
+VGG16~\cite{simonyan2014very} & .707 & .749 & .800 \\
+Resnet50~\cite{he2015deep} & .717 & .743 & .765 \\
+\hline
+FSIMc~\cite{zhang2011fsim} & \textbf{.851} &  &  \\
+FSIM~\cite{zhang2011fsim} & .801 &  &  \\
+MSSIM~\cite{wang2003multiscale} & .787 & & \\
+SSIM~\cite{wang2004image} & .637 &  &  \\
+PSNR & .640 &  &  \\
+\end{tabular}
+}
+\label{tab:tid}
+\caption{\textbf{TID2013 Results with Pre-Trained Networks}. We show performance of pre-trained classification networks on the TID2013~\cite{ponomarenko2015image} dataset using Spearman correlation with the MOS score provided by the dataset. Each network is run across multiple scales. In the first column, we compute the average cosine distance across all scales and layers. We then assume that the network has a scale oracle, as well as a scale \& best layer oracle in the 2nd and 3rd columns. Note that the deep networks are already highly competitive with designed models.}
+\end{center}
+\end{table}

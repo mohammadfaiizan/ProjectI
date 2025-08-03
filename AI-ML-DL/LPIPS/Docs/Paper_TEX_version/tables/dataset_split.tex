@@ -1,0 +1,31 @@
+
+\begin{table}[t]
+\begin{center}
+\scalebox{0.85} {
+\begin{tabular}{c c c c c }
+\multirow{2}[2]{*}{\textbf{Dataset}} & \textbf{Data} & \textbf{Train/} & \textbf{$\#$ Ex-} & \textbf{$\#$ Judge} \\
+& \textbf{source} & \textbf{Val} & \textbf{amples} & \textbf{/Example} \\ \midrule \midrule
+Traditional & ~\cite{fivek} & Train & 56.6k & 2 \\
+CNN-based & ~\cite{fivek} & Train & 38.1k & 2 \\
+Mixed & ~\cite{fivek} & Train & 56.6k & 2 \\ \midrule
+\textbf{2AFC--Distort [Trn]} & -- & Train & 151.4k & 2 \\ \midrule \midrule
+Traditional & ~\cite{dang2015raise} & Train & 4.7k & 5 \\
+CNN-based & ~\cite{dang2015raise} & Train & 4.7k & 5 \\ \midrule 
+\textbf{2AFC--Distort [Val]} & -- & Val & 9.4k & 5\\ \midrule \midrule
+Superres & ~\cite{Lim_2017_CVPR_Workshops} & Val & 10.9k & 5\\
+Frame Interp & ~\cite{scharstein2002taxonomy} & Val & 1.9 & 5\\
+Video Deblur & ~\cite{baker2011database} & Val & 9.4 & 5\\
+Colorization & ~\cite{russakovsky2015imagenet} & Val & 4.7 & 5\\ \midrule
+\textbf{2AFC--Real Alg [Val]} & -- & Val & 26.9k & 5 \\ \midrule \midrule
+Traditional & ~\cite{dang2015raise} & Val & 4.8k & 3 \\
+CNN-based & ~\cite{dang2015raise} & Val & 4.8k & 3 \\ \midrule
+\textbf{JND--Distort} & -- & Val & 9.6k & 3 \\ \midrule \midrule
+\vspace{-6mm}
+
+\end{tabular}
+}
+\label{tab:dataset_split}
+\caption{\textbf{Our dataset breakdown}. We split our 2AFC dataset in to three main portions (1,2) training and test sets with our distortions. Our training and test sets contain patches sampled from the MIT5k~\cite{fivek} and RAISE1k~\cite{dang2015raise} datasets, respectively  (3) a test set containing real algorithm outputs, containing patches from a variety of applications. Our JND data is on traditional and CNN-based distortions.}
+\vspace{-8mm}
+\end{center}
+\end{table}

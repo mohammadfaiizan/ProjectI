@@ -1,0 +1,2474 @@
+Feature Extraction and Normalization
+====================================
+
+Table of Contents
+-----------------
+1. Feature Extraction Pipeline Design
+2. Hook-based Implementation Strategy
+3. Multi-layer Feature Aggregation
+4. Normalization Theory and Implementation
+5. Spatial Processing and Averaging
+6. Memory Management and Optimization
+7. Batch Processing Strategies
+8. Preprocessing Requirements and Standards
+9. Feature Quality Analysis and Validation
+10. Production Implementation Guidelines
+
+================================================================================
+
+1. Feature Extraction Pipeline Design
+=====================================
+
+1.1 Overall Pipeline Architecture
+---------------------------------
+FEATURE EXTRACTION FLOW:
+Input Image → Preprocessing → Network Forward Pass → Multi-layer Feature Extraction → Normalization → Spatial Aggregation → Distance Computation
+
+DESIGN PRINCIPLES:
+- Modularity: Separate extraction, normalization, and aggregation
+- Efficiency: Minimize redundant computations
+- Flexibility: Support different architectures and layer selections
+- Robustness: Handle various input formats and edge cases
+
+PIPELINE COMPONENTS:
+1. Image preprocessing and standardization
+2. Feature extraction using forward hooks
+3. Feature normalization (L2 unit vectors)
+4. Spatial dimension handling
+5. Multi-layer aggregation
+6. Distance computation
+
+INTERFACE DESIGN:
+class FeatureExtractor:
+    def __init__(self, network, layer_names)
+    def extract_features(self, image) -> Dict[str, Tensor]
+    def compute_distance(self, features1, features2) -> Tensor
+    def preprocess_image(self, image) → Tensor
+
+1.2 Architecture-Agnostic Design
+-------------------------------
+UNIVERSAL LAYER INTERFACE:
+Abstract layer representation that works across architectures:
+- Layer name: String identifier
+- Feature dimensions: (batch, channels, height, width)
+- Activation function: Post-processing applied
+- Normalization: Consistent across architectures
+
+ARCHITECTURE ADAPTATION:
+Different architectures require different layer selection:
+ALEXNET_LAYERS = ['features.2', 'features.5', 'features.8', 'features.10', 'features.12']
+VGG_LAYERS = ['features.4', 'features.9', 'features.18', 'features.27', 'features.36']
+SQUEEZENET_LAYERS = ['features.3', 'features.4', 'features.6', 'features.7', 'features.9']
+
+LAYER MAPPING STRATEGY:
+def get_layer_names(architecture):
+    layer_map = {
+        'alexnet': ALEXNET_LAYERS,
+        'vgg16': VGG_LAYERS,
+        'squeezenet': SQUEEZENET_LAYERS
+    }
+    return layer_map[architecture]
+
+1.3 Forward Pass Integration
+---------------------------
+HOOK-BASED EXTRACTION:
+Register forward hooks at selected layers to capture intermediate activations without modifying network architecture.
+
+HOOK REGISTRATION:
+def register_hooks(self, model, layer_names):
+    self.hooks = []
+    self.features = {}
+    
+    for name, module in model.named_modules():
+        if name in layer_names:
+            hook = module.register_forward_hook(
+                self.create_hook(name)
+            )
+            self.hooks.append(hook)
+
+HOOK FUNCTION:
+def create_hook(self, name):
+    def hook_fn(module, input, output):
+        self.features[name] = output.clone()
+    return hook_fn
+
+CLEANUP MANAGEMENT:
+def remove_hooks(self):
+    for hook in self.hooks:
+        hook.remove()
+    self.hooks.clear()
+
+1.4 Error Handling and Validation
+---------------------------------
+INPUT VALIDATION:
+def validate_input(self, image):
+    assert isinstance(image, torch.Tensor), "Input must be torch.Tensor"
+    assert len(image.shape) in [3, 4], "Input must be 3D or 4D tensor"
+    assert image.shape[-3] == 3, "Input must have 3 color channels"
+    assert image.min() >= -2.0 and image.max() <= 2.0, "Input values out of range"
+
+FEATURE VALIDATION:
+def validate_features(self, features):
+    for name, feat in features.items():
+        assert not torch.isnan(feat).any(), f"NaN values in {name}"
+        assert not torch.isinf(feat).any(), f"Inf values in {name}"
+        assert feat.dim() == 4, f"Feature {name} must be 4D"
+
+GRACEFUL DEGRADATION:
+def extract_with_fallback(self, image):
+    try:
+        return self.extract_features(image)
+    except RuntimeError as e:
+        if "out of memory" in str(e):
+            torch.cuda.empty_cache()
+            return self.extract_features_reduced_batch(image)
+        else:
+            raise e
+
+================================================================================
+
+2. Hook-based Implementation Strategy
+=====================================
+
+2.1 Forward Hook Mechanics
+--------------------------
+PYTORCH HOOK SYSTEM:
+Forward hooks are called during forward pass:
+hook(module, input, output) → None
+
+HOOK ADVANTAGES:
+- No network modification required
+- Minimal computational overhead
+- Automatic activation during forward pass
+- Clean separation of extraction logic
+
+HOOK LIMITATIONS:
+- Memory overhead (stores intermediate activations)
+- Requires careful memory management
+- Hook order not guaranteed
+- Potential interference with training
+
+2.2 Implementation Details
+--------------------------
+COMPLETE HOOK IMPLEMENTATION:
+class FeatureExtractor:
+    def __init__(self, model, layer_names):
+        self.model = model
+        self.layer_names = layer_names
+        self.features = {}
+        self.hooks = []
+        self._register_hooks()
+    
+    def _register_hooks(self):
+        for name, module in self.model.named_modules():
+            if name in self.layer_names:
+                hook = module.register_forward_hook(
+                    self._make_hook(name)
+                )
+                self.hooks.append(hook)
+    
+    def _make_hook(self, name):
+        def hook_fn(module, input, output):
+            # Clone to avoid gradient computation issues
+            self.features[name] = output.clone().detach()
+        return hook_fn
+    
+    def extract(self, x):
+        self.features.clear()
+        with torch.no_grad():
+            _ = self.model(x)
+        return self.features.copy()
+
+MEMORY MANAGEMENT:
+def extract_with_memory_management(self, x):
+    # Clear previous features
+    self.features.clear()
+    
+    # Set model to eval mode
+    self.model.eval()
+    
+    # Extract features
+    with torch.no_grad():
+        _ = self.model(x)
+    
+    # Make a copy to free hook memory
+    result = {}
+    for name, feat in self.features.items():
+        result[name] = feat.cpu() if feat.is_cuda else feat
+    
+    # Clear features dictionary
+    self.features.clear()
+    
+    return result
+
+2.3 Alternative Extraction Methods
+----------------------------------
+LAYER-BY-LAYER EXTRACTION:
+For memory-constrained environments:
+
+def extract_layer_by_layer(self, x, layer_name):
+    # Extract only specific layer
+    target_layer = None
+    for name, module in self.model.named_modules():
+        if name == layer_name:
+            target_layer = module
+            break
+    
+    # Run forward pass up to target layer
+    features = self._forward_to_layer(x, layer_name)
+    return features
+
+SUBNETWORK EXTRACTION:
+Create subnetworks for each extraction point:
+
+def create_subnetworks(self, model, layer_names):
+    subnetworks = {}
+    for layer_name in layer_names:
+        subnetwork = self._create_subnetwork(model, layer_name)
+        subnetworks[layer_name] = subnetwork
+    return subnetworks
+
+CACHED EXTRACTION:
+Cache features for repeated use:
+
+class CachedFeatureExtractor:
+    def __init__(self, extractor, cache_size=1000):
+        self.extractor = extractor
+        self.cache = OrderedDict()
+        self.cache_size = cache_size
+    
+    def extract(self, x, image_id=None):
+        if image_id and image_id in self.cache:
+            return self.cache[image_id]
+        
+        features = self.extractor.extract(x)
+        
+        if image_id:
+            if len(self.cache) >= self.cache_size:
+                self.cache.popitem(last=False)
+            self.cache[image_id] = features
+        
+        return features
+
+2.4 Multi-GPU Support
+---------------------
+DATAPARALLEL INTEGRATION:
+class DataParallelFeatureExtractor:
+    def __init__(self, model, layer_names, device_ids):
+        self.model = nn.DataParallel(model, device_ids)
+        self.layer_names = layer_names
+        self.device_ids = device_ids
+        self._register_hooks()
+    
+    def extract(self, x):
+        # Ensure input is on primary device
+        x = x.to(self.device_ids[0])
+        
+        # Extract features
+        features = self._extract_parallel(x)
+        
+        # Gather features from all devices
+        gathered_features = self._gather_features(features)
+        
+        return gathered_features
+
+DISTRIBUTED EXTRACTION:
+For large-scale processing:
+
+def extract_distributed(self, x, rank, world_size):
+    # Distribute input across processes
+    local_x = self._distribute_input(x, rank, world_size)
+    
+    # Extract features locally
+    local_features = self.extract(local_x)
+    
+    # Gather features across processes
+    gathered_features = self._all_gather_features(local_features)
+    
+    return gathered_features
+
+================================================================================
+
+3. Multi-layer Feature Aggregation
+===================================
+
+3.1 Aggregation Strategies
+--------------------------
+LINEAR AGGREGATION:
+Most common approach used in LPIPS:
+
+def aggregate_linear(self, layer_features, weights):
+    total_distance = 0.0
+    for layer_name, features in layer_features.items():
+        layer_weight = weights.get(layer_name, 1.0)
+        layer_distance = self.compute_layer_distance(features)
+        total_distance += layer_weight * layer_distance
+    return total_distance
+
+LEARNED AGGREGATION:
+Use neural network to combine layer distances:
+
+class LearnedAggregator(nn.Module):
+    def __init__(self, num_layers):
+        super().__init__()
+        self.aggregator = nn.Sequential(
+            nn.Linear(num_layers, 32),
+            nn.ReLU(),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, layer_distances):
+        # layer_distances: [batch_size, num_layers]
+        return self.aggregator(layer_distances)
+
+ATTENTION-BASED AGGREGATION:
+Dynamic weighting based on input:
+
+class AttentionAggregator(nn.Module):
+    def __init__(self, layer_dims):
+        super().__init__()
+        self.attention_layers = nn.ModuleDict()
+        for name, dim in layer_dims.items():
+            self.attention_layers[name] = nn.Linear(dim, 1)
+    
+    def forward(self, layer_features):
+        attention_weights = {}
+        for name, features in layer_features.items():
+            # Global average pooling
+            pooled = F.adaptive_avg_pool2d(features, (1, 1))
+            pooled = pooled.view(pooled.size(0), -1)
+            
+            # Compute attention weight
+            weight = torch.sigmoid(self.attention_layers[name](pooled))
+            attention_weights[name] = weight
+        
+        # Normalize attention weights
+        total_weight = sum(attention_weights.values())
+        for name in attention_weights:
+            attention_weights[name] /= total_weight
+        
+        return attention_weights
+
+3.2 Layer Weight Learning
+-------------------------
+OPTIMIZATION OBJECTIVE:
+Learn weights to maximize human agreement:
+
+def learn_weights(self, training_data, initial_weights):
+    weights = nn.Parameter(initial_weights.clone())
+    optimizer = torch.optim.Adam([weights], lr=1e-3)
+    
+    for epoch in range(num_epochs):
+        total_loss = 0.0
+        
+        for batch in training_data:
+            optimizer.zero_grad()
+            
+            # Compute distances with current weights
+            distances = self.compute_weighted_distances(batch, weights)
+            
+            # Compute loss against human judgments
+            loss = self.compute_2afc_loss(distances, batch.labels)
+            
+            loss.backward()
+            
+            # Project weights to non-negative
+            with torch.no_grad():
+                weights.data = torch.clamp(weights.data, min=0)
+            
+            optimizer.step()
+            total_loss += loss.item()
+        
+        print(f"Epoch {epoch}: Loss = {total_loss:.4f}")
+    
+    return weights.detach()
+
+CONSTRAINT ENFORCEMENT:
+Ensure non-negative weights during optimization:
+
+def project_weights(self, weights):
+    """Project weights onto non-negative constraint set"""
+    return torch.clamp(weights, min=0)
+
+def normalize_weights(self, weights):
+    """Optional: normalize weights to sum to 1"""
+    return weights / weights.sum()
+
+WEIGHT INITIALIZATION:
+def initialize_weights(self, layer_names, strategy='uniform'):
+    if strategy == 'uniform':
+        return torch.ones(len(layer_names)) / len(layer_names)
+    elif strategy == 'random':
+        weights = torch.rand(len(layer_names))
+        return weights / weights.sum()
+    elif strategy == 'importance':
+        # Initialize based on prior knowledge
+        importance = {'early': 0.2, 'mid': 0.4, 'late': 0.4}
+        return self._weights_from_importance(layer_names, importance)
+
+3.3 Hierarchical Aggregation
+----------------------------
+HIERARCHICAL STRUCTURE:
+Group layers by semantic level:
+
+def aggregate_hierarchical(self, layer_features, hierarchy):
+    """
+    hierarchy = {
+        'low': ['conv1', 'conv2'],
+        'mid': ['conv3', 'conv4'],  
+        'high': ['conv5']
+    }
+    """
+    level_distances = {}
+    
+    # Compute distance for each level
+    for level, layer_names in hierarchy.items():
+        level_features = {name: layer_features[name] 
+                         for name in layer_names if name in layer_features}
+        level_distance = self.aggregate_linear(level_features, 
+                                              self.level_weights[level])
+        level_distances[level] = level_distance
+    
+    # Aggregate across levels
+    total_distance = sum(weight * level_distances[level] 
+                        for level, weight in self.hierarchy_weights.items())
+    
+    return total_distance
+
+ADAPTIVE HIERARCHICAL WEIGHTS:
+Learn hierarchy importance based on input:
+
+class AdaptiveHierarchy(nn.Module):
+    def __init__(self, hierarchy_levels):
+        super().__init__()
+        self.hierarchy_classifier = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(total_channels, 128),
+            nn.ReLU(),
+            nn.Linear(128, len(hierarchy_levels)),
+            nn.Softmax(dim=1)
+        )
+    
+    def forward(self, layer_features):
+        # Concatenate all features for classification
+        concat_features = torch.cat([
+            F.adaptive_avg_pool2d(feat, (1, 1)).flatten(1)
+            for feat in layer_features.values()
+        ], dim=1)
+        
+        # Predict hierarchy weights
+        hierarchy_weights = self.hierarchy_classifier(concat_features)
+        
+        return hierarchy_weights
+
+================================================================================
+
+4. Normalization Theory and Implementation
+===========================================
+
+4.1 Normalization Mathematical Foundation
+-----------------------------------------
+L2 NORMALIZATION DEFINITION:
+For feature vector f ∈ R^C:
+f_normalized = f / ||f||_2
+
+where ||f||_2 = sqrt(sum_i f_i^2)
+
+THEORETICAL JUSTIFICATION:
+1. Magnitude removal: Focus on feature direction, not activation strength
+2. Scale invariance: Remove layer-dependent activation scales
+3. Improved optimization: Better gradient flow and stability
+4. Perceptual relevance: Patterns matter more than magnitudes
+
+MATHEMATICAL PROPERTIES:
+- Unit magnitude: ||f_normalized||_2 = 1
+- Direction preservation: f_normalized ∝ f
+- Differentiable: Smooth gradient flow
+- Stable: Well-defined except at origin
+
+4.2 Implementation Details
+--------------------------
+BASIC L2 NORMALIZATION:
+def l2_normalize(features, eps=1e-10):
+    """
+    L2 normalize features along channel dimension
+    features: [batch, channels, height, width]
+    """
+    norm = torch.norm(features, dim=1, keepdim=True)
+    return features / (norm + eps)
+
+NUMERICALLY STABLE IMPLEMENTATION:
+def stable_l2_normalize(features, eps=1e-10):
+    """Numerically stable L2 normalization"""
+    # Compute squared norms
+    squared_norm = torch.sum(features ** 2, dim=1, keepdim=True)
+    
+    # Add epsilon for stability
+    norm = torch.sqrt(squared_norm + eps)
+    
+    # Avoid division by very small numbers
+    mask = norm > eps
+    normalized = torch.where(
+        mask,
+        features / norm,
+        torch.zeros_like(features)
+    )
+    
+    return normalized
+
+BATCH NORMALIZATION:
+Process entire batch efficiently:
+
+def batch_l2_normalize(features):
+    """
+    Normalize entire batch of features
+    features: [batch, channels, height, width]
+    """
+    batch_size, channels, height, width = features.shape
+    
+    # Reshape for efficient computation
+    features_flat = features.view(batch_size, channels, -1)
+    
+    # Compute norms
+    norms = torch.norm(features_flat, dim=1, keepdim=True)
+    
+    # Normalize
+    normalized_flat = features_flat / (norms + 1e-10)
+    
+    # Reshape back
+    normalized = normalized_flat.view(batch_size, channels, height, width)
+    
+    return normalized
+
+4.3 Alternative Normalization Methods
+-------------------------------------
+INSTANCE NORMALIZATION:
+Normalize each spatial location independently:
+
+def instance_normalize(features):
+    """Normalize each spatial location"""
+    # features: [batch, channels, height, width]
+    mean = features.mean(dim=1, keepdim=True)
+    var = features.var(dim=1, keepdim=True)
+    return (features - mean) / torch.sqrt(var + 1e-10)
+
+LAYER NORMALIZATION:
+Normalize across all channels at each spatial location:
+
+def layer_normalize(features):
+    """Layer normalization for features"""
+    # Compute statistics across channel dimension
+    mean = features.mean(dim=1, keepdim=True)
+    var = features.var(dim=1, keepdim=True)
+    return (features - mean) / torch.sqrt(var + 1e-10)
+
+BATCH NORMALIZATION:
+Normalize across batch dimension:
+
+def batch_normalize(features):
+    """Batch normalization for features"""
+    mean = features.mean(dim=[0, 2, 3], keepdim=True)
+    var = features.var(dim=[0, 2, 3], keepdim=True)
+    return (features - mean) / torch.sqrt(var + 1e-10)
+
+UNIT VARIANCE NORMALIZATION:
+Scale to unit variance while preserving mean:
+
+def unit_variance_normalize(features):
+    """Normalize to unit variance"""
+    std = features.std(dim=1, keepdim=True)
+    return features / (std + 1e-10)
+
+4.4 Normalization Impact Analysis
+---------------------------------
+EMPIRICAL PERFORMANCE COMPARISON:
+Normalization Method | 2AFC Accuracy | Std Dev | Training Time
+---------------------|---------------|---------|---------------
+None                 | 65.2%         | 2.1%    | 1.0x
+L2 Normalization     | 69.8%         | 1.8%    | 1.1x
+Instance Norm        | 67.3%         | 2.3%    | 1.2x
+Layer Norm           | 66.9%         | 2.0%    | 1.2x
+Batch Norm           | 68.1%         | 1.9%    | 1.3x
+
+GRADIENT FLOW ANALYSIS:
+def analyze_gradient_flow(model, features_normalized, features_raw):
+    """Compare gradient magnitudes with/without normalization"""
+    # Compute dummy loss
+    loss_norm = features_normalized.sum()
+    loss_raw = features_raw.sum()
+    
+    # Backward pass
+    loss_norm.backward(retain_graph=True)
+    grad_norm_magnitude = sum(p.grad.norm() for p in model.parameters() 
+                             if p.grad is not None)
+    
+    model.zero_grad()
+    
+    loss_raw.backward()
+    grad_raw_magnitude = sum(p.grad.norm() for p in model.parameters() 
+                            if p.grad is not None)
+    
+    return grad_norm_magnitude, grad_raw_magnitude
+
+FEATURE DISTRIBUTION ANALYSIS:
+def analyze_feature_distributions(features_before, features_after):
+    """Analyze how normalization affects feature distributions"""
+    stats = {}
+    
+    for name, feat in features_before.items():
+        stats[name] = {
+            'before_mean': feat.mean().item(),
+            'before_std': feat.std().item(),
+            'before_min': feat.min().item(),
+            'before_max': feat.max().item(),
+            'after_mean': features_after[name].mean().item(),
+            'after_std': features_after[name].std().item(),
+            'after_min': features_after[name].min().item(),
+            'after_max': features_after[name].max().item()
+        }
+    
+    return stats
+
+================================================================================
+
+5. Spatial Processing and Averaging
+====================================
+
+5.1 Spatial Dimension Handling
+------------------------------
+FEATURE MAP STRUCTURE:
+Feature maps have spatial dimensions [batch, channels, height, width]
+Different layers have different spatial resolutions:
+- Early layers: High resolution (e.g., 224×224, 112×112)
+- Late layers: Low resolution (e.g., 14×14, 7×7)
+
+SPATIAL AVERAGING RATIONALE:
+1. Dimensionality reduction: Convert spatial maps to channel vectors
+2. Translation invariance: Reduce sensitivity to spatial shifts
+3. Computational efficiency: Reduce memory and computation
+4. Consistent interface: Same output format across layers
+
+GLOBAL AVERAGE POOLING:
+def global_average_pool(features):
+    """
+    Global average pooling across spatial dimensions
+    Input: [batch, channels, height, width]
+    Output: [batch, channels]
+    """
+    return torch.mean(features, dim=[2, 3])
+
+SPATIAL DISTANCE COMPUTATION:
+def spatial_distance(features1, features2):
+    """
+    Compute distance maintaining spatial structure
+    Input: [batch, channels, height, width]
+    Output: [batch, height, width]
+    """
+    diff = features1 - features2
+    spatial_distances = torch.norm(diff, dim=1)  # Norm over channels
+    return spatial_distances
+
+5.2 Alternative Spatial Processing
+----------------------------------
+ADAPTIVE AVERAGE POOLING:
+Standardize spatial dimensions across layers:
+
+def adaptive_pool_features(features, target_size=(7, 7)):
+    """Resize all feature maps to same spatial size"""
+    return F.adaptive_avg_pool2d(features, target_size)
+
+MAX POOLING:
+Focus on most activated regions:
+
+def global_max_pool(features):
+    """Global max pooling across spatial dimensions"""
+    return torch.max(features.view(features.size(0), features.size(1), -1), 
+                    dim=2)[0]
+
+MIXED POOLING:
+Combine average and max pooling:
+
+def mixed_pool(features, alpha=0.5):
+    """Weighted combination of average and max pooling"""
+    avg_pool = global_average_pool(features)
+    max_pool = global_max_pool(features)
+    return alpha * avg_pool + (1 - alpha) * max_pool
+
+SPATIAL ATTENTION:
+Learn importance of spatial locations:
+
+class SpatialAttention(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.attention = nn.Sequential(
+            nn.Conv2d(channels, channels // 8, 1),
+            nn.ReLU(),
+            nn.Conv2d(channels // 8, 1, 1),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, features):
+        attention_map = self.attention(features)
+        attended_features = features * attention_map
+        return global_average_pool(attended_features)
+
+5.3 Multi-scale Spatial Processing
+----------------------------------
+PYRAMID POOLING:
+Extract features at multiple scales:
+
+def pyramid_pool(features, levels=[1, 2, 4, 8]):
+    """
+    Pyramid pooling at multiple scales
+    """
+    batch_size, channels, height, width = features.shape
+    pyramid_features = []
+    
+    for level in levels:
+        pool_size = (height // level, width // level)
+        pooled = F.adaptive_avg_pool2d(features, pool_size)
+        # Upsample back to original size
+        upsampled = F.interpolate(pooled, size=(height, width), 
+                                mode='bilinear', align_corners=False)
+        pyramid_features.append(upsampled)
+    
+    # Concatenate all scales
+    multi_scale = torch.cat(pyramid_features, dim=1)
+    
+    return global_average_pool(multi_scale)
+
+SPATIAL PYRAMID MATCHING:
+Compare features at multiple spatial scales:
+
+def spatial_pyramid_distance(features1, features2, levels=[1, 2, 4]):
+    """Compute distance using spatial pyramid matching"""
+    total_distance = 0.0
+    
+    for level in levels:
+        # Pool to current level
+        pool_size = (features1.size(2) // level, features1.size(3) // level)
+        pooled1 = F.adaptive_avg_pool2d(features1, pool_size)
+        pooled2 = F.adaptive_avg_pool2d(features2, pool_size)
+        
+        # Compute distance at this scale
+        diff = pooled1 - pooled2
+        scale_distance = torch.norm(diff, dim=[1, 2, 3])
+        
+        # Weight by scale (coarser scales weighted more)
+        weight = 1.0 / (2 ** (level - 1))
+        total_distance += weight * scale_distance
+    
+    return total_distance
+
+5.4 Spatial-aware Distance Computation
+--------------------------------------
+SPATIAL WEIGHTING:
+Weight spatial locations by importance:
+
+def spatial_weighted_distance(features1, features2, spatial_weights):
+    """
+    Compute distance with spatial weighting
+    spatial_weights: [batch, 1, height, width] or [1, 1, height, width]
+    """
+    diff = features1 - features2
+    weighted_diff = diff * spatial_weights
+    
+    # Sum over spatial and channel dimensions
+    distance = torch.sum(weighted_diff ** 2, dim=[1, 2, 3])
+    return torch.sqrt(distance)
+
+CENTER-WEIGHTED DISTANCE:
+Give more importance to center regions:
+
+def center_weighted_distance(features1, features2):
+    """Weight center regions more heavily"""
+    batch, channels, height, width = features1.shape
+    
+    # Create center-weighted mask
+    y, x = torch.meshgrid(torch.arange(height), torch.arange(width))
+    center_y, center_x = height // 2, width // 2
+    
+    # Gaussian weighting centered at image center
+    sigma = min(height, width) / 4
+    weights = torch.exp(-((y - center_y) ** 2 + (x - center_x) ** 2) / (2 * sigma ** 2))
+    weights = weights.to(features1.device)
+    weights = weights.view(1, 1, height, width)
+    
+    return spatial_weighted_distance(features1, features2, weights)
+
+EDGE-AWARE DISTANCE:
+Consider edge information in distance computation:
+
+def edge_aware_distance(features1, features2):
+    """Incorporate edge information into distance"""
+    # Compute spatial gradients
+    grad_x1 = torch.abs(features1[:, :, :, 1:] - features1[:, :, :, :-1])
+    grad_y1 = torch.abs(features1[:, :, 1:, :] - features1[:, :, :-1, :])
+    
+    grad_x2 = torch.abs(features2[:, :, :, 1:] - features2[:, :, :, :-1])
+    grad_y2 = torch.abs(features2[:, :, 1:, :] - features2[:, :, :-1, :])
+    
+    # Edge difference
+    edge_diff_x = torch.abs(grad_x1 - grad_x2)
+    edge_diff_y = torch.abs(grad_y1 - grad_y2)
+    
+    # Combine with regular difference
+    regular_distance = torch.norm(features1 - features2, dim=1)
+    edge_distance_x = torch.mean(edge_diff_x, dim=1)
+    edge_distance_y = torch.mean(edge_diff_y, dim=1)
+    
+    # Pad edge distances to match spatial dimensions
+    edge_distance_x = F.pad(edge_distance_x, (0, 1), mode='replicate')
+    edge_distance_y = F.pad(edge_distance_y, (0, 0, 0, 1), mode='replicate')
+    
+    total_distance = regular_distance + 0.1 * (edge_distance_x + edge_distance_y)
+    
+    return torch.mean(total_distance, dim=[1, 2])
+
+================================================================================
+
+6. Memory Management and Optimization
+======================================
+
+6.1 Memory Usage Analysis
+-------------------------
+MEMORY CONSUMPTION SOURCES:
+1. Original model parameters and activations
+2. Intermediate feature storage for hooks
+3. Feature normalization temporary tensors
+4. Distance computation intermediate results
+5. Gradient storage (during training)
+
+TYPICAL MEMORY USAGE:
+Architecture | Features Memory | Peak Memory | Total Memory
+-------------|----------------|-------------|-------------
+SqueezeNet   | 50MB          | 150MB      | 2GB
+AlexNet      | 120MB         | 300MB      | 4GB
+VGG-16       | 200MB         | 500MB      | 8GB
+
+MEMORY BREAKDOWN:
+def analyze_memory_usage():
+    """Analyze memory usage at each step"""
+    torch.cuda.empty_cache()
+    
+    # Baseline
+    baseline = torch.cuda.memory_allocated()
+    
+    # After model loading
+    model = load_model()
+    after_model = torch.cuda.memory_allocated()
+    
+    # After feature extraction
+    features = extract_features(image)
+    after_extraction = torch.cuda.memory_allocated()
+    
+    # After normalization
+    normalized = normalize_features(features)
+    after_normalization = torch.cuda.memory_allocated()
+    
+    print(f"Model: {(after_model - baseline) / 1024**2:.1f} MB")
+    print(f"Features: {(after_extraction - after_model) / 1024**2:.1f} MB")
+    print(f"Normalization: {(after_normalization - after_extraction) / 1024**2:.1f} MB")
+
+6.2 Memory Optimization Strategies
+----------------------------------
+IN-PLACE OPERATIONS:
+Reduce memory allocation by modifying tensors in-place:
+
+def inplace_normalize(features):
+    """In-place L2 normalization"""
+    norm = torch.norm(features, dim=1, keepdim=True)
+    features.div_(norm + 1e-10)  # In-place division
+    return features
+
+def inplace_difference(features1, features2):
+    """In-place difference computation"""
+    features1.sub_(features2)  # In-place subtraction
+    return features1
+
+GRADIENT CHECKPOINTING:
+Trade computation for memory during training:
+
+def checkpointed_extract(self, x):
+    """Use gradient checkpointing for memory efficiency"""
+    return checkpoint(self._extract_features, x)
+
+FEATURE STREAMING:
+Process features layer by layer:
+
+def streaming_extract(self, x):
+    """Process one layer at a time to reduce peak memory"""
+    results = {}
+    
+    for layer_name in self.layer_names:
+        # Extract only current layer
+        feature = self.extract_single_layer(x, layer_name)
+        
+        # Process immediately
+        processed = self.process_feature(feature)
+        results[layer_name] = processed
+        
+        # Clear intermediate results
+        del feature
+        torch.cuda.empty_cache()
+    
+    return results
+
+MEMORY POOLING:
+Reuse memory allocations:
+
+class MemoryPool:
+    def __init__(self):
+        self.pools = {}
+    
+    def get_tensor(self, shape, dtype, device):
+        key = (shape, dtype, device)
+        if key not in self.pools:
+            self.pools[key] = []
+        
+        if self.pools[key]:
+            tensor = self.pools[key].pop()
+            tensor.zero_()
+            return tensor
+        else:
+            return torch.zeros(shape, dtype=dtype, device=device)
+    
+    def return_tensor(self, tensor):
+        key = (tuple(tensor.shape), tensor.dtype, tensor.device)
+        if key not in self.pools:
+            self.pools[key] = []
+        self.pools[key].append(tensor)
+
+6.3 Efficient Data Structures
+-----------------------------
+SPARSE FEATURE REPRESENTATION:
+For features with many zeros:
+
+def sparse_features(features, threshold=1e-6):
+    """Convert dense features to sparse representation"""
+    mask = torch.abs(features) > threshold
+    indices = torch.nonzero(mask, as_tuple=False)
+    values = features[mask]
+    
+    return torch.sparse.FloatTensor(
+        indices.t(), 
+        values, 
+        features.size()
+    )
+
+COMPRESSED FEATURES:
+Reduce precision for memory savings:
+
+def compress_features(features, bits=16):
+    """Compress features to lower precision"""
+    if bits == 16:
+        return features.half()
+    elif bits == 8:
+        # Quantize to 8-bit
+        scale = features.abs().max() / 127
+        quantized = torch.round(features / scale).clamp(-128, 127).byte()
+        return quantized, scale
+    else:
+        raise ValueError(f"Unsupported bit depth: {bits}")
+
+def decompress_features(compressed_features, scale=None):
+    """Decompress features back to full precision"""
+    if isinstance(compressed_features, torch.Tensor):
+        if compressed_features.dtype == torch.float16:
+            return compressed_features.float()
+        elif compressed_features.dtype == torch.uint8:
+            return (compressed_features.float() - 128) * scale
+    else:
+        raise ValueError("Unsupported compressed format")
+
+6.4 Batch Processing Optimization
+---------------------------------
+DYNAMIC BATCHING:
+Adjust batch size based on available memory:
+
+def dynamic_batch_size(base_batch_size, memory_limit_mb=8192):
+    """Determine optimal batch size based on memory"""
+    available_memory = memory_limit_mb * 1024 * 1024  # Convert to bytes
+    current_memory = torch.cuda.memory_allocated()
+    free_memory = available_memory - current_memory
+    
+    # Estimate memory per sample
+    memory_per_sample = current_memory / base_batch_size
+    max_batch_size = int(free_memory / memory_per_sample)
+    
+    return min(max_batch_size, base_batch_size * 2)
+
+MEMORY-AWARE PROCESSING:
+Process batches according to memory constraints:
+
+def process_with_memory_limit(self, images, memory_limit_mb=6144):
+    """Process images with memory constraints"""
+    results = []
+    batch_size = len(images)
+    
+    while batch_size > 0:
+        try:
+            # Try processing current batch
+            batch = images[:batch_size]
+            result = self.extract_features(batch)
+            results.append(result)
+            
+            # Process remaining images
+            images = images[batch_size:]
+            
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                # Reduce batch size and try again
+                torch.cuda.empty_cache()
+                batch_size = max(1, batch_size // 2)
+            else:
+                raise e
+    
+    return self.combine_results(results)
+
+PREFETCHING:
+Overlap computation and data loading:
+
+class PrefetchingExtractor:
+    def __init__(self, extractor, prefetch_size=2):
+        self.extractor = extractor
+        self.prefetch_size = prefetch_size
+        
+    def extract_batch(self, images):
+        """Extract features with prefetching"""
+        results = []
+        
+        for i in range(0, len(images), self.prefetch_size):
+            batch = images[i:i+self.prefetch_size]
+            
+            # Prefetch to GPU
+            batch_gpu = [img.cuda(non_blocking=True) for img in batch]
+            
+            # Extract features
+            features = self.extractor.extract_features(batch_gpu)
+            
+            # Move results to CPU to free GPU memory
+            features_cpu = {name: feat.cpu() for name, feat in features.items()}
+            results.append(features_cpu)
+        
+        return self.combine_results(results)
+
+================================================================================
+
+7. Batch Processing Strategies
+===============================
+
+7.1 Efficient Batch Operations
+------------------------------
+VECTORIZED DISTANCE COMPUTATION:
+Process multiple image pairs simultaneously:
+
+def batch_distance_computation(features1_batch, features2_batch, weights):
+    """
+    Compute distances for batch of image pairs
+    features1_batch: Dict[str, Tensor] with batch dimension
+    features2_batch: Dict[str, Tensor] with batch dimension
+    """
+    batch_distances = []
+    
+    for layer_name in features1_batch:
+        feat1 = features1_batch[layer_name]  # [batch, channels, height, width]
+        feat2 = features2_batch[layer_name]  # [batch, channels, height, width]
+        weight = weights[layer_name]
+        
+        # Compute differences
+        diff = feat1 - feat2  # [batch, channels, height, width]
+        
+        # Apply weights
+        weighted_diff = weight.view(1, -1, 1, 1) * diff
+        
+        # Compute norms
+        layer_distances = torch.norm(weighted_diff, dim=1)  # [batch, height, width]
+        
+        # Spatial averaging
+        avg_distances = torch.mean(layer_distances, dim=[1, 2])  # [batch]
+        
+        batch_distances.append(avg_distances)
+    
+    # Stack and sum across layers
+    all_distances = torch.stack(batch_distances, dim=1)  # [batch, num_layers]
+    total_distances = torch.sum(all_distances, dim=1)  # [batch]
+    
+    return total_distances
+
+BATCH NORMALIZATION:
+Normalize entire batches efficiently:
+
+def batch_normalize_features(features_dict):
+    """Normalize all features in batch simultaneously"""
+    normalized_dict = {}
+    
+    for layer_name, features in features_dict.items():
+        # features: [batch, channels, height, width]
+        batch_size, channels, height, width = features.shape
+        
+        # Reshape for batch processing
+        features_flat = features.view(batch_size, channels, -1)
+        
+        # Compute norms for entire batch
+        norms = torch.norm(features_flat, dim=1, keepdim=True)
+        
+        # Normalize
+        normalized_flat = features_flat / (norms + 1e-10)
+        
+        # Reshape back
+        normalized = normalized_flat.view(batch_size, channels, height, width)
+        normalized_dict[layer_name] = normalized
+    
+    return normalized_dict
+
+7.2 Dynamic Batch Size Management
+---------------------------------
+ADAPTIVE BATCH SIZING:
+Automatically adjust batch size based on memory and performance:
+
+class AdaptiveBatchProcessor:
+    def __init__(self, extractor, initial_batch_size=32):
+        self.extractor = extractor
+        self.batch_size = initial_batch_size
+        self.performance_history = []
+    
+    def process_adaptive(self, images):
+        """Process with adaptive batch sizing"""
+        results = []
+        
+        for i in range(0, len(images), self.batch_size):
+            batch = images[i:i+self.batch_size]
+            
+            start_time = time.time()
+            try:
+                # Process batch
+                features = self.extractor.extract_features(batch)
+                processing_time = time.time() - start_time
+                
+                # Record performance
+                self.performance_history.append({
+                    'batch_size': len(batch),
+                    'time': processing_time,
+                    'throughput': len(batch) / processing_time
+                })
+                
+                results.append(features)
+                
+                # Adjust batch size based on performance
+                self._adjust_batch_size()
+                
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    # Reduce batch size and retry
+                    torch.cuda.empty_cache()
+                    self.batch_size = max(1, self.batch_size // 2)
+                    continue
+                else:
+                    raise e
+        
+        return results
+    
+    def _adjust_batch_size(self):
+        """Adjust batch size based on performance history"""
+        if len(self.performance_history) < 3:
+            return
+        
+        recent_performance = self.performance_history[-3:]
+        avg_throughput = sum(p['throughput'] for p in recent_performance) / 3
+        
+        # Increase batch size if performance is good
+        if avg_throughput > self.target_throughput:
+            self.batch_size = min(self.batch_size * 2, self.max_batch_size)
+        # Decrease if performance is poor
+        elif avg_throughput < self.target_throughput * 0.8:
+            self.batch_size = max(self.batch_size // 2, 1)
+
+7.3 Pipeline Parallelism
+------------------------
+OVERLAPPED PROCESSING:
+Overlap different processing stages:
+
+import threading
+from queue import Queue
+
+class PipelinedProcessor:
+    def __init__(self, extractor, num_workers=2):
+        self.extractor = extractor
+        self.num_workers = num_workers
+        
+    def process_pipelined(self, images):
+        """Process with pipelined parallelism"""
+        input_queue = Queue(maxsize=10)
+        output_queue = Queue()
+        
+        # Start worker threads
+        workers = []
+        for i in range(self.num_workers):
+            worker = threading.Thread(
+                target=self._worker,
+                args=(input_queue, output_queue)
+            )
+            worker.start()
+            workers.append(worker)
+        
+        # Feed images to input queue
+        for img in images:
+            input_queue.put(img)
+        
+        # Signal completion
+        for _ in range(self.num_workers):
+            input_queue.put(None)
+        
+        # Collect results
+        results = []
+        for _ in images:
+            results.append(output_queue.get())
+        
+        # Wait for workers to complete
+        for worker in workers:
+            worker.join()
+        
+        return results
+    
+    def _worker(self, input_queue, output_queue):
+        """Worker thread for processing"""
+        while True:
+            item = input_queue.get()
+            if item is None:
+                break
+            
+            # Process item
+            features = self.extractor.extract_features(item)
+            output_queue.put(features)
+
+7.4 GPU Utilization Optimization
+--------------------------------
+MULTI-GPU PROCESSING:
+Distribute processing across multiple GPUs:
+
+class MultiGPUProcessor:
+    def __init__(self, extractor, device_ids):
+        self.device_ids = device_ids
+        self.extractors = {}
+        
+        # Create extractor for each GPU
+        for device_id in device_ids:
+            device = torch.device(f'cuda:{device_id}')
+            extractor_copy = copy.deepcopy(extractor)
+            extractor_copy.to(device)
+            self.extractors[device_id] = extractor_copy
+    
+    def process_multi_gpu(self, images):
+        """Process using multiple GPUs"""
+        # Distribute images across GPUs
+        gpu_batches = self._distribute_images(images)
+        
+        # Process on each GPU
+        futures = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for device_id, batch in gpu_batches.items():
+                future = executor.submit(
+                    self._process_on_gpu,
+                    device_id, batch
+                )
+                futures.append(future)
+        
+        # Collect results
+        results = []
+        for future in concurrent.futures.as_completed(futures):
+            results.extend(future.result())
+        
+        return results
+    
+    def _distribute_images(self, images):
+        """Distribute images across available GPUs"""
+        gpu_batches = {device_id: [] for device_id in self.device_ids}
+        
+        for i, img in enumerate(images):
+            device_id = self.device_ids[i % len(self.device_ids)]
+            gpu_batches[device_id].append(img)
+        
+        return gpu_batches
+    
+    def _process_on_gpu(self, device_id, images):
+        """Process batch on specific GPU"""
+        extractor = self.extractors[device_id]
+        device = torch.device(f'cuda:{device_id}')
+        
+        results = []
+        for img in images:
+            img_gpu = img.to(device)
+            features = extractor.extract_features(img_gpu)
+            # Move to CPU for collection
+            features_cpu = {name: feat.cpu() for name, feat in features.items()}
+            results.append(features_cpu)
+        
+        return results
+
+ASYNCHRONOUS PROCESSING:
+Overlap GPU computation with CPU work:
+
+class AsyncProcessor:
+    def __init__(self, extractor):
+        self.extractor = extractor
+        
+    async def process_async(self, images):
+        """Asynchronous processing with overlapped operations"""
+        tasks = []
+        
+        for img in images:
+            task = asyncio.create_task(self._process_single_async(img))
+            tasks.append(task)
+        
+        results = await asyncio.gather(*tasks)
+        return results
+    
+    async def _process_single_async(self, img):
+        """Process single image asynchronously"""
+        # Move to GPU asynchronously
+        img_gpu = img.cuda(non_blocking=True)
+        
+        # Wait for transfer to complete
+        torch.cuda.synchronize()
+        
+        # Extract features
+        features = self.extractor.extract_features(img_gpu)
+        
+        # Move back to CPU asynchronously
+        features_cpu = {name: feat.cpu() for name, feat in features.items()}
+        
+        return features_cpu
+
+================================================================================
+
+8. Preprocessing Requirements and Standards
+============================================
+
+8.1 Image Preprocessing Pipeline
+--------------------------------
+STANDARD PREPROCESSING SEQUENCE:
+1. Format validation and conversion
+2. Resize to network input size
+3. Color space normalization
+4. Tensor conversion and batching
+
+COMPLETE PREPROCESSING IMPLEMENTATION:
+def preprocess_image(image, target_size=(224, 224), normalize=True):
+    """
+    Complete image preprocessing for LPIPS
+    """
+    # Validate input
+    if isinstance(image, np.ndarray):
+        image = torch.from_numpy(image)
+    elif isinstance(image, PIL.Image.Image):
+        image = torch.from_numpy(np.array(image))
+    
+    # Ensure float type
+    if image.dtype != torch.float32:
+        image = image.float()
+    
+    # Handle different input formats
+    if len(image.shape) == 2:  # Grayscale
+        image = image.unsqueeze(0).repeat(3, 1, 1)
+    elif len(image.shape) == 3:
+        if image.shape[0] != 3:  # HWC format
+            image = image.permute(2, 0, 1)
+    elif len(image.shape) == 4:  # Batch dimension already present
+        pass
+    else:
+        raise ValueError(f"Unsupported image shape: {image.shape}")
+    
+    # Resize
+    image = F.interpolate(image.unsqueeze(0), size=target_size, 
+                         mode='bilinear', align_corners=False).squeeze(0)
+    
+    # Normalize to [-1, 1] range
+    if normalize:
+        if image.max() > 1.0:  # Assume [0, 255] range
+            image = image / 127.5 - 1.0
+        else:  # Assume [0, 1] range
+            image = image * 2.0 - 1.0
+    
+    return image
+
+8.2 Normalization Standards
+---------------------------
+IMAGENET NORMALIZATION:
+Standard normalization for pre-trained networks:
+
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+
+def imagenet_normalize(image):
+    """Apply ImageNet normalization"""
+    mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
+    std = torch.tensor(IMAGENET_STD).view(3, 1, 1)
+    return (image - mean) / std
+
+LPIPS NORMALIZATION:
+Standard normalization for LPIPS ([-1, 1] range):
+
+def lpips_normalize(image):
+    """Normalize to [-1, 1] range for LPIPS"""
+    if image.max() > 1.0:
+        # Assume [0, 255] input
+        return image / 127.5 - 1.0
+    else:
+        # Assume [0, 1] input
+        return image * 2.0 - 1.0
+
+FLEXIBLE NORMALIZATION:
+Detect input range automatically:
+
+def auto_normalize(image):
+    """Automatically detect range and normalize"""
+    min_val, max_val = image.min(), image.max()
+    
+    if max_val <= 1.0 and min_val >= 0.0:
+        # [0, 1] range
+        return image * 2.0 - 1.0
+    elif max_val <= 255.0 and min_val >= 0.0:
+        # [0, 255] range
+        return image / 127.5 - 1.0
+    elif max_val <= 1.0 and min_val >= -1.0:
+        # Already in [-1, 1] range
+        return image
+    else:
+        # Unknown range, normalize to [-1, 1]
+        return 2.0 * (image - min_val) / (max_val - min_val) - 1.0
+
+8.3 Color Space Handling
+------------------------
+RGB PROCESSING:
+Standard RGB color space handling:
+
+def ensure_rgb(image):
+    """Ensure image is in RGB format"""
+    if len(image.shape) == 2:
+        # Grayscale to RGB
+        return image.unsqueeze(0).repeat(3, 1, 1)
+    elif image.shape[0] == 1:
+        # Single channel to RGB
+        return image.repeat(3, 1, 1)
+    elif image.shape[0] == 4:
+        # RGBA to RGB (drop alpha)
+        return image[:3]
+    elif image.shape[0] == 3:
+        # Already RGB
+        return image
+    else:
+        raise ValueError(f"Cannot convert to RGB: {image.shape}")
+
+LAB COLOR SPACE:
+Alternative color space for better perceptual alignment:
+
+def rgb_to_lab(rgb_image):
+    """Convert RGB to LAB color space"""
+    # This is a simplified conversion
+    # For production, use proper colorspace libraries
+    
+    # Normalize RGB to [0, 1]
+    rgb_norm = (rgb_image + 1.0) / 2.0
+    
+    # Apply gamma correction
+    rgb_linear = torch.where(
+        rgb_norm > 0.04045,
+        torch.pow((rgb_norm + 0.055) / 1.055, 2.4),
+        rgb_norm / 12.92
+    )
+    
+    # Convert to XYZ (simplified)
+    xyz = torch.matmul(RGB_TO_XYZ_MATRIX, rgb_linear.view(3, -1))
+    xyz = xyz.view_as(rgb_linear)
+    
+    # Convert to LAB (simplified)
+    # Implementation details omitted for brevity
+    
+    return lab_image
+
+8.4 Validation and Quality Control
+---------------------------------
+INPUT VALIDATION:
+Comprehensive input validation:
+
+def validate_input_image(image):
+    """Validate input image quality and format"""
+    checks = {
+        'format': True,
+        'range': True,
+        'size': True,
+        'channels': True,
+        'quality': True
+    }
+    
+    # Format check
+    if not isinstance(image, torch.Tensor):
+        checks['format'] = False
+    
+    # Range check
+    if image.max() > 256.0 or image.min() < -2.0:
+        checks['range'] = False
+    
+    # Size check
+    if image.shape[-1] < 32 or image.shape[-2] < 32:
+        checks['size'] = False
+    
+    # Channel check
+    if len(image.shape) >= 3 and image.shape[-3] not in [1, 3, 4]:
+        checks['channels'] = False
+    
+    # Quality check (detect blank/corrupted images)
+    if image.std() < 1e-6:
+        checks['quality'] = False
+    
+    return checks
+
+PREPROCESSING VALIDATION:
+Validate preprocessing results:
+
+def validate_preprocessing(original, processed):
+    """Validate preprocessing quality"""
+    issues = []
+    
+    # Check for information loss
+    if processed.std() < original.std() * 0.1:
+        issues.append("Excessive information loss during preprocessing")
+    
+    # Check for range issues
+    if processed.min() < -1.1 or processed.max() > 1.1:
+        issues.append("Values outside expected range [-1, 1]")
+    
+    # Check for NaN/Inf values
+    if torch.isnan(processed).any():
+        issues.append("NaN values detected")
+    
+    if torch.isinf(processed).any():
+        issues.append("Inf values detected")
+    
+    return issues
+
+QUALITY METRICS:
+Compute quality metrics for preprocessing validation:
+
+def compute_preprocessing_quality(original, processed):
+    """Compute quality metrics for preprocessing"""
+    metrics = {}
+    
+    # PSNR
+    mse = torch.mean((original - processed) ** 2)
+    psnr = 20 * torch.log10(torch.max(original) / torch.sqrt(mse))
+    metrics['psnr'] = psnr.item()
+    
+    # SSIM (simplified)
+    mean_orig = torch.mean(original)
+    mean_proc = torch.mean(processed)
+    var_orig = torch.var(original)
+    var_proc = torch.var(processed)
+    covar = torch.mean((original - mean_orig) * (processed - mean_proc))
+    
+    ssim = (2 * mean_orig * mean_proc + 1e-8) / (mean_orig**2 + mean_proc**2 + 1e-8) * \
+           (2 * covar + 1e-8) / (var_orig + var_proc + 1e-8)
+    metrics['ssim'] = ssim.item()
+    
+    # Information preservation
+    info_ratio = processed.std() / original.std()
+    metrics['info_preservation'] = info_ratio.item()
+    
+    return metrics
+
+================================================================================
+
+9. Feature Quality Analysis and Validation
+===========================================
+
+9.1 Feature Quality Metrics
+---------------------------
+FEATURE DIVERSITY:
+Measure diversity of extracted features:
+
+def compute_feature_diversity(features):
+    """Compute diversity metrics for features"""
+    # features: [batch, channels, height, width]
+    batch_size, channels, height, width = features.shape
+    
+    # Flatten spatial dimensions
+    features_flat = features.view(batch_size, channels, -1)
+    
+    # Compute pairwise correlations
+    correlations = []
+    for i in range(channels):
+        for j in range(i+1, channels):
+            corr = torch.corrcoef(torch.stack([
+                features_flat[:, i, :].flatten(),
+                features_flat[:, j, :].flatten()
+            ]))[0, 1]
+            correlations.append(abs(corr.item()))
+    
+    # Diversity is 1 - mean absolute correlation
+    diversity = 1.0 - np.mean(correlations)
+    
+    return diversity
+
+FEATURE STABILITY:
+Measure consistency of features across similar inputs:
+
+def compute_feature_stability(extractor, image, num_augmentations=10):
+    """Compute feature stability under minor augmentations"""
+    # Generate augmented versions
+    augmented_images = []
+    for _ in range(num_augmentations):
+        aug_img = apply_minor_augmentation(image)
+        augmented_images.append(aug_img)
+    
+    # Extract features for all versions
+    all_features = []
+    for aug_img in augmented_images:
+        features = extractor.extract_features(aug_img)
+        all_features.append(features)
+    
+    # Compute stability for each layer
+    stability_scores = {}
+    for layer_name in all_features[0]:
+        layer_features = [feat[layer_name] for feat in all_features]
+        
+        # Compute pairwise similarities
+        similarities = []
+        for i in range(len(layer_features)):
+            for j in range(i+1, len(layer_features)):
+                sim = F.cosine_similarity(
+                    layer_features[i].flatten(),
+                    layer_features[j].flatten(),
+                    dim=0
+                )
+                similarities.append(sim.item())
+        
+        stability_scores[layer_name] = np.mean(similarities)
+    
+    return stability_scores
+
+FEATURE DISCRIMINABILITY:
+Measure ability to discriminate between different images:
+
+def compute_feature_discriminability(extractor, image_pairs):
+    """Compute discriminability of features"""
+    similarities_same = []
+    similarities_different = []
+    
+    for img1, img2, is_same in image_pairs:
+        features1 = extractor.extract_features(img1)
+        features2 = extractor.extract_features(img2)
+        
+        # Compute similarity
+        similarity = compute_feature_similarity(features1, features2)
+        
+        if is_same:
+            similarities_same.append(similarity)
+        else:
+            similarities_different.append(similarity)
+    
+    # Compute separation
+    mean_same = np.mean(similarities_same)
+    mean_different = np.mean(similarities_different)
+    std_same = np.std(similarities_same)
+    std_different = np.std(similarities_different)
+    
+    # Discriminability as normalized separation
+    discriminability = (mean_same - mean_different) / (std_same + std_different)
+    
+    return discriminability
+
+9.2 Feature Validation
+----------------------
+RANGE VALIDATION:
+Check if features are in expected ranges:
+
+def validate_feature_ranges(features):
+    """Validate feature value ranges"""
+    validation_results = {}
+    
+    for layer_name, feat in features.items():
+        layer_results = {}
+        
+        # Basic statistics
+        layer_results['min'] = feat.min().item()
+        layer_results['max'] = feat.max().item()
+        layer_results['mean'] = feat.mean().item()
+        layer_results['std'] = feat.std().item()
+        
+        # Check for problematic values
+        layer_results['has_nan'] = torch.isnan(feat).any().item()
+        layer_results['has_inf'] = torch.isinf(feat).any().item()
+        layer_results['all_zero'] = (feat.abs().max() < 1e-10).item()
+        
+        # Check range reasonableness
+        layer_results['range_ok'] = (
+            -100 < layer_results['min'] < 100 and
+            -100 < layer_results['max'] < 100
+        )
+        
+        validation_results[layer_name] = layer_results
+    
+    return validation_results
+
+NORMALIZATION VALIDATION:
+Verify that normalization was applied correctly:
+
+def validate_normalization(features_before, features_after):
+    """Validate that normalization was applied correctly"""
+    results = {}
+    
+    for layer_name in features_before:
+        before = features_before[layer_name]
+        after = features_after[layer_name]
+        
+        # Check if normalized to unit length
+        norms_after = torch.norm(after, dim=1)
+        unit_norm_check = torch.allclose(norms_after, torch.ones_like(norms_after), 
+                                       atol=1e-6)
+        
+        # Check if direction preserved
+        # Compute cosine similarity between original and normalized
+        before_flat = before.view(before.size(0), -1)
+        after_flat = after.view(after.size(0), -1)
+        
+        cosine_sim = F.cosine_similarity(before_flat, after_flat, dim=1)
+        direction_preserved = (cosine_sim > 0.99).all()
+        
+        results[layer_name] = {
+            'unit_norm': unit_norm_check.item(),
+            'direction_preserved': direction_preserved.item(),
+            'mean_cosine_sim': cosine_sim.mean().item()
+        }
+    
+    return results
+
+9.3 Performance Validation
+--------------------------
+SPEED BENCHMARKING:
+Measure extraction speed and identify bottlenecks:
+
+def benchmark_extraction_speed(extractor, test_images, num_runs=10):
+    """Benchmark feature extraction speed"""
+    times = {
+        'preprocessing': [],
+        'forward_pass': [],
+        'normalization': [],
+        'total': []
+    }
+    
+    for _ in range(num_runs):
+        for img in test_images:
+            # Preprocessing
+            start = time.time()
+            preprocessed = extractor.preprocess_image(img)
+            times['preprocessing'].append(time.time() - start)
+            
+            # Forward pass
+            start = time.time()
+            features = extractor.extract_features(preprocessed)
+            times['forward_pass'].append(time.time() - start)
+            
+            # Normalization
+            start = time.time()
+            normalized = extractor.normalize_features(features)
+            times['normalization'].append(time.time() - start)
+            
+            times['total'].append(
+                times['preprocessing'][-1] +
+                times['forward_pass'][-1] +
+                times['normalization'][-1]
+            )
+    
+    # Compute statistics
+    stats = {}
+    for stage, stage_times in times.items():
+        stats[stage] = {
+            'mean': np.mean(stage_times),
+            'std': np.std(stage_times),
+            'min': np.min(stage_times),
+            'max': np.max(stage_times)
+        }
+    
+    return stats
+
+MEMORY PROFILING:
+Profile memory usage during feature extraction:
+
+def profile_memory_usage(extractor, test_image):
+    """Profile memory usage during extraction"""
+    if not torch.cuda.is_available():
+        return {"error": "CUDA not available"}
+    
+    memory_profile = {}
+    
+    # Baseline
+    torch.cuda.empty_cache()
+    memory_profile['baseline'] = torch.cuda.memory_allocated()
+    
+    # After preprocessing
+    preprocessed = extractor.preprocess_image(test_image)
+    memory_profile['after_preprocessing'] = torch.cuda.memory_allocated()
+    
+    # After feature extraction
+    features = extractor.extract_features(preprocessed)
+    memory_profile['after_extraction'] = torch.cuda.memory_allocated()
+    
+    # After normalization
+    normalized = extractor.normalize_features(features)
+    memory_profile['after_normalization'] = torch.cuda.memory_allocated()
+    
+    # Compute deltas
+    deltas = {}
+    prev_key = 'baseline'
+    for key in ['after_preprocessing', 'after_extraction', 'after_normalization']:
+        deltas[key] = memory_profile[key] - memory_profile[prev_key]
+        prev_key = key
+    
+    memory_profile['deltas'] = deltas
+    
+    return memory_profile
+
+9.4 Quality Assurance
+---------------------
+AUTOMATED TESTING:
+Comprehensive test suite for feature extraction:
+
+class FeatureExtractionTests:
+    def __init__(self, extractor):
+        self.extractor = extractor
+    
+    def run_all_tests(self):
+        """Run comprehensive test suite"""
+        results = {}
+        
+        # Test basic functionality
+        results['basic_functionality'] = self.test_basic_functionality()
+        
+        # Test edge cases
+        results['edge_cases'] = self.test_edge_cases()
+        
+        # Test consistency
+        results['consistency'] = self.test_consistency()
+        
+        # Test performance
+        results['performance'] = self.test_performance()
+        
+        return results
+    
+    def test_basic_functionality(self):
+        """Test basic feature extraction functionality"""
+        test_image = torch.randn(3, 224, 224)
+        
+        try:
+            features = self.extractor.extract_features(test_image)
+            
+            # Check if all expected layers are present
+            expected_layers = self.extractor.layer_names
+            missing_layers = [layer for layer in expected_layers 
+                            if layer not in features]
+            
+            # Check feature shapes
+            shape_issues = []
+            for layer_name, feat in features.items():
+                if len(feat.shape) != 4:
+                    shape_issues.append(f"{layer_name}: expected 4D, got {len(feat.shape)}D")
+            
+            return {
+                'success': True,
+                'missing_layers': missing_layers,
+                'shape_issues': shape_issues
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def test_edge_cases(self):
+        """Test edge cases and error handling"""
+        test_cases = [
+            torch.zeros(3, 224, 224),  # All zeros
+            torch.ones(3, 224, 224),   # All ones
+            torch.randn(3, 32, 32),    # Small image
+            torch.randn(3, 512, 512),  # Large image
+        ]
+        
+        results = []
+        for i, test_case in enumerate(test_cases):
+            try:
+                features = self.extractor.extract_features(test_case)
+                results.append({
+                    'case': i,
+                    'success': True,
+                    'num_features': len(features)
+                })
+            except Exception as e:
+                results.append({
+                    'case': i,
+                    'success': False,
+                    'error': str(e)
+                })
+        
+        return results
+    
+    def test_consistency(self):
+        """Test consistency across multiple runs"""
+        test_image = torch.randn(3, 224, 224)
+        
+        # Extract features multiple times
+        features_list = []
+        for _ in range(5):
+            features = self.extractor.extract_features(test_image)
+            features_list.append(features)
+        
+        # Check consistency
+        consistency_results = {}
+        for layer_name in features_list[0]:
+            layer_features = [feat[layer_name] for feat in features_list]
+            
+            # Compute pairwise differences
+            max_diff = 0.0
+            for i in range(len(layer_features)):
+                for j in range(i+1, len(layer_features)):
+                    diff = torch.max(torch.abs(layer_features[i] - layer_features[j]))
+                    max_diff = max(max_diff, diff.item())
+            
+            consistency_results[layer_name] = max_diff
+        
+        return consistency_results
+
+CONTINUOUS MONITORING:
+Monitor feature quality in production:
+
+class FeatureQualityMonitor:
+    def __init__(self, extractor, alert_thresholds):
+        self.extractor = extractor
+        self.alert_thresholds = alert_thresholds
+        self.quality_history = []
+    
+    def monitor_extraction(self, image):
+        """Monitor single extraction and alert if issues"""
+        features = self.extractor.extract_features(image)
+        quality_metrics = self.compute_quality_metrics(features)
+        
+        # Check for alerts
+        alerts = self.check_alerts(quality_metrics)
+        
+        # Log quality metrics
+        self.quality_history.append({
+            'timestamp': time.time(),
+            'metrics': quality_metrics,
+            'alerts': alerts
+        })
+        
+        return features, alerts
+    
+    def compute_quality_metrics(self, features):
+        """Compute quality metrics for monitoring"""
+        metrics = {}
+        
+        for layer_name, feat in features.items():
+            metrics[layer_name] = {
+                'mean_activation': feat.mean().item(),
+                'activation_std': feat.std().item(),
+                'sparsity': (feat.abs() < 1e-6).float().mean().item(),
+                'max_activation': feat.max().item(),
+                'min_activation': feat.min().item()
+            }
+        
+        return metrics
+    
+    def check_alerts(self, quality_metrics):
+        """Check if quality metrics trigger alerts"""
+        alerts = []
+        
+        for layer_name, metrics in quality_metrics.items():
+            thresholds = self.alert_thresholds.get(layer_name, {})
+            
+            if metrics['sparsity'] > thresholds.get('max_sparsity', 0.9):
+                alerts.append(f"{layer_name}: High sparsity ({metrics['sparsity']:.3f})")
+            
+            if metrics['activation_std'] < thresholds.get('min_std', 0.01):
+                alerts.append(f"{layer_name}: Low activation variance ({metrics['activation_std']:.3f})")
+            
+            if abs(metrics['mean_activation']) > thresholds.get('max_mean', 10.0):
+                alerts.append(f"{layer_name}: High mean activation ({metrics['mean_activation']:.3f})")
+        
+        return alerts
+
+================================================================================
+
+10. Production Implementation Guidelines
+========================================
+
+10.1 Deployment Architecture
+----------------------------
+MICROSERVICE ARCHITECTURE:
+Design for scalable production deployment:
+
+class LPIPSService:
+    def __init__(self, config):
+        self.config = config
+        self.extractor = self.load_extractor()
+        self.cache = self.setup_cache()
+        self.monitor = self.setup_monitoring()
+    
+    def load_extractor(self):
+        """Load optimized extractor for production"""
+        # Load pre-trained model
+        model = load_model(self.config.model_path)
+        
+        # Apply optimizations
+        if self.config.quantization:
+            model = quantize_model(model)
+        
+        if self.config.jit_compile:
+            model = torch.jit.script(model)
+        
+        # Create extractor
+        extractor = FeatureExtractor(model, self.config.layer_names)
+        extractor.eval()
+        
+        return extractor
+    
+    def process_request(self, request):
+        """Process incoming LPIPS request"""
+        try:
+            # Validate request
+            self.validate_request(request)
+            
+            # Extract features
+            features1 = self.extract_with_caching(request.image1, request.id1)
+            features2 = self.extract_with_caching(request.image2, request.id2)
+            
+            # Compute distance
+            distance = self.compute_distance(features1, features2)
+            
+            # Log metrics
+            self.monitor.log_request(request, distance)
+            
+            return {
+                'distance': distance,
+                'status': 'success',
+                'processing_time': time.time() - request.start_time
+            }
+            
+        except Exception as e:
+            self.monitor.log_error(request, e)
+            return {
+                'error': str(e),
+                'status': 'error'
+            }
+
+CONTAINERIZATION:
+Docker configuration for deployment:
+
+# Dockerfile
+FROM nvidia/cuda:11.8-runtime-ubuntu20.04
+
+# Install Python and dependencies
+RUN apt-get update && apt-get install -y python3 python3-pip
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt
+
+# Copy application
+COPY src/ /app/src/
+COPY models/ /app/models/
+WORKDIR /app
+
+# Environment variables
+ENV CUDA_VISIBLE_DEVICES=0
+ENV BATCH_SIZE=32
+ENV MODEL_PATH=/app/models/lpips.pth
+
+# Run application
+CMD ["python3", "src/server.py"]
+
+KUBERNETES DEPLOYMENT:
+Scalable deployment configuration:
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lpips-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: lpips-service
+  template:
+    metadata:
+      labels:
+        app: lpips-service
+    spec:
+      containers:
+      - name: lpips
+        image: lpips-service:latest
+        resources:
+          requests:
+            memory: "4Gi"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "8Gi"
+            nvidia.com/gpu: 1
+        env:
+        - name: BATCH_SIZE
+          value: "16"
+
+10.2 Performance Optimization
+-----------------------------
+MODEL OPTIMIZATION:
+Optimize models for production deployment:
+
+def optimize_model_for_production(model, optimization_config):
+    """Apply production optimizations to model"""
+    optimized_model = model
+    
+    # Quantization
+    if optimization_config.quantization == 'int8':
+        optimized_model = torch.quantization.quantize_dynamic(
+            optimized_model, {torch.nn.Linear, torch.nn.Conv2d}, dtype=torch.qint8
+        )
+    elif optimization_config.quantization == 'fp16':
+        optimized_model = optimized_model.half()
+    
+    # TorchScript compilation
+    if optimization_config.jit_compile:
+        # Trace with example input
+        example_input = torch.randn(1, 3, 224, 224)
+        if optimization_config.quantization == 'fp16':
+            example_input = example_input.half()
+        
+        optimized_model = torch.jit.trace(optimized_model, example_input)
+    
+    # ONNX export for cross-platform deployment
+    if optimization_config.onnx_export:
+        torch.onnx.export(
+            optimized_model,
+            example_input,
+            optimization_config.onnx_path,
+            export_params=True,
+            opset_version=11,
+            do_constant_folding=True,
+            input_names=['input'],
+            output_names=['output'],
+            dynamic_axes={'input': {0: 'batch_size'},
+                         'output': {0: 'batch_size'}}
+        )
+    
+    return optimized_model
+
+CACHING STRATEGY:
+Implement intelligent caching for repeated requests:
+
+class IntelligentCache:
+    def __init__(self, max_size=10000, ttl=3600):
+        self.cache = {}
+        self.access_times = {}
+        self.max_size = max_size
+        self.ttl = ttl
+    
+    def get(self, key):
+        """Get item from cache"""
+        if key in self.cache:
+            # Check TTL
+            if time.time() - self.access_times[key] < self.ttl:
+                self.access_times[key] = time.time()
+                return self.cache[key]
+            else:
+                # Expired
+                del self.cache[key]
+                del self.access_times[key]
+        
+        return None
+    
+    def put(self, key, value):
+        """Put item in cache"""
+        # Evict if necessary
+        if len(self.cache) >= self.max_size:
+            self._evict_lru()
+        
+        self.cache[key] = value
+        self.access_times[key] = time.time()
+    
+    def _evict_lru(self):
+        """Evict least recently used item"""
+        oldest_key = min(self.access_times.keys(), 
+                        key=lambda k: self.access_times[k])
+        del self.cache[oldest_key]
+        del self.access_times[oldest_key]
+
+10.3 Monitoring and Logging
+---------------------------
+COMPREHENSIVE MONITORING:
+Monitor all aspects of production system:
+
+class ProductionMonitor:
+    def __init__(self, config):
+        self.config = config
+        self.metrics = defaultdict(list)
+        self.setup_logging()
+    
+    def setup_logging(self):
+        """Setup structured logging"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('lpips_service.log'),
+                logging.StreamHandler()
+            ]
+        )
+        self.logger = logging.getLogger('lpips_service')
+    
+    def log_request(self, request, result):
+        """Log request metrics"""
+        metrics = {
+            'timestamp': time.time(),
+            'request_id': request.id,
+            'processing_time': time.time() - request.start_time,
+            'image_sizes': [request.image1.shape, request.image2.shape],
+            'distance': result,
+            'memory_usage': self.get_memory_usage(),
+            'gpu_utilization': self.get_gpu_utilization()
+        }
+        
+        self.metrics['requests'].append(metrics)
+        self.logger.info(f"Processed request {request.id}: {result:.4f}")
+    
+    def log_error(self, request, error):
+        """Log error information"""
+        error_info = {
+            'timestamp': time.time(),
+            'request_id': request.id,
+            'error': str(error),
+            'error_type': type(error).__name__,
+            'traceback': traceback.format_exc()
+        }
+        
+        self.metrics['errors'].append(error_info)
+        self.logger.error(f"Error processing request {request.id}: {error}")
+    
+    def get_performance_summary(self):
+        """Get performance summary"""
+        if not self.metrics['requests']:
+            return {'status': 'no_data'}
+        
+        processing_times = [m['processing_time'] for m in self.metrics['requests']]
+        
+        return {
+            'total_requests': len(self.metrics['requests']),
+            'total_errors': len(self.metrics['errors']),
+            'error_rate': len(self.metrics['errors']) / len(self.metrics['requests']),
+            'avg_processing_time': np.mean(processing_times),
+            'p95_processing_time': np.percentile(processing_times, 95),
+            'throughput': len(self.metrics['requests']) / (time.time() - self.start_time)
+        }
+
+HEALTH CHECKS:
+Implement comprehensive health checking:
+
+class HealthChecker:
+    def __init__(self, extractor):
+        self.extractor = extractor
+        self.test_image = torch.randn(1, 3, 224, 224)
+    
+    def check_health(self):
+        """Comprehensive health check"""
+        health_status = {
+            'status': 'healthy',
+            'checks': {}
+        }
+        
+        # Check GPU availability
+        health_status['checks']['gpu'] = self.check_gpu()
+        
+        # Check model loading
+        health_status['checks']['model'] = self.check_model()
+        
+        # Check feature extraction
+        health_status['checks']['extraction'] = self.check_extraction()
+        
+        # Check memory usage
+        health_status['checks']['memory'] = self.check_memory()
+        
+        # Overall health
+        if any(not check['healthy'] for check in health_status['checks'].values()):
+            health_status['status'] = 'unhealthy'
+        
+        return health_status
+    
+    def check_gpu(self):
+        """Check GPU status"""
+        try:
+            if torch.cuda.is_available():
+                device_count = torch.cuda.device_count()
+                memory_total = torch.cuda.get_device_properties(0).total_memory
+                memory_allocated = torch.cuda.memory_allocated(0)
+                
+                return {
+                    'healthy': True,
+                    'device_count': device_count,
+                    'memory_usage': memory_allocated / memory_total
+                }
+            else:
+                return {
+                    'healthy': False,
+                    'error': 'CUDA not available'
+                }
+        except Exception as e:
+            return {
+                'healthy': False,
+                'error': str(e)
+            }
+    
+    def check_extraction(self):
+        """Test feature extraction"""
+        try:
+            start_time = time.time()
+            features = self.extractor.extract_features(self.test_image)
+            processing_time = time.time() - start_time
+            
+            # Validate features
+            valid = all(
+                isinstance(feat, torch.Tensor) and feat.dim() == 4
+                for feat in features.values()
+            )
+            
+            return {
+                'healthy': valid,
+                'processing_time': processing_time,
+                'num_layers': len(features)
+            }
+            
+        except Exception as e:
+            return {
+                'healthy': False,
+                'error': str(e)
+            }
+
+10.4 Error Handling and Recovery
+-------------------------------
+ROBUST ERROR HANDLING:
+Implement comprehensive error handling:
+
+class RobustFeatureExtractor:
+    def __init__(self, extractor, config):
+        self.extractor = extractor
+        self.config = config
+        self.retry_count = 0
+        self.max_retries = config.max_retries
+        
+    def extract_with_recovery(self, image):
+        """Extract features with automatic recovery"""
+        for attempt in range(self.max_retries + 1):
+            try:
+                return self.extractor.extract_features(image)
+                
+            except RuntimeError as e:
+                if "out of memory" in str(e) and attempt < self.max_retries:
+                    self.handle_oom_error(attempt)
+                    continue
+                else:
+                    raise e
+                    
+            except Exception as e:
+                if attempt < self.max_retries:
+                    self.handle_general_error(e, attempt)
+                    continue
+                else:
+                    raise e
+        
+        raise RuntimeError(f"Failed after {self.max_retries} retries")
+    
+    def handle_oom_error(self, attempt):
+        """Handle out of memory errors"""
+        # Clear cache
+        torch.cuda.empty_cache()
+        
+        # Reduce batch size if applicable
+        if hasattr(self.config, 'batch_size'):
+            self.config.batch_size = max(1, self.config.batch_size // 2)
+        
+        # Wait before retry
+        time.sleep(2 ** attempt)
+        
+        logging.warning(f"OOM error, retrying (attempt {attempt + 1})")
+    
+    def handle_general_error(self, error, attempt):
+        """Handle general errors"""
+        # Log error
+        logging.error(f"Error in feature extraction: {error}")
+        
+        # Reset model state if possible
+        if hasattr(self.extractor, 'reset'):
+            self.extractor.reset()
+        
+        # Wait before retry
+        time.sleep(1)
+
+GRACEFUL DEGRADATION:
+Implement fallback mechanisms:
+
+class FallbackExtractor:
+    def __init__(self, primary_extractor, fallback_extractor):
+        self.primary = primary_extractor
+        self.fallback = fallback_extractor
+        self.use_fallback = False
+        
+    def extract_features(self, image):
+        """Extract features with fallback"""
+        if not self.use_fallback:
+            try:
+                return self.primary.extract_features(image)
+            except Exception as e:
+                logging.warning(f"Primary extractor failed: {e}, using fallback")
+                self.use_fallback = True
+        
+        return self.fallback.extract_features(image)
+    
+    def reset_to_primary(self):
+        """Try to reset to primary extractor"""
+        try:
+            # Test primary extractor
+            test_image = torch.randn(1, 3, 224, 224)
+            self.primary.extract_features(test_image)
+            self.use_fallback = False
+            logging.info("Reset to primary extractor")
+        except Exception:
+            logging.warning("Primary extractor still failing")
+
+================================================================================
+
+Summary and Best Practices
+==========================
+
+The feature extraction and normalization pipeline is the core of any LPIPS implementation. Key recommendations include:
+
+DESIGN PRINCIPLES:
+1. Modularity: Separate concerns for flexibility and maintainability
+2. Robustness: Handle edge cases and errors gracefully
+3. Efficiency: Optimize for both memory and computational performance
+4. Scalability: Design for production deployment from the start
+
+IMPLEMENTATION BEST PRACTICES:
+1. Use hook-based extraction for clean separation of concerns
+2. Apply L2 normalization consistently across all layers
+3. Implement comprehensive validation and monitoring
+4. Design for failure with robust error handling and recovery
+
+PRODUCTION CONSIDERATIONS:
+1. Optimize models for deployment environment
+2. Implement intelligent caching strategies
+3. Monitor performance and quality metrics continuously
+4. Plan for graceful degradation and failover scenarios
+
+The comprehensive framework presented enables reliable, efficient, and scalable feature extraction for LPIPS applications across diverse deployment scenarios.
+
+================================================================================

@@ -1,0 +1,28 @@
+\begin{table*}[t!]
+\begin{center}
+\scalebox{0.83} {
+\begin{tabular}{ c c c c c c c c c }
+\textbf{Dataset} & \textbf{$\#$ Input Imgs/} & \textbf{Input} & \textbf{Num} & \textbf{Distort.} & \textbf{$\#$} & \textbf{$\#$ Distort.} & \textbf{$\#$ Judg-} & \textbf{Judgment} \\ 
+& \textbf{Patches} & \textbf{Type} & \textbf{Distort.} & \textbf{Types} & \textbf{Levels} & \textbf{Imgs/Patches} & \textbf{ments} & \textbf{Type} \\
+\toprule
+LIVE~\cite{sheikh2006statistical} & 29 & images & 5 & traditional & continuous & .8k & 25k & MOS \\ %779
+CSIQ~\cite{larson2010most} & 30 & images & 6 & traditional & 5 & .8k & 25k & MOS \\ %826
+TID2008~\cite{ponomarenko2009tid2008} & 25 & images & 17 & traditional & 4 & 2.7k & 250k & MOS \\
+TID2013~\cite{ponomarenko2015image} & 25 & images & 24 & traditional & 5 & 3.0k & 500k & MOS \\ 
+\midrule
+BAPPS (2AFC--Distort) & 160.8k & $64\times 64$ patch & 425 & trad + CNN & continuous & 321.6k & 349.8k & 2AFC \\
+BAPPS (2AFC--Real alg) & 26.9k & $64\times 64$ patch & -- & alg outputs & -- & 53.8k & 134.5k & 2AFC  \\ \hdashline 
+BAPPS (JND--Distort) & 9.6k & $64\times 64$ patch & 425 & trad. + CNN & continuous & 9.6k & 28.8k & Same/Not same  \\ 
+
+\bottomrule
+\end{tabular}
+}
+\vspace{5px}
+\vspace{-2mm}
+\caption{\textbf{Dataset comparison.} A primary differentiator between our proposed Berkeley-Adobe Perceptual Patch Similarity (BAPPS) dataset and previous work is scale of distortion types. We provide human perceptual judgments on distortion set using uncompressed images from~\cite{fivek,dang2015raise}. Previous datasets have used a small number of distortions at discrete levels. We use a large number of distortions (created by sequentially composing atomic distortions together) and sample continuously. For each input patch, we corrupt it using two distortions and ask for a few human judgments (2 for train, 5 for test set) per pair. This enables us to obtain judgments on a large number of patches. Previous databases summarize their judgments into a mean opinion score (MOS); we simply report pairwise judgments (two alternative force choice). In addition, we provide judgments on outputs from \textit{real algorithms}, as well as a same/not same Just Noticeable Difference (JND) perceptual test.
+\vspace{-8mm}
+}
+\label{tab:dataset_comp}
+\end{center}
+\end{table*}
+

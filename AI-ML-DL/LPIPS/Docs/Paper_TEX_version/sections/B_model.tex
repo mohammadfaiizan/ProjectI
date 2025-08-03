@@ -1,0 +1,15 @@
+\section{Model Training Details}
+\label{sec:train}
+
+We illustrate the loss function for training the network in Figure~\ref{fig:network} (right) and describe it further in the supplementary material. Given two distances, $(d_0, d_1)$, we train a small network $\mathcal{G}$ on top to map to a score $\hat{h}\in(0,1)$. The architecture uses two 32-channel \texttt{FC-ReLU} layers, followed by a 1-channel \texttt{FC} layer and a sigmoid. Our final loss function is shown in Equation~\ref{eqn:loss}.
+\begin{equation}
+\begin{split}
+    \mathcal{L}(x,x_0,x_1,h)= - h \log \mathcal{G}(d(x,x_0),d(x,x_1)) \\ - (1-h) \log (1-\mathcal{G}(d(x,x_0),d(x,x_1)))
+\end{split}
+\label{eqn:loss}
+\end{equation}
+
+In preliminary experiments, we also tried a ranking loss, which attempts to force a constant margin between  patch pairs $d(x,x_0)$ and $d(x,x_1)$. We found that using a learned network, rather than enforcing the same margin in all cases, worked better.
+
+Here, we provide some additional details on model training for our networks trained on distortions. We train with 5 epochs at initial learning rate $10^{-4}$, 5 epochs with linear decay, and batch size 50. Each training patch pair is judged 2 times, and the judgments are grouped together. If, for example, the two judges are split, then the classification target ($h$ in Figure 3) will be set at 0.5. We enforce non-negative weightings on the linear layer $w$, since larger distances in a certain feature should not result in two patches becoming closer in the distance metric. This is done by projecting the weights into the constraint set at every iteration. In other words, we check for any negative weights, and force them to be 0. The project was implemented using \texttt{PyTorch}~\cite{paszkepytorch}.
+

@@ -1,0 +1,45 @@
+
+
+\begin{table*}[t]
+\begin{center}
+\resizebox{\linewidth}{!} {
+\begin{tabular}{l l@{\hskip .05in} c@{\hskip .05in} c@{\hskip .05in} c@{\hskip .15in} c@{\hskip .05in} @{\hskip .05in}c@{\hskip .05in} c@{\hskip .05in} c@{\hskip .05in} c@{\hskip .15in} c@{\hskip .05in} } \toprule
+
+\multirow{3}[3]{*}{\textbf{Subtype}} &\multirow{3}[3]{*}{\textbf{Metric}} & \multicolumn{3}{c}{\textbf{Distortions}} & \multicolumn{5}{c}{\textbf{Real Algorithms}} & \multirow{1}{*}{\textbf{All}} \\ \cmidrule(lr){3-5} \cmidrule(lr){6-10} \cmidrule(lr){11-11} 
+
+& & \textbf{Trad-} & \textbf{CNN-} & \multirow{2}{*}{\textbf{All}} & \textbf{Super-} & \textbf{Video} & \textbf{Color-} & \textbf{Frame} & \multirow{2}{*}{\textbf{All}} & \multirow{2}{*}{\textbf{All}} \\
+ 
+& & \textbf{itional} & \textbf{Based} & \textbf{} & \textbf{res} & \textbf{Deblur} & \textbf{ization} & \textbf{Interp} & \\ \midrule
+
+Oracle & Human & 80.8 & 84.4 & 82.6 & 73.4 & 67.1 & 68.8 & 68.6 & 69.5 & 73.9 \\ \midrule
+
+\multirow{4}{*}{Low-level} & L2& 59.9 & 77.8 & 68.9 & 64.7 & 58.2 & 63.5 & 55.0 & 60.3 & 63.2 \\
+& SSIM~\cite{wang2004image}& 60.3 & 79.1 & 69.7 & 65.1 & 58.6 & 58.1 & 57.7 & 59.8 & 63.1 \\
+& FSIMc~\cite{zhang2011fsim}& 61.4 & 78.6 & 70.0 & 68.1 & 59.5 & 57.3 & 57.7 & 60.6 & 63.8 \\
+& HDR-VDP~\cite{mantiuk2011hdr}& 57.4 & 76.8 & 67.1 & 64.7 & 59.0 & 53.7 & 56.6 & 58.5 & 61.4 \\ \midrule
+Net (Random) & Gaussian & 60.5 & 80.7 & 70.6 & 64.9 & 59.5 & 62.8 & 57.2 & 61.1 & 64.3 \\ \midrule
+Net (Unsupervised) & K-means~\cite{krahenbuhl2015data}& 66.6 & \tbfit{83.0} & 74.8 & 67.3 & 59.8 & 63.1 & 59.8 & 62.5 & 66.6 \\ \midrule
+\multirow{4}{*}{Net (Self-supervised)} & Watching~\cite{pathak2017learning}& 66.5 & 80.7 & 73.6 & 69.6 & 60.6 & 64.4 & 61.6 & 64.1 & 67.2 \\
+& Split-Brain~\cite{zhang2017split}& 69.5 & 81.4 & 75.5 & 69.6 & 59.3 & 64.3 & 61.1 & 63.6 & 67.5 \\
+& Puzzle~\cite{noroozi2016unsupervised}& 71.5 & 82.0 & 76.8 & 70.2 & 60.2 & 62.8 & 61.8 & 63.8 & 68.1 \\
+& BiGAN~\cite{donahue2016adversarial}& 69.8 & \tbfit{83.0} & 76.4 & 70.7 & 60.5 & 63.7 & 62.5 & 64.4 & \tbfit{68.4} \\ \midrule
+\multirow{3}{*}{Net (Supervised)} & SqueezeNet~\cite{iandola2016squeezenet}& \tbfu{73.3} & \tbfit{82.6} & \tbfu{78.0} & 70.1 & 60.1 & 63.6 & 62.0 & 64.0 & \tbfit{68.6} \\
+& AlexNet~\cite{krizhevsky2014one}& 70.6 & \tbfu{83.1} & 76.8 & \tbfu{71.7} & 60.7 & 65.0 & 62.7 & \tbfit{65.0} & \tbfu{68.9} \\
+& VGG~\cite{simonyan2014very}& 70.1 & 81.3 & 75.7 & 69.0 & 59.0 & 60.2 & 62.1 & 62.6 & 67.0 \\ \midrule
+\multirow{7}{*}{*LPIPS (Learned} & Squeeze -- lin & \gray{76.1} & \gray{83.5} & \gray{79.8} & 71.1 & \tbfit{60.8} & \tbfit{65.3} & \tbfit{63.2} & \tbfit{65.1} & \gray{70.0} \\
+\multirow{7}{*}{Perceptual Image} & Alex -- lin & \gray{73.9} & \gray{83.4} & \gray{78.7} & \tbfit{71.5} & \tbfu{61.2} & \tbfit{65.3} & \tbfit{63.2} & \tbfu{65.3} & \gray{69.8} \\
+\multirow{7}{*}{Patch Similarity)} & VGG -- lin & \gray{76.0} & \gray{82.8} & \gray{79.4} & 70.5 & 60.5 & 62.5 & \tbfit{63.0} & 64.1 & \gray{69.2} \\ \cdashline{2-11}
+& Squeeze -- scratch & \gray{74.9} & \gray{83.1} & \gray{79.0} & 71.1 & \tbfit{60.8} & 63.0 & 62.4 & 64.3 & \gray{69.2} \\
+& Alex -- scratch & \gray{77.6} & \gray{82.8} & \gray{80.2} & 71.1 & \tbfit{61.0} & \tbfu{65.6} & \tbfu{63.3} & \tbfit{65.2} & \gray{\textbf{70.2}} \\
+& VGG -- scratch & \gray{77.9} & \gray{\textbf{83.7}} & \gray{80.8} & 71.1 & 60.6 & 64.0 & \tbfit{62.9} & 64.6 & \gray{70.0} \\ \cdashline{2-11}
+& Squeeze -- tune & \gray{76.7} & \gray{83.2} & \gray{79.9} & 70.4 & \tbfit{61.1} & 63.2 & \tbfit{63.2} & 64.5 & \gray{69.6} \\
+& Alex -- tune & \gray{77.7} & \gray{83.5} & \gray{80.6} & 69.1 & 60.5 & 64.8 & \tbfit{62.9} & 64.3 & \gray{69.7} \\
+& VGG -- tune & \gray{\textbf{79.3}} & \gray{83.5} & \gray{\textbf{81.4}} & 69.8 & 60.5 & 63.4 & 62.3 & 64.0 & \gray{69.8} \\
+
+\bottomrule
+\end{tabular}
+}
+\caption{\textbf{Results}. We show 2AFC scores (higher is better) across a spectrum of methods and test sets. The \tbfu{bolded \& underlined} values are the highest performing. The \tbfit{bolded \& italicized} values are within 0.5\% of highest. *LPIPS metrics are trained on the same traditional and CNN-based distortions, and as such have an advantage relative to other methods when testing on those same distortion types, even on unseen test images. These values are indicated by \gray{gray} values. The best gray value per column is also \gray{\textbf{bolded}}.}
+\label{tab:res_quant}
+\end{center}
+\end{table*}

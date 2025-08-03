@@ -1,0 +1,352 @@
+\begin{thebibliography}{10}\itemsep=-1pt
+
+\bibitem{agrawal2015learning}
+P.~Agrawal, J.~Carreira, and J.~Malik.
+\newblock Learning to see by moving.
+\newblock In {\em ICCV}, pages 37--45, 2015.
+
+\bibitem{Agustsson_2017_CVPR_Workshops}
+E.~Agustsson and R.~Timofte.
+\newblock Ntire 2017 challenge on single image super-resolution: Dataset and
+  study.
+\newblock In {\em CVPR Workshops}, July 2017.
+
+\bibitem{ali2017image}
+S.~Ali~Amirshahi, M.~Pedersen, and S.~X. Yu.
+\newblock Image quality assessment by comparing cnn features between images.
+\newblock {\em Electronic Imaging}, 2017(12):42--51, 2017.
+
+\bibitem{anderson1990adaptive}
+J.~R. Anderson.
+\newblock {\em The adaptive character of thought}.
+\newblock Psychology Press, 1990.
+
+\bibitem{baker2011database}
+S.~Baker, D.~Scharstein, J.~Lewis, S.~Roth, M.~J. Black, and R.~Szeliski.
+\newblock A database and evaluation methodology for optical flow.
+\newblock {\em IJCV}, 2011.
+
+\bibitem{berardino2017eigen}
+A.~Berardino, V.~Laparra, J.~Ball{\'e}, and E.~Simoncelli.
+\newblock Eigen-distortions of hierarchical representations.
+\newblock In {\em NIPS}, 2017.
+
+\bibitem{fivek}
+V.~Bychkovsky, S.~Paris, E.~Chan, and F.~Durand.
+\newblock Learning photographic global tonal adjustment with a database of
+  input / output image pairs.
+\newblock In {\em CVPR}, 2011.
+
+\bibitem{chen2017photographic}
+Q.~Chen and V.~Koltun.
+\newblock Photographic image synthesis with cascaded refinement networks.
+\newblock {\em ICCV}, 2017.
+
+\bibitem{crump2013evaluating}
+M.~J. Crump, J.~V. McDonnell, and T.~M. Gureckis.
+\newblock Evaluating amazon's mechanical turk as a tool for experimental
+  behavioral research.
+\newblock {\em PloS one}, 2013.
+
+\bibitem{dang2015raise}
+D.-T. Dang-Nguyen, C.~Pasquini, V.~Conotter, and G.~Boato.
+\newblock Raise: a raw images dataset for digital image forensics.
+\newblock In {\em Proceedings of the 6th ACM Multimedia Systems Conference},
+  pages 219--224. ACM, 2015.
+
+\bibitem{delbracio2015hand}
+M.~Delbracio and G.~Sapiro.
+\newblock Hand-held video deblurring via efficient fourier aggregation.
+\newblock {\em IEEE Transactions on Computational Imaging}, 1(4):270--283,
+  2015.
+
+\bibitem{doersch2015unsupervised}
+C.~Doersch, A.~Gupta, and A.~A. Efros.
+\newblock Unsupervised visual representation learning by context prediction.
+\newblock In {\em ICCV}, 2015.
+
+\bibitem{donahue2016adversarial}
+J.~Donahue, P.~Kr{\"a}henb{\"u}hl, and T.~Darrell.
+\newblock Adversarial feature learning.
+\newblock {\em ICLR}, 2017.
+
+\bibitem{dosovitskiy2016generating}
+A.~Dosovitskiy and T.~Brox.
+\newblock Generating images with perceptual similarity metrics based on deep
+  networks.
+\newblock In {\em HIPS}, pages 658--666, 2016.
+
+\bibitem{pascal-voc-2007}
+M.~Everingham, L.~Van~Gool, C.~K.~I. Williams, J.~Winn, and A.~Zisserman.
+\newblock The {PASCAL} {V}isual {O}bject {C}lasses {C}hallenge 2007 {(VOC2007)}
+  {R}esults.
+\newblock
+  http://www.pascal-network.org/challenges/VOC/voc2007/workshop/index.html.
+
+\bibitem{gao2017deepsim}
+F.~Gao, Y.~Wang, P.~Li, M.~Tan, J.~Yu, and Y.~Zhu.
+\newblock Deepsim: Deep similarity for image quality assessment.
+\newblock {\em Neurocomputing}, 2017.
+
+\bibitem{gatys2016image}
+L.~A. Gatys, A.~S. Ecker, and M.~Bethge.
+\newblock Image style transfer using convolutional neural networks.
+\newblock In {\em CVPR}, pages 2414--2423, 2016.
+
+\bibitem{ghadiyaram2016massive}
+D.~Ghadiyaram and A.~C. Bovik.
+\newblock Massive online crowdsourced study of subjective and objective picture
+  quality.
+\newblock {\em TIP}, 2016.
+
+\bibitem{Goodman1972}
+N.~Goodman.
+\newblock Seven strictures on similarity.
+\newblock {\em Problems and Projects}, 1972.
+
+\bibitem{iandola2016squeezenet}
+F.~N. Iandola, S.~Han, M.~W. Moskewicz, K.~Ashraf, W.~J. Dally, and K.~Keutzer.
+\newblock Squeezenet: Alexnet-level accuracy with 50x fewer parameters and $<$
+  0.5 mb model size.
+\newblock {\em CVPR}, 2017.
+
+\bibitem{isola2017image}
+P.~Isola, J.-Y. Zhu, T.~Zhou, and A.~A. Efros.
+\newblock Image-to-image translation with conditional adversarial networks.
+\newblock {\em CVPR}, 2017.
+
+\bibitem{isola2015learning}
+P.~Isola, D.~Zoran, D.~Krishnan, and E.~H. Adelson.
+\newblock Learning visual groups from co-occurrences in space and time.
+\newblock {\em ICCV Workshop}, 2016.
+
+\bibitem{johnson2016perceptual}
+J.~Johnson, A.~Alahi, and L.~Fei-Fei.
+\newblock Perceptual losses for real-time style transfer and super-resolution.
+\newblock {\em ECCV}, 2016.
+
+\bibitem{kim2016accurate}
+J.~Kim, J.~Kwon~Lee, and K.~Mu~Lee.
+\newblock Accurate image super-resolution using very deep convolutional
+  networks.
+\newblock In {\em CVPR}, pages 1646--1654, 2016.
+
+\bibitem{kim2017deep}
+J.~Kim and S.~Lee.
+\newblock Deep learning of human visual sensitivity in image quality assessment
+  framework.
+\newblock In {\em CVPR}, 2017.
+
+\bibitem{krahenbuhl2015data}
+P.~Kr{\"a}henb{\"u}hl, C.~Doersch, J.~Donahue, and T.~Darrell.
+\newblock Data-dependent initializations of convolutional neural networks.
+\newblock {\em International Conference on Learning Representations}, 2016.
+
+\bibitem{krizhevsky2014one}
+A.~Krizhevsky.
+\newblock One weird trick for parallelizing convolutional neural networks.
+\newblock {\em arXiv preprint arXiv:1404.5997}, 2014.
+
+\bibitem{krizhevsky2012imagenet}
+A.~Krizhevsky, I.~Sutskever, and G.~E. Hinton.
+\newblock Imagenet classification with deep convolutional neural networks.
+\newblock In {\em NIPS}, 2012.
+
+\bibitem{larson2010most}
+E.~C. Larson and D.~M. Chandler.
+\newblock Most apparent distortion: full-reference image quality assessment and
+  the role of strategy.
+\newblock {\em Journal of Electronic Imaging}, 2010.
+
+\bibitem{larsson2016learning}
+G.~Larsson, M.~Maire, and G.~Shakhnarovich.
+\newblock Learning representations for automatic colorization.
+\newblock {\em ECCV}, 2016.
+
+\bibitem{ledig2016photo}
+C.~Ledig, L.~Theis, F.~Husz{\'a}r, J.~Caballero, A.~Cunningham, A.~Acosta,
+  A.~Aitken, A.~Tejani, J.~Totz, Z.~Wang, et~al.
+\newblock Photo-realistic single image super-resolution using a generative
+  adversarial network.
+\newblock {\em CVPR}, 2016.
+
+\bibitem{Lim_2017_CVPR_Workshops}
+B.~Lim, S.~Son, H.~Kim, S.~Nah, and K.~M. Lee.
+\newblock Enhanced deep residual networks for single image super-resolution.
+\newblock In {\em CVPR Workshops}, 2017.
+
+\bibitem{liu2009beyond}
+C.~Liu et~al.
+\newblock {\em Beyond pixels: exploring new representations and applications
+  for motion analysis}.
+\newblock PhD thesis, Massachusetts Institute of Technology, 2009.
+
+\bibitem{mantiuk2011hdr}
+R.~Mantiuk, K.~J. Kim, A.~G. Rempel, and W.~Heidrich.
+\newblock Hdr-vdp-2: A calibrated visual metric for visibility and quality
+  predictions in all luminance conditions.
+\newblock In {\em ACM Transactions on Graphics (TOG)}, 2011.
+
+\bibitem{markman2005nonintentional}
+A.~B. Markman and D.~Gentner.
+\newblock Nonintentional similarity processing.
+\newblock {\em The new unconscious}, pages 107--137, 2005.
+
+\bibitem{medin1993respects}
+D.~L. Medin, R.~L. Goldstone, and D.~Gentner.
+\newblock Respects for similarity.
+\newblock {\em Psychological review}, 100(2):254, 1993.
+
+\bibitem{meyer2015phase}
+S.~Meyer, O.~Wang, H.~Zimmer, M.~Grosse, and A.~Sorkine-Hornung.
+\newblock Phase-based frame interpolation for video.
+\newblock In {\em CVPR}, pages 1410--1418, 2015.
+
+\bibitem{murray2012ava}
+N.~Murray, L.~Marchesotti, and F.~Perronnin.
+\newblock Ava: A large-scale database for aesthetic visual analysis.
+\newblock In {\em CVPR}, 2012.
+
+\bibitem{Niklaus_ICCV_2017}
+S.~Niklaus, L.~Mai, and F.~Liu.
+\newblock Video frame interpolation via adaptive separable convolution.
+\newblock In {\em ICCV}, 2017.
+
+\bibitem{noroozi2016unsupervised}
+M.~Noroozi and P.~Favaro.
+\newblock Unsupervised learning of visual representations by solving jigsaw
+  puzzles.
+\newblock {\em ECCV}, 2016.
+
+\bibitem{owens2016visually}
+A.~Owens, P.~Isola, J.~McDermott, A.~Torralba, E.~H. Adelson, and W.~T.
+  Freeman.
+\newblock Visually indicated sounds.
+\newblock {\em CVPR}, 2016.
+
+\bibitem{paszkepytorch}
+A.~Paszke, S.~Chintala, R.~Collobert, K.~Kavukcuoglu, C.~Farabet, S.~Bengio,
+  I.~Melvin, J.~Weston, and J.~Mariethoz.
+\newblock Pytorch: Tensors and dynamic neural networks in python with strong
+  gpu acceleration, may 2017.
+
+\bibitem{pathak2017learning}
+D.~Pathak, R.~Girshick, P.~Doll{\'a}r, T.~Darrell, and B.~Hariharan.
+\newblock Learning features by watching objects move.
+\newblock {\em CVPR}, 2017.
+
+\bibitem{pathakCVPR16context}
+D.~Pathak, P.~Kr\"ahenb\"uhl, J.~Donahue, T.~Darrell, and A.~Efros.
+\newblock Context encoders: Feature learning by inpainting.
+\newblock In {\em CVPR}, 2016.
+
+\bibitem{ponomarenko2015image}
+N.~Ponomarenko, L.~Jin, O.~Ieremeiev, V.~Lukin, K.~Egiazarian, J.~Astola,
+  B.~Vozel, K.~Chehdi, M.~Carli, F.~Battisti, et~al.
+\newblock Image database tid2013: Peculiarities, results and perspectives.
+\newblock {\em Signal Processing: Image Communication}, 2015.
+
+\bibitem{ponomarenko2009tid2008}
+N.~Ponomarenko, V.~Lukin, A.~Zelensky, K.~Egiazarian, M.~Carli, and
+  F.~Battisti.
+\newblock Tid2008-a database for evaluation of full-reference visual quality
+  assessment metrics.
+\newblock {\em Advances of Modern Radioelectronics}, 2009.
+
+\bibitem{russakovsky2015imagenet}
+O.~Russakovsky, J.~Deng, H.~Su, J.~Krause, S.~Satheesh, S.~Ma, Z.~Huang,
+  A.~Karpathy, A.~Khosla, M.~Bernstein, et~al.
+\newblock Imagenet large scale visual recognition challenge.
+\newblock {\em IJCV}, 2015.
+
+\bibitem{sajjadi2016enhancenet}
+M.~S. Sajjadi, B.~Sch{\"o}lkopf, and M.~Hirsch.
+\newblock Enhancenet: Single image super-resolution through automated texture
+  synthesis.
+\newblock {\em ICCV}, 2017.
+
+\bibitem{sampat2009complex}
+M.~P. Sampat, Z.~Wang, S.~Gupta, A.~C. Bovik, and M.~K. Markey.
+\newblock Complex wavelet structural similarity: A new image similarity index.
+\newblock {\em TIP}, 2009.
+
+\bibitem{scharstein2002taxonomy}
+D.~Scharstein and R.~Szeliski.
+\newblock A taxonomy and evaluation of dense two-frame stereo correspondence
+  algorithms.
+\newblock {\em IJCV}, 2002.
+
+\bibitem{sheikh2006statistical}
+H.~R. Sheikh, M.~F. Sabir, and A.~C. Bovik.
+\newblock A statistical evaluation of recent full reference image quality
+  assessment algorithms.
+\newblock {\em TIP}, 2006.
+
+\bibitem{simonyan2014very}
+K.~Simonyan and A.~Zisserman.
+\newblock Very deep convolutional networks for large-scale image recognition.
+\newblock {\em arXiv}, 2014.
+
+\bibitem{Su_2017_CVPR}
+S.~Su, M.~Delbracio, J.~Wang, G.~Sapiro, W.~Heidrich, and O.~Wang.
+\newblock Deep video deblurring for hand-held cameras.
+\newblock In {\em CVPR}, 2017.
+
+\bibitem{talebi2017learned}
+H.~Talebi and P.~Milanfar.
+\newblock Learned perceptual image enhancement.
+\newblock {\em ICCP}, 2018.
+
+\bibitem{talebi2018nima}
+H.~Talebi and P.~Milanfar.
+\newblock Nima: Neural image assessment.
+\newblock {\em TIP}, 2018.
+
+\bibitem{tversky1977features}
+A.~Tversky.
+\newblock Features of similarity.
+\newblock {\em Psychological review}, 1977.
+
+\bibitem{wang2015unsupervised}
+X.~Wang and A.~Gupta.
+\newblock Unsupervised learning of visual representations using videos.
+\newblock In {\em ICCV}, 2015.
+
+\bibitem{wang2004image}
+Z.~Wang, A.~C. Bovik, H.~R. Sheikh, and E.~P. Simoncelli.
+\newblock Image quality assessment: from error visibility to structural
+  similarity.
+\newblock {\em TIP}, 2004.
+
+\bibitem{wang2015deep}
+Z.~Wang, D.~Liu, J.~Yang, W.~Han, and T.~Huang.
+\newblock Deep networks for image super-resolution with sparse prior.
+\newblock In {\em ICCV}, 2015.
+
+\bibitem{wang2003multiscale}
+Z.~Wang, E.~P. Simoncelli, and A.~C. Bovik.
+\newblock Multiscale structural similarity for image quality assessment.
+\newblock In {\em Signals, Systems and Computers}. IEEE, 2004.
+
+\bibitem{yamins2016using}
+D.~L. Yamins and J.~J. DiCarlo.
+\newblock Using goal-driven deep learning models to understand sensory cortex.
+\newblock {\em Nature neuroscience}, 2016.
+
+\bibitem{zhang2011fsim}
+L.~Zhang, L.~Zhang, X.~Mou, and D.~Zhang.
+\newblock Fsim: A feature similarity index for image quality assessment.
+\newblock {\em TIP}, 2011.
+
+\bibitem{zhang2016colorful}
+R.~Zhang, P.~Isola, and A.~A. Efros.
+\newblock Colorful image colorization.
+\newblock {\em ECCV}, 2016.
+
+\bibitem{zhang2017split}
+R.~Zhang, P.~Isola, and A.~A. Efros.
+\newblock Split-brain autoencoders: Unsupervised learning by cross-channel
+  prediction.
+\newblock In {\em CVPR}, 2017.
+
+\end{thebibliography}

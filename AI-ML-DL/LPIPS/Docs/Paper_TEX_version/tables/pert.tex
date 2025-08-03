@@ -1,0 +1,37 @@
+\begin{table*}
+\centering
+\parbox[t][][t]{.48\linewidth}{
+\resizebox{\linewidth}{!}{
+\begin{tabular}{ c c }
+\textbf{Sub-type} & \textbf{Distortion type} \\ \hline
+Photometric & lightness shift, color shift, contrast, saturation \\ \hline
+ & uniform white noise, Gaussian white, pink, \\
+Noise & \& blue noise, Gaussian colored (between \\ 
+ & violet and brown) noise, checkerboard artifact \\ \hline
+ Blur & Gaussian, bilateral filtering \\ \hline
+Spatial & shifting, affine warp, homography, \\
+& linear warping, cubic warping, ghosting, \\
+& chromatic aberration, \\ \hline
+Compression & jpeg \\ \hline
+\end{tabular} } } \hfill
+\parbox[t][][t]{.48\linewidth}{
+\resizebox{\linewidth}{!}{
+\begin{tabular}{ c c }
+\textbf{Parameter type} & \textbf{Parameters} \\ \hline
+Input & null, pink noise, white noise, \\
+corruption & color removal, downsampling \\ \hline
+ & \# layers, \# skip connections, \\
+Generator & \# layers with dropout, force skip connection \\
+network & at highest layer, upsampling method, \\
+architecture & normalization method, first layer stride \\ 
+& \# channels in $1^{st}$ layer, max \# channels \\ \hline
+Discriminator & number of layers \\ \hline
+Loss/Learning & weighting on oixel-wise ($\ell_1$), VGG, \\
+& discriminator losses, learning rate \\ \hline
+\end{tabular} } }
+\vspace{-2mm}
+\caption{\label{tab:distortions}
+\textbf{Our distortions.} Our traditional distortions (left) are performed by basic low-level image editing operations. We also sequentially compose them to better explore the space. Our CNN-based distortions (right) are formed by randomly varying parameters such as task, network architecture, and learning parameters. The goal of the distortions is to mimic plausible distortions seen in real algorithm outputs.}
+\vspace{-4mm}
+\end{table*}
+
