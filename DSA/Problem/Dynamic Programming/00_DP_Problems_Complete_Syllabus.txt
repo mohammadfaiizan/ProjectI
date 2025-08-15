@@ -1,0 +1,495 @@
+================================================================================
+DYNAMIC PROGRAMMING PROBLEMS - COMPLETE SYLLABUS
+Major LeetCode Problems Categorized by Pattern and Difficulty
+================================================================================
+
+📚 OVERVIEW:
+This syllabus covers all major Dynamic Programming problem patterns from LeetCode,
+organized by category with problems ranging from Easy to Hard difficulty.
+Each category includes fundamental concepts, classic problems, and advanced variations.
+
+🎯 LEARNING APPROACH:
+- Start with Easy problems to understand basic patterns
+- Progress to Medium problems for pattern recognition
+- Tackle Hard problems for advanced techniques
+- Focus on state definition and recurrence relations
+- Practice both top-down (memoization) and bottom-up (tabulation) approaches
+
+================================================================================
+
+📁 CATEGORY 1: FIBONACCI & LINEAR DP
+================================================================================
+🎯 Pattern: Problems with linear state transitions, often building from previous values
+📊 Complexity: O(n) time, O(1) to O(n) space
+
+📄 File: 001_fibonacci_and_linear_dp.py
+
+📋 EASY PROBLEMS:
+• 70. Climbing Stairs
+• 746. Min Cost Climbing Stairs  
+• 1137. N-th Tribonacci Number
+• 509. Fibonacci Number
+• 1025. Divisor Game
+
+📋 MEDIUM PROBLEMS:
+• 198. House Robber
+• 213. House Robber II (Circular)
+• 740. Delete and Earn
+• 790. Domino and Tromino Tiling
+• 91. Decode Ways
+• 264. Ugly Number II
+• 279. Perfect Squares
+• 322. Coin Change
+• 377. Combination Sum IV
+• 139. Word Break
+
+📋 HARD PROBLEMS:
+• 42. Trapping Rain Water (DP approach)
+• 123. Best Time to Buy and Sell Stock III
+• 188. Best Time to Buy and Sell Stock IV
+• 1216. Valid Palindrome III
+
+================================================================================
+
+📁 CATEGORY 2: GRID/MATRIX DP
+================================================================================
+🎯 Pattern: 2D problems, path counting, obstacle navigation, grid traversal
+📊 Complexity: O(m*n) time, O(m*n) to O(n) space
+
+📄 File: 002_grid_matrix_dp.py
+
+📋 EASY PROBLEMS:
+• 62. Unique Paths
+• 64. Minimum Path Sum
+• 120. Triangle
+
+📋 MEDIUM PROBLEMS:
+• 63. Unique Paths II
+• 174. Dungeon Game
+• 221. Maximal Square
+• 304. Range Sum Query 2D - Immutable
+• 1277. Count Square Submatrices with All Ones
+• 931. Minimum Falling Path Sum
+• 1594. Maximum Non Negative Product in a Matrix
+• 1143. Longest Common Subsequence
+• 97. Interleaving String
+• 72. Edit Distance
+
+📋 HARD PROBLEMS:
+• 85. Maximal Rectangle
+• 363. Max Sum of Rectangle No Larger Than K
+• 1444. Number of Ways of Cutting a Pizza
+• 1478. Allocate Mailboxes
+• 87. Scramble String
+
+================================================================================
+
+📁 CATEGORY 3: KNAPSACK PROBLEMS
+================================================================================
+🎯 Pattern: Subset selection, weight/value optimization, capacity constraints
+📊 Complexity: O(n*W) time, O(W) to O(n*W) space
+
+📄 File: 003_knapsack_problems.py
+
+📋 CLASSICAL VARIANTS:
+• 0/1 Knapsack (Basic Template)
+• Unbounded Knapsack
+• Multiple Knapsack
+• Bounded Knapsack
+
+📋 EASY PROBLEMS:
+• 416. Partition Equal Subset Sum
+
+📋 MEDIUM PROBLEMS:
+• 494. Target Sum
+• 474. Ones and Zeroes
+• 322. Coin Change
+• 518. Coin Change 2
+• 1049. Last Stone Weight II
+• 698. Partition to K Equal Sum Subsets
+• 879. Profitable Schemes
+• 1155. Number of Dice Rolls With Target Sum
+
+📋 HARD PROBLEMS:
+• 805. Split Array With Same Average
+• 956. Tallest Billboard
+• 1049. Last Stone Weight II
+• 1449. Form Largest Integer With Digits That Add up to Target
+
+================================================================================
+
+📁 CATEGORY 4: LONGEST SUBSEQUENCE PROBLEMS
+================================================================================
+🎯 Pattern: Finding optimal subsequences, LIS variations, string matching
+📊 Complexity: O(n²) to O(n log n) time, O(n) to O(n²) space
+
+📄 File: 004_longest_subsequence_dp.py
+
+📋 EASY PROBLEMS:
+• 674. Longest Continuous Increasing Subsequence
+
+📋 MEDIUM PROBLEMS:
+• 300. Longest Increasing Subsequence
+• 354. Russian Doll Envelopes
+• 673. Number of Longest Increasing Subsequence
+• 1143. Longest Common Subsequence
+• 1092. Shortest Common Supersequence
+• 516. Longest Palindromic Subsequence
+• 646. Maximum Length of Pair Chain
+• 368. Largest Divisible Subset
+• 1626. Best Team With No Conflicts
+
+📋 HARD PROBLEMS:
+• 1671. Minimum Number of Removals to Make Mountain Array
+• 960. Delete Columns to Make Sorted III
+• 1713. Minimum Operations to Make a Subsequence
+
+================================================================================
+
+📁 CATEGORY 5: STRING DP
+================================================================================
+🎯 Pattern: String manipulation, palindromes, edit distance, pattern matching
+📊 Complexity: O(n²) to O(n³) time, O(n) to O(n²) space
+
+📄 File: 005_string_dp.py
+
+📋 EASY PROBLEMS:
+• 392. Is Subsequence
+• 1413. Minimum Value to Get Positive Step by Step Sum
+
+📋 MEDIUM PROBLEMS:
+• 5. Longest Palindromic Substring
+• 516. Longest Palindromic Subsequence
+• 647. Palindromic Substrings
+• 72. Edit Distance
+• 712. Minimum ASCII Delete Sum for Two Strings
+• 583. Delete Operation for Two Strings
+• 115. Distinct Subsequences
+• 1092. Shortest Common Supersequence
+• 97. Interleaving String
+• 139. Word Break
+• 131. Palindrome Partitioning
+• 1278. Palindrome Partitioning III
+
+📋 HARD PROBLEMS:
+• 132. Palindrome Partitioning II
+• 10. Regular Expression Matching
+• 44. Wildcard Pattern Matching
+• 87. Scramble String
+• 1000. Minimum Cost to Merge Stones
+• 1216. Valid Palindrome III
+
+================================================================================
+
+📁 CATEGORY 6: STOCK PROBLEMS
+================================================================================
+🎯 Pattern: State machine DP, buy/sell decisions, transaction limits
+📊 Complexity: O(n) to O(n*k) time, O(1) to O(n*k) space
+
+📄 File: 006_stock_problems.py
+
+📋 EASY PROBLEMS:
+• 121. Best Time to Buy and Sell Stock
+
+📋 MEDIUM PROBLEMS:
+• 122. Best Time to Buy and Sell Stock II
+• 714. Best Time to Buy and Sell Stock with Transaction Fee
+• 309. Best Time to Buy and Sell Stock with Cooldown
+
+📋 HARD PROBLEMS:
+• 123. Best Time to Buy and Sell Stock III
+• 188. Best Time to Buy and Sell Stock IV
+
+📋 STATE MACHINE APPROACH:
+• hold[i] = max(hold[i-1], rest[i-1] - prices[i])
+• sold[i] = hold[i-1] + prices[i]
+• rest[i] = max(rest[i-1], sold[i-1])
+
+================================================================================
+
+📁 CATEGORY 7: INTERVAL DP
+================================================================================
+🎯 Pattern: Merge intervals, burst balloons, matrix chain multiplication
+📊 Complexity: O(n³) time, O(n²) space
+
+📄 File: 007_interval_dp.py
+
+📋 MEDIUM PROBLEMS:
+• 1024. Video Stitching
+• 1326. Minimum Number of Taps to Open to Water a Garden
+
+📋 HARD PROBLEMS:
+• 312. Burst Balloons
+• 1000. Minimum Cost to Merge Stones
+• 375. Guess Number Higher or Lower II
+• 546. Remove Boxes
+• 664. Strange Printer
+• 1478. Allocate Mailboxes
+• 87. Scramble String
+
+📋 CLASSICAL PROBLEMS:
+• Matrix Chain Multiplication
+• Optimal Binary Search Tree
+• Polygon Triangulation
+
+================================================================================
+
+📁 CATEGORY 8: TREE DP
+================================================================================
+🎯 Pattern: Tree traversal with DP, rob houses, tree diameter
+📊 Complexity: O(n) time, O(h) space for recursion
+
+📄 File: 008_tree_dp.py
+
+📋 MEDIUM PROBLEMS:
+• 337. House Robber III
+• 124. Binary Tree Maximum Path Sum
+• 1372. Longest ZigZag Path in a Binary Tree
+• 968. Binary Tree Cameras
+• 979. Distribute Coins in Binary Tree
+• 1130. Minimum Cost Tree From Leaf Values
+• 1245. Tree Diameter
+
+📋 HARD PROBLEMS:
+• 834. Sum of Distances in Tree
+• 310. Minimum Height Trees
+• 1548. The Most Similar Path in a Graph
+
+================================================================================
+
+📁 CATEGORY 9: DIGIT DP
+================================================================================
+🎯 Pattern: Count numbers with specific properties, digit constraints
+📊 Complexity: O(log(n) * states) time
+
+📄 File: 009_digit_dp.py
+
+📋 HARD PROBLEMS:
+• 233. Number of Digit One
+• 902. Numbers At Most N Given Digit Set
+• 1012. Numbers With Repeated Digits
+• 1397. Find All Good Strings
+• 600. Non-negative Integers without Consecutive Ones
+
+📋 PATTERN TEMPLATE:
+• dp[pos][tight][mask] = count of valid numbers
+• pos: current position
+• tight: whether we're bounded by the limit
+• mask: additional state (like used digits)
+
+================================================================================
+
+📁 CATEGORY 10: BITMASK DP
+================================================================================
+🎯 Pattern: State compression using bitmasks, subset enumeration
+📊 Complexity: O(n * 2^n) time, O(2^n) space
+
+📄 File: 010_bitmask_dp.py
+
+📋 MEDIUM PROBLEMS:
+• 698. Partition to K Equal Sum Subsets
+• 1723. Find Minimum Time to Finish All Jobs
+
+📋 HARD PROBLEMS:
+• 847. Shortest Path Visiting All Nodes
+• 943. Find the Shortest Superstring
+• 1125. Smallest Sufficient Team
+• 1434. Number of Ways to Wear Different Hats to Each Other
+• 1681. Minimum Incompatibility
+• 1986. Minimum Number of Work Sessions to Finish the Tasks
+
+📋 CLASSICAL PROBLEMS:
+• Traveling Salesman Problem (TSP)
+• Hamiltonian Path
+• Assignment Problem
+
+================================================================================
+
+📁 CATEGORY 11: GAME THEORY DP
+================================================================================
+🎯 Pattern: Minimax, optimal play, two-player games
+📊 Complexity: O(n²) to O(n³) time
+
+📄 File: 011_game_theory_dp.py
+
+📋 MEDIUM PROBLEMS:
+• 486. Predict the Winner
+• 877. Stone Game
+• 1025. Divisor Game
+
+📋 HARD PROBLEMS:
+• 464. Can I Win
+• 375. Guess Number Higher or Lower II
+• 1140. Stone Game II
+• 1406. Stone Game III
+• 1510. Stone Game IV
+• 1563. Stone Game V
+• 1686. Stone Game VI
+• 1872. Stone Game VIII
+
+📋 PATTERN:
+• dp[i][j] = max score difference when playing optimally on range [i,j]
+
+================================================================================
+
+📁 CATEGORY 12: PROBABILITY DP
+================================================================================
+🎯 Pattern: Expected value, probability calculations, random processes
+📊 Complexity: Varies based on states
+
+📄 File: 012_probability_dp.py
+
+📋 MEDIUM PROBLEMS:
+• 688. Knight Probability in Chessboard
+• 837. New 21 Game
+• 1227. Airplane Seat Assignment Probability
+
+📋 HARD PROBLEMS:
+• 808. Soup Servings
+• 1230. Toss Strange Coins
+
+================================================================================
+
+📁 CATEGORY 13: ADVANCED PATTERNS
+================================================================================
+🎯 Pattern: Complex state transitions, optimization techniques
+📊 Complexity: Varies widely
+
+📄 File: 013_advanced_dp_patterns.py
+
+📋 CONVEX HULL OPTIMIZATION:
+• 1478. Allocate Mailboxes
+• 1235. Maximum Profit in Job Scheduling
+
+📋 DIVIDE AND CONQUER OPTIMIZATION:
+• 1478. Allocate Mailboxes
+
+📋 MATRIX EXPONENTIATION:
+• 70. Climbing Stairs (Large N)
+• 509. Fibonacci Number (Large N)
+
+📋 DP ON TREES:
+• 968. Binary Tree Cameras
+• 979. Distribute Coins in Binary Tree
+
+📋 DP WITH DATA STRUCTURES:
+• 1187. Make Array Strictly Increasing
+• 1235. Maximum Profit in Job Scheduling
+
+================================================================================
+
+📁 CATEGORY 14: CONTEST & INTERVIEW PROBLEMS
+================================================================================
+🎯 Pattern: Mixed techniques, problem-solving strategies
+📊 Complexity: Varies
+
+📄 File: 014_contest_interview_problems.py
+
+📋 FREQUENTLY ASKED:
+• 70. Climbing Stairs
+• 198. House Robber
+• 300. Longest Increasing Subsequence
+• 322. Coin Change
+• 416. Partition Equal Subset Sum
+• 1143. Longest Common Subsequence
+• 72. Edit Distance
+• 121. Best Time to Buy and Sell Stock
+
+📋 CONTEST FAVORITES:
+• 312. Burst Balloons
+• 1000. Minimum Cost to Merge Stones
+• 1235. Maximum Profit in Job Scheduling
+• 1478. Allocate Mailboxes
+
+================================================================================
+
+📊 PROBLEM DIFFICULTY DISTRIBUTION:
+================================================================================
+📗 EASY PROBLEMS: 15-20 problems
+📙 MEDIUM PROBLEMS: 80-100 problems  
+📕 HARD PROBLEMS: 60-80 problems
+
+🎯 TOTAL PROBLEMS: 150+ categorized LeetCode problems
+
+================================================================================
+
+🛠️ IMPLEMENTATION APPROACH:
+================================================================================
+
+📝 FILE STRUCTURE PER CATEGORY:
+1. Pattern Explanation & Templates
+2. Easy Problems (with detailed solutions)
+3. Medium Problems (with optimizations)
+4. Hard Problems (with advanced techniques)
+5. Practice Problems List
+6. Time/Space Complexity Analysis
+7. Common Pitfalls & Edge Cases
+
+💡 SOLUTION FORMATS:
+• Brute Force Approach
+• Top-Down DP (Memoization)
+• Bottom-Up DP (Tabulation)
+• Space-Optimized Version
+• Alternative Approaches
+
+🎯 LEARNING OBJECTIVES:
+• Master state definition and transition
+• Recognize DP patterns quickly
+• Optimize space complexity
+• Handle edge cases effectively
+• Apply DP to real-world problems
+
+================================================================================
+
+📚 STUDY PLAN RECOMMENDATIONS:
+================================================================================
+
+🗓️ WEEK 1-2: Linear DP & Grid Problems
+• Start with Fibonacci variants
+• Master 1D and 2D DP
+• Practice space optimization
+
+🗓️ WEEK 3-4: Knapsack & Subsequence Problems  
+• Understand subset selection
+• Master LCS and LIS patterns
+• Practice different knapsack variants
+
+🗓️ WEEK 5-6: String DP & Advanced Patterns
+• Focus on palindrome problems
+• Master edit distance variations
+• Practice interval DP
+
+🗓️ WEEK 7-8: Specialized Topics
+• Tree DP and game theory
+• Bitmask DP for small constraints
+• Digit DP for counting problems
+
+🗓️ WEEK 9-10: Contest Preparation
+• Mixed problem solving
+• Time-based practice
+• Advanced optimization techniques
+
+================================================================================
+
+📈 PROGRESS TRACKING:
+================================================================================
+□ Category 1: Fibonacci & Linear DP (__ / 25 problems)
+□ Category 2: Grid/Matrix DP (__ / 20 problems)  
+□ Category 3: Knapsack Problems (__ / 15 problems)
+□ Category 4: Longest Subsequence (__ / 15 problems)
+□ Category 5: String DP (__ / 20 problems)
+□ Category 6: Stock Problems (__ / 6 problems)
+□ Category 7: Interval DP (__ / 10 problems)
+□ Category 8: Tree DP (__ / 10 problems)
+□ Category 9: Digit DP (__ / 8 problems)
+□ Category 10: Bitmask DP (__ / 10 problems)
+□ Category 11: Game Theory DP (__ / 12 problems)
+□ Category 12: Probability DP (__ / 8 problems)
+□ Category 13: Advanced Patterns (__ / 10 problems)
+□ Category 14: Contest Problems (__ / 15 problems)
+
+🎯 TOTAL PROGRESS: __ / 180+ problems completed
+
+================================================================================
+END OF SYLLABUS - DYNAMIC PROGRAMMING MASTERY AWAITS!
+================================================================================
