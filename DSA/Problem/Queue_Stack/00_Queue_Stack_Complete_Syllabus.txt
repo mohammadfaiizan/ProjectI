@@ -1,0 +1,343 @@
+══════════════════════════════════════════════════════════════════════════════════
+🚀 **COMPREHENSIVE QUEUE & STACK PROBLEMS SYLLABUS** 🚀
+══════════════════════════════════════════════════════════════════════════════════
+
+📚 **OVERVIEW:**
+This syllabus covers comprehensive Queue and Stack data structure problems, ranging from
+basic operations to advanced applications in algorithms, system design, and competitive
+programming. Each category includes multiple difficulty levels with real-world applications.
+
+🎯 **LEARNING OBJECTIVES:**
+- Master Queue and Stack fundamental operations and implementations
+- Understand advanced data structures like Deque, Priority Queue, and Monotonic Stack
+- Apply Queue/Stack concepts to solve complex algorithmic problems
+- Implement system design solutions using Queue/Stack patterns
+- Optimize algorithms using Stack/Queue-based approaches
+
+══════════════════════════════════════════════════════════════════════════════════
+
+📋 **CATEGORY 1: STACK FUNDAMENTALS** (12 Problems)
+
+**📋 Core Concepts:**
+- Stack Implementation (Array/Linked List)
+- Basic Stack Operations (Push, Pop, Peek, IsEmpty)
+- Stack Applications in Expression Evaluation
+- Balanced Parentheses Problems
+- Stack-based Recursion Simulation
+
+**🎯 Essential Problems:**
+
+**Easy (4 problems):**
+1. 20_Valid_Parentheses.py
+2. 155_Min_Stack.py
+3. 232_Implement_Queue_using_Stacks.py
+4. Stack_Basic_Implementation.py
+
+**Medium (5 problems):**
+5. 150_Evaluate_Reverse_Polish_Notation.py
+6. 71_Simplify_Path.py
+7. 394_Decode_String.py
+8. 636_Exclusive_Time_of_Functions.py
+9. 1047_Remove_All_Adjacent_Duplicates_In_String.py
+
+**Hard (3 problems):**
+10. 32_Longest_Valid_Parentheses.py
+11. 224_Basic_Calculator.py
+12. 772_Basic_Calculator_III.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🔄 **CATEGORY 2: QUEUE FUNDAMENTALS** (10 Problems)
+
+**📋 Core Concepts:**
+- Queue Implementation (Array/Linked List/Circular)
+- Basic Queue Operations (Enqueue, Dequeue, Front, IsEmpty)
+- Circular Queue Design
+- Queue Applications in BFS and Level-order Traversal
+- Producer-Consumer Patterns
+
+**🎯 Essential Problems:**
+
+**Easy (3 problems):**
+1. 225_Implement_Stack_using_Queues.py
+2. 622_Design_Circular_Queue.py
+3. Queue_Basic_Implementation.py
+
+**Medium (5 problems):**
+4. 346_Moving_Average_from_Data_Stream.py
+5. 933_Number_of_Recent_Calls.py
+6. 1429_First_Unique_Number.py
+7. 641_Design_Circular_Deque.py
+8. 362_Design_Hit_Counter.py
+
+**Hard (2 problems):**
+9. 239_Sliding_Window_Maximum.py
+10. 1438_Longest_Continuous_Subarray_With_Absolute_Diff_Less_Than_or_Equal_to_Limit.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+📊 **CATEGORY 3: MONOTONIC STACK** (15 Problems)
+
+**📋 Core Concepts:**
+- Monotonic Stack Properties (Increasing/Decreasing)
+- Next Greater/Smaller Element Problems
+- Stack-based Optimization for Array Problems
+- Histogram and Rectangle Problems
+- Temperature and Stock Price Analysis
+
+**🎯 Essential Problems:**
+
+**Easy (4 problems):**
+1. 496_Next_Greater_Element_I.py
+2. 503_Next_Greater_Element_II.py
+3. 739_Daily_Temperatures.py
+4. 1021_Remove_Outermost_Parentheses.py
+
+**Medium (8 problems):**
+5. 84_Largest_Rectangle_in_Histogram.py
+6. 85_Maximal_Rectangle.py
+7. 42_Trapping_Rain_Water.py
+8. 456_132_Pattern.py
+9. 901_Online_Stock_Span.py
+10. 1019_Next_Greater_Node_In_Linked_List.py
+11. 1124_Longest_Well_Performing_Interval.py
+12. 1504_Count_Submatrices_With_All_Ones.py
+
+**Hard (3 problems):**
+13. 316_Remove_Duplicate_Letters.py
+14. 402_Remove_K_Digits.py
+15. 1944_Number_of_Visible_People_in_a_Queue.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🏗️ **CATEGORY 4: DEQUE (DOUBLE-ENDED QUEUE)** (8 Problems)
+
+**📋 Core Concepts:**
+- Deque Implementation and Operations
+- Sliding Window Maximum/Minimum
+- Palindrome Checking with Deque
+- Deque-based Optimization Techniques
+- Two-pointer Techniques with Deque
+
+**🎯 Essential Problems:**
+
+**Easy (2 problems):**
+1. 1700_Number_of_Students_Unable_to_Eat_Lunch.py
+2. Deque_Basic_Implementation.py
+
+**Medium (4 problems):**
+3. 239_Sliding_Window_Maximum.py
+4. 862_Shortest_Subarray_with_Sum_at_Least_K.py
+5. 1696_Jump_Game_VI.py
+6. 918_Maximum_Sum_Circular_Subarray.py
+
+**Hard (2 problems):**
+7. 1425_Constrained_Subsequence_Sum.py
+8. 1499_Max_Value_of_Equation.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+⚡ **CATEGORY 5: PRIORITY QUEUE (HEAP)** (18 Problems)
+
+**📋 Core Concepts:**
+- Min-Heap and Max-Heap Implementation
+- Priority Queue Operations
+- Heap-based Sorting and Selection
+- K-way Merge Problems
+- Top-K Problems and Frequency Analysis
+
+**🎯 Essential Problems:**
+
+**Easy (5 problems):**
+1. 703_Kth_Largest_Element_in_a_Stream.py
+2. 1046_Last_Stone_Weight.py
+3. 215_Kth_Largest_Element_in_an_Array.py
+4. Priority_Queue_Basic_Implementation.py
+5. 1337_The_K_Weakest_Rows_in_a_Matrix.py
+
+**Medium (9 problems):**
+6. 347_Top_K_Frequent_Elements.py
+7. 373_Find_K_Pairs_with_Smallest_Sums.py
+8. 378_Kth_Smallest_Element_in_a_Sorted_Matrix.py
+9. 451_Sort_Characters_By_Frequency.py
+10. 692_Top_K_Frequent_Words.py
+11. 973_K_Closest_Points_to_Origin.py
+12. 1167_Minimum_Cost_to_Connect_Sticks.py
+13. 1353_Maximum_Number_of_Events_That_Can_Be_Attended.py
+14. 1642_Furthest_Building_You_Can_Reach.py
+
+**Hard (4 problems):**
+15. 23_Merge_k_Sorted_Lists.py
+16. 295_Find_Median_from_Data_Stream.py
+17. 480_Sliding_Window_Median.py
+18. 502_IPO.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🔀 **CATEGORY 6: ADVANCED QUEUE APPLICATIONS** (12 Problems)
+
+**📋 Core Concepts:**
+- Multi-level Queue Systems
+- Task Scheduling with Queues
+- Buffer Management
+- Rate Limiting and Throttling
+- Queue-based Graph Algorithms (BFS variants)
+
+**🎯 Essential Problems:**
+
+**Easy (3 problems):**
+1. 1700_Number_of_Students_Unable_to_Eat_Lunch.py
+2. 649_Dota2_Senate.py
+3. 950_Reveal_Cards_In_Increasing_Order.py
+
+**Medium (6 problems):**
+4. 353_Design_Snake_Game.py
+5. 1823_Find_the_Winner_of_the_Circular_Game.py
+6. 1352_Product_of_the_Last_K_Numbers.py
+7. 1670_Design_Front_Middle_Back_Queue.py
+8. 1381_Design_a_Stack_With_Increment_Operation.py
+9. 1172_Dinner_Plate_Stacks.py
+
+**Hard (3 problems):**
+10. 1606_Find_Servers_That_Handled_Most_Number_of_Requests.py
+11. 1825_Finding_MK_Average.py
+12. 1944_Number_of_Visible_People_in_a_Queue.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🎯 **CATEGORY 7: EXPRESSION EVALUATION & PARSING** (10 Problems)
+
+**📋 Core Concepts:**
+- Infix to Postfix Conversion
+- Expression Tree Construction
+- Operator Precedence Handling
+- Recursive Descent Parsing
+- Stack-based Expression Evaluation
+
+**🎯 Essential Problems:**
+
+**Easy (2 problems):**
+1. 1614_Maximum_Nesting_Depth_of_the_Parentheses.py
+2. Expression_Evaluation_Basic.py
+
+**Medium (5 problems):**
+3. 150_Evaluate_Reverse_Polish_Notation.py
+4. 227_Basic_Calculator_II.py
+5. 394_Decode_String.py
+6. 726_Number_of_Atoms.py
+7. 1190_Reverse_Substrings_Between_Each_Pair_of_Parentheses.py
+
+**Hard (3 problems):**
+8. 224_Basic_Calculator.py
+9. 772_Basic_Calculator_III.py
+10. 591_Tag_Validator.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🏢 **CATEGORY 8: SYSTEM DESIGN WITH QUEUES & STACKS** (8 Problems)
+
+**📋 Core Concepts:**
+- Load Balancing with Queues
+- Cache Implementation with Stacks
+- Undo/Redo Functionality
+- Browser History Management
+- Task Scheduling Systems
+
+**🎯 Essential Problems:**
+
+**Easy (2 problems):**
+1. 1472_Design_Browser_History.py
+2. 1441_Build_an_Array_With_Stack_Operations.py
+
+**Medium (4 problems):**
+3. 146_LRU_Cache.py
+4. 460_LFU_Cache.py
+5. 1396_Design_Underground_System.py
+6. 1603_Design_Parking_System.py
+
+**Hard (2 problems):**
+7. 895_Maximum_Frequency_Stack.py
+8. 1172_Dinner_Plate_Stacks.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🚀 **CATEGORY 9: COMPETITIVE PROGRAMMING PATTERNS** (15 Problems)
+
+**📋 Core Concepts:**
+- Stack/Queue Optimization Techniques
+- Amortized Analysis
+- Two-Stack Techniques
+- Queue-based DP Optimization
+- Advanced Data Structure Combinations
+
+**🎯 Essential Problems:**
+
+**Easy (4 problems):**
+1. 844_Backspace_String_Compare.py
+2. 1021_Remove_Outermost_Parentheses.py
+3. 1047_Remove_All_Adjacent_Duplicates_In_String.py
+4. 1209_Remove_All_Adjacent_Duplicates_in_String_II.py
+
+**Medium (7 problems):**
+5. 735_Asteroid_Collision.py
+6. 946_Validate_Stack_Sequences.py
+7. 1130_Minimum_Cost_Tree_From_Leaf_Values.py
+8. 1249_Minimum_Remove_to_Make_Valid_Parentheses.py
+9. 1541_Minimum_Insertions_to_Balance_a_Parentheses_String.py
+10. 1762_Buildings_With_an_Ocean_View.py
+11. 1776_Car_Fleet_II.py
+
+**Hard (4 problems):**
+12. 84_Largest_Rectangle_in_Histogram.py
+13. 1944_Number_of_Visible_People_in_a_Queue.py
+14. 2104_Sum_of_Subarray_Ranges.py
+15. 2289_Steps_to_Make_Array_Non_decreasing.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+🔧 **CATEGORY 10: IMPLEMENTATION & OPTIMIZATION** (6 Problems)
+
+**📋 Core Concepts:**
+- Memory-Efficient Implementations
+- Thread-Safe Queue/Stack Operations
+- Custom Data Structure Design
+- Performance Optimization Techniques
+- Space-Time Tradeoff Analysis
+
+**🎯 Essential Problems:**
+
+**Easy (2 problems):**
+1. Custom_Stack_Implementation.py
+2. Custom_Queue_Implementation.py
+
+**Medium (2 problems):**
+3. Thread_Safe_Queue_Stack.py
+4. Memory_Optimized_Structures.py
+
+**Hard (2 problems):**
+5. Advanced_Data_Structure_Combinations.py
+6. Performance_Benchmarking_Suite.py
+
+══════════════════════════════════════════════════════════════════════════════════
+
+📊 **SUMMARY STATISTICS:**
+- **Total Categories:** 10
+- **Total Problems:** 114
+- **Easy Problems:** 31 (27%)
+- **Medium Problems:** 55 (48%)
+- **Hard Problems:** 28 (25%)
+
+📈 **DIFFICULTY PROGRESSION:**
+1. **Beginner (Categories 1-2):** Basic Stack/Queue operations and implementations
+2. **Intermediate (Categories 3-5):** Monotonic structures and priority queues
+3. **Advanced (Categories 6-8):** System design and complex applications
+4. **Expert (Categories 9-10):** Competitive programming and optimization
+
+🎯 **REAL-WORLD APPLICATIONS:**
+- **Web Development:** Browser history, undo/redo functionality
+- **System Design:** Load balancing, task scheduling, caching
+- **Algorithms:** Expression evaluation, graph traversal optimization
+- **Data Processing:** Stream processing, sliding window problems
+- **Game Development:** Game state management, collision detection
+
+══════════════════════════════════════════════════════════════════════════════════
