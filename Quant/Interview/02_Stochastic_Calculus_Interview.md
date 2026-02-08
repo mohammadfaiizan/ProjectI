@@ -1,0 +1,81 @@
+# Stochastic Calculus Interview
+
+## Q1: What are the key properties of Brownian motion?
+
+**A1:** Brownian motion W(t) is a continuous-time stochastic process with four defining properties: (1) W(0) = 0 almost surely, (2) for 0 ≤ s < t, the increment W(t) - W(s) is normally distributed with mean 0 and variance t-s, (3) increments are independent: W(t) - W(s) is independent of W(u) - W(v) for non-overlapping intervals, (4) paths are continuous (but nowhere differentiable). These properties make Brownian motion the fundamental building block of stochastic calculus. The variance scaling with time (not time squared) is crucial: it means Brownian motion has infinite total variation but finite quadratic variation, which is why standard calculus fails and Ito calculus is needed.
+
+## Q2: Derive the geometric Brownian motion (GBM) process using Ito's lemma.
+
+**A2:** Start with dS = μS dt + σS dW, where S is the asset price. To find the process for X = ln(S), apply Ito's lemma: dX = (∂X/∂S)dS + (1/2)(∂²X/∂S²)(dS)². Since X = ln(S), we have ∂X/∂S = 1/S and ∂²X/∂S² = -1/S². Substituting dS and noting (dS)² = σ²S²dt (since dW² = dt), we get dX = (1/S)(μS dt + σS dW) - (1/2)(1/S²)(σ²S²dt) = (μ - σ²/2)dt + σ dW. Integrating from 0 to t gives ln(S_t/S_0) = (μ - σ²/2)t + σW_t, so S_t = S_0 exp((μ - σ²/2)t + σW_t). The key insight is the drift adjustment: the log process has drift μ - σ²/2, not μ, due to the second-order term in Ito's lemma.
+
+## Q3: Derive the Ornstein-Uhlenbeck (OU) process using Ito's lemma.
+
+**A3:** The OU process dX = -θ(X - μ)dt + σ dW models mean-reverting behavior. To solve it, define Y = X - μ, so dY = -θY dt + σ dW. Now apply Ito's lemma to Z = e^(θt)Y. We have dZ = θe^(θt)Y dt + e^(θt)dY = θe^(θt)Y dt + e^(θt)(-θY dt + σ dW) = σe^(θt)dW. Integrating gives Z(t) = Z(0) + σ∫₀ᵗ e^(θs)dW_s, so e^(θt)(X(t) - μ) = X(0) - μ + σ∫₀ᵗ e^(θs)dW_s. Multiplying by e^(-θt) yields X(t) = μ + (X(0) - μ)e^(-θt) + σe^(-θt)∫₀ᵗ e^(θs)dW_s. The process mean-reverts to μ at speed θ, with the stochastic integral term providing the random fluctuations.
+
+## Q4: What conditions must a process satisfy to be a martingale?
+
+**A4:** A process M(t) is a martingale with respect to filtration F_t if: (1) M(t) is adapted to F_t (measurable with respect to current information), (2) E[|M(t)|] < ∞ for all t (finite expectation), (3) E[M(t)|F_s] = M(s) for all s ≤ t (conditional expectation equals current value). This means the best forecast of future values is the current value—no drift. In finance, discounted asset prices are martingales under the risk-neutral measure, which is the foundation of no-arbitrage pricing. If a process has drift, it's not a martingale; however, by Girsanov's theorem, we can change measure to remove drift and make it a martingale.
+
+## Q5: Explain stopping times and their importance in option pricing.
+
+**A5:** A stopping time τ is a random time such that the event {τ ≤ t} is measurable with respect to F_t for all t—meaning you can determine if stopping has occurred using only information up to time t. Stopping times are crucial for American options, where exercise can occur at any time before expiration. The optimal exercise time is a stopping time that maximizes expected payoff. The optional stopping theorem states that if M is a martingale and τ is a bounded stopping time, then E[M(τ)] = E[M(0)]. This fails for unbounded stopping times, which is why perpetual American options require different techniques. In optimal stopping problems, we seek the stopping time that maximizes E[g(X_τ)] for some payoff function g.
+
+## Q6: Provide intuition for Girsanov's theorem without the full mathematical statement.
+
+**A6:** Girsanov's theorem allows changing the probability measure to alter the drift of a Brownian motion while keeping it a Brownian motion (with different drift) under the new measure. Intuitively, if you have dX = μ dt + σ dW under measure P, you can find a new measure Q (via Radon-Nikodym derivative) such that dX = (μ - λσ)dt + σ dW^Q, where W^Q is Brownian motion under Q and λ is the market price of risk. This is the mathematical foundation of risk-neutral pricing: we change from the real-world measure (where assets have risk premium μ) to the risk-neutral measure (where expected return equals risk-free rate r). The theorem ensures no-arbitrage: if we can't make money with free lunches under P, we can't under Q either.
+
+## Q7: What's the difference between risk-neutral and physical (real-world) measures?
+
+**A7:** The physical measure P reflects actual probabilities and risk preferences: under P, risky assets have expected returns exceeding the risk-free rate (risk premium). The risk-neutral measure Q is an artificial measure where all assets have expected return equal to the risk-free rate r, regardless of risk. Under Q, investors are risk-neutral, so prices are expectations of discounted payoffs. The fundamental theorem of asset pricing states that no arbitrage exists if and only if there's a risk-neutral measure. Option pricing uses Q because it simplifies calculations: the option price is E^Q[e^(-rT)payoff], not E^P[payoff] discounted at some risk-adjusted rate. However, for risk management and portfolio optimization, you need P to understand actual probabilities and expected returns.
+
+## Q8: How do you compute quadratic variation for a stochastic process?
+
+**A8:** For a process X(t), the quadratic variation [X,X](t) is defined as the limit (in probability) of Σ[X(t_{i+1}) - X(t_i)]² as partition mesh goes to zero. For Brownian motion W(t), [W,W](t) = t, which follows from the fact that E[(ΔW)²] = Δt and Var[(ΔW)²] = 2(Δt)², so the sum converges to t. For an Ito process dX = μ dt + σ dW, we have [X,X](t) = ∫₀ᵗ σ²(s)ds. The cross variation [X,Y] for two processes is defined similarly. Quadratic variation is crucial because (dW)² = dt in Ito calculus, which is why second-order terms matter. It also measures path roughness: processes with finite quadratic variation have continuous paths, while jump processes have quadratic variation from both continuous and jump components.
+
+## Q9: What's the difference between Ito and Stratonovich integrals?
+
+**A9:** The Ito integral ∫₀ᵗ f(s)dW_s uses the left endpoint of each partition interval: Σ f(t_i)[W(t_{i+1}) - W(t_i)]. The Stratonovich integral uses the midpoint: Σ f((t_i + t_{i+1})/2)[W(t_{i+1}) - W(t_i)]. The key difference is that Stratonovich calculus follows the chain rule from ordinary calculus (no extra terms), while Ito calculus has the extra (1/2)σ² term in Ito's lemma. Stratonovich is more intuitive for physicists modeling physical systems, but Ito is standard in finance because: (1) it's adapted (uses only past information, crucial for trading strategies), (2) Ito integrals are martingales, (3) it's consistent with no-arbitrage pricing. The conversion is: Stratonovich = Ito + (1/2)[f,W], where [f,W] is the quadratic covariation.
+
+## Q10: What methods are used to solve stochastic differential equations (SDEs)?
+
+**A10:** Common methods include: (1) Direct integration for linear SDEs (like GBM, OU process) using Ito's lemma and integrating factors. (2) Change of variables: transform to a simpler SDE, solve, then transform back (e.g., log transform for GBM). (3) Feynman-Kac formula: connects SDEs to PDEs, so solving the PDE gives the SDE solution's expectation. (4) Numerical methods: Euler-Maruyama scheme (discretize dX = μ dt + σ dW as X_{n+1} = X_n + μ_n Δt + σ_n ΔW_n), Milstein scheme (adds correction term for better accuracy), or higher-order Runge-Kutta methods. (5) Monte Carlo simulation: simulate many paths and average. The choice depends on whether analytical solution exists, required accuracy, and computational constraints.
+
+## Q11: Explain the Feynman-Kac formula and its applications.
+
+**A11:** The Feynman-Kac formula connects stochastic processes to partial differential equations. It states that if X(t) satisfies dX = μ(X,t)dt + σ(X,t)dW and u(x,t) = E[∫₀ᵗ f(X(s),s)ds + g(X(T)) | X(t)=x], then u solves the PDE: ∂u/∂t + μ(x,t)∂u/∂x + (1/2)σ²(x,t)∂²u/∂x² + f(x,t) = 0 with terminal condition u(x,T) = g(x). This is powerful because: (1) it allows solving SDEs by solving PDEs (often easier numerically), (2) it's the foundation of option pricing (Black-Scholes PDE comes from Feynman-Kac), (3) it enables finite difference methods for exotic options. The formula works because the discounted option price is a martingale, and applying Ito's lemma to u(X(t),t) gives the PDE.
+
+## Q12: What is the martingale representation theorem and why is it important?
+
+**A12:** The martingale representation theorem states that if M is a martingale with respect to the filtration generated by Brownian motion W, then there exists an adapted process φ such that M(t) = M(0) + ∫₀ᵗ φ(s)dW_s. In other words, any martingale can be represented as a stochastic integral with respect to the underlying Brownian motion. This is crucial for hedging: if an option's discounted price is a martingale, the theorem guarantees a hedging strategy exists (the process φ). It's the mathematical justification for dynamic hedging in Black-Scholes: we can replicate an option's payoff by trading the underlying asset. The theorem also shows market completeness: if all martingales can be represented using traded assets, the market is complete and all contingent claims can be hedged.
+
+## Q13: What are the key properties of stochastic integrals?
+
+**A13:** Stochastic integrals I(t) = ∫₀ᵗ f(s)dW_s have several important properties: (1) They are martingales if f is adapted and E[∫₀ᵗ f²(s)ds] < ∞ (Ito isometry ensures this). (2) Linearity: ∫(af + bg)dW = a∫fdW + b∫gdW. (3) Ito isometry: E[(∫₀ᵗ f(s)dW_s)²] = E[∫₀ᵗ f²(s)ds], which is crucial for computing variances. (4) Quadratic variation: [I,I](t) = ∫₀ᵗ f²(s)ds. (5) They have continuous paths (no jumps from the Brownian component). (6) They're adapted processes (depend only on past information). These properties make stochastic integrals well-behaved for financial modeling and ensure that trading strategies using them are implementable and have finite variance.
+
+## Q14: What is the Novikov condition and when is it needed?
+
+**A14:** The Novikov condition is a sufficient condition for a process to be a valid Radon-Nikodym derivative for changing probability measures via Girsanov's theorem. Specifically, if E[exp((1/2)∫₀ᵗ θ²(s)ds)] < ∞ for all t, where θ is the process defining the measure change, then the measure change is valid and the new process is a martingale. This condition ensures that the exponential martingale used in Girsanov's theorem is indeed a martingale (not just a local martingale). In practice, if θ is bounded or satisfies certain integrability conditions, Novikov holds. It's important because without it, the "risk-neutral measure" might not be a true probability measure, leading to arbitrage opportunities or pricing inconsistencies. For most standard models (constant or bounded volatility), Novikov is satisfied.
+
+## Q15: How does Ito's lemma extend to jump-diffusion processes?
+
+**A15:** For a jump-diffusion process dX = μ dt + σ dW + dJ, where J is a jump process (e.g., compound Poisson), Ito's lemma becomes: df(X,t) = [∂f/∂t + μ∂f/∂x + (1/2)σ²∂²f/∂x²]dt + σ(∂f/∂x)dW + [f(X + ΔJ,t) - f(X,t)], where the last term accounts for jumps. This is because jumps cause discontinuous changes that aren't captured by the continuous Ito term. The formula combines the continuous Ito correction with discrete jump terms. For pricing options on assets with jumps (like Merton's jump-diffusion model), this extended Ito lemma is essential. The key difference is that jump sizes can be large, so the jump term can't be approximated by a differential—it must be included explicitly. This makes jump-diffusion models more complex but better capture market crashes and sudden moves.
+
+## Q16: What are Levy processes and their key properties?
+
+**A16:** Levy processes are stochastic processes with stationary, independent increments. They include Brownian motion, Poisson processes, compound Poisson processes, and stable processes. Key properties: (1) X(0) = 0, (2) for s < t, X(t) - X(s) has the same distribution as X(t-s) (stationary increments), (3) increments over disjoint intervals are independent, (4) paths are right-continuous with left limits (càdlàg). The Levy-Khintchine formula characterizes all Levy processes via their characteristic function, which decomposes into drift, Brownian, and jump components. In finance, Levy processes model asset returns with jumps and allow for more flexible tail behavior than pure diffusion models. They're particularly useful for modeling credit risk, where default events are jumps, and for capturing the heavy tails observed in financial data.
+
+## Q17: How do you identify drift and diffusion terms from observed data?
+
+**A17:** For a process dX = μ(X,t)dt + σ(X,t)dW observed at discrete times, estimation is challenging because drift has order dt while diffusion has order √dt, so diffusion dominates in short intervals. Common methods: (1) For diffusion coefficient: use quadratic variation [X,X](t) = ∫σ²ds, so σ²(t) ≈ (1/Δt)E[(ΔX)²] for small Δt. This works because (ΔW)² has mean Δt. (2) For drift: use E[ΔX] ≈ μ(X,t)Δt, but this requires long time series since drift estimation has slower convergence. (3) Maximum likelihood: if transition density is known, maximize likelihood over parameters. (4) Non-parametric methods: kernel estimation of drift and diffusion functions. (5) Method of moments: match empirical moments to theoretical ones. The key insight is that high-frequency data helps estimate σ, while low-frequency data helps estimate μ.
+
+## Q18: How do you interpret mean-reversion speed in an OU process?
+
+**A18:** In dX = -θ(X - μ)dt + σ dW, the parameter θ > 0 is the mean-reversion speed (also called the rate of mean reversion). It determines how quickly the process returns to its long-term mean μ. The half-life of mean reversion is ln(2)/θ: the expected time for X to move halfway back to μ from its current deviation. Larger θ means faster mean reversion (shorter half-life). In finance, θ appears in interest rate models (Vasicek, Hull-White) and volatility models (Heston). High θ means the process quickly reverts, so it stays close to μ—useful for modeling quantities that shouldn't drift too far (like interest rates). Low θ allows longer deviations, capturing regimes or trends. The speed also affects option prices: faster mean reversion reduces the impact of current deviations on long-term expectations.
+
+## Q19: How do you model correlation between Brownian motions?
+
+**A19:** For two correlated Brownian motions W₁ and W₂ with correlation ρ, we can write W₂(t) = ρW₁(t) + √(1-ρ²)W₃(t), where W₃ is an independent Brownian motion. This ensures E[W₁(t)W₂(t)] = ρt, so the correlation is ρ. Alternatively, define a 2D Brownian motion (W₁, W₂) with covariance matrix [[t, ρt], [ρt, t]]. For n assets, use Cholesky decomposition: if Σ is the covariance matrix, find L such that LL' = Σ, then W = LZ where Z is a vector of independent Brownian motions. In SDEs, correlated assets have dS₁ = μ₁dt + σ₁dW₁ and dS₂ = μ₂dt + σ₂dW₂ with dW₁dW₂ = ρdt. This is crucial for multi-asset derivatives, basket options, and portfolio models where asset returns are correlated.
+
+## Q20: Explain the role of filtration and information in stochastic processes.
+
+**A20:** A filtration {F_t} represents the information available at time t: F_t contains all events we can determine by time t. A process X(t) is adapted to F_t if X(t) is F_t-measurable (its value is known at time t). This is crucial for trading: a strategy can only depend on past and current information, not future information. A process is a martingale with respect to F_t if E[X(t)|F_s] = X(s) for s ≤ t—the best forecast using available information is the current value. Filtrations grow over time (F_s ⊆ F_t for s < t), representing accumulating information. In finance, the natural filtration is often generated by asset prices: F_t = σ(S(u): u ≤ t). For incomplete information models, agents might have smaller filtrations (less information), leading to filtering problems where they estimate unobservable states (like true volatility) from observed prices.
