@@ -10,10 +10,10 @@ architecture, training, validation, and evaluation.
 REPOSITORY STRUCTURE
 ===================
 
-📷 01_CNN_MODELS/ - Computer Vision Models (15+ models)
-🎨 02_GENERATIVE_AI/ - Generative Models (12+ models)  
-📝 03_NLP_MODELS/ - Natural Language Processing (18+ models)
-📈 04_TIME_SERIES/ - Time Series & Stock Prediction (10+ models)
+01_CNN_MODELS/ - Computer Vision Models (15+ models)
+02_GENERATIVE_AI/ - Generative Models (12+ models)  
+03_NLP_MODELS/ - Natural Language Processing (18+ models)
+04_TIME_SERIES/ - Time Series & Stock Prediction (10+ models)
 
 IMPLEMENTATION APPROACH
 =======================

@@ -318,11 +318,11 @@ Track the introduction and impact of:
 PROBLEM SOLUTIONS
 -----------------
 Document how each era solved specific problems:
-- Vanishing gradients → Skip connections
-- Overfitting → Dropout, batch norm, data augmentation
-- Computational efficiency → Depthwise convolutions, NAS
-- Long-range dependencies → Self-attention
-- Scale variance → Multi-scale processing
+- Vanishing gradients -> Skip connections
+- Overfitting -> Dropout, batch norm, data augmentation
+- Computational efficiency -> Depthwise convolutions, NAS
+- Long-range dependencies -> Self-attention
+- Scale variance -> Multi-scale processing
 
 PERFORMANCE GAINS
 -----------------

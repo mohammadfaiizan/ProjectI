@@ -674,13 +674,13 @@ CONCEPT BUILDING PROGRESSION
 ---------------------------
 **Conceptual Prerequisites Map:**
 ```
-001_statistical_nlp → 002_word_embeddings
-002_word_embeddings → 003_early_neural_lm  
-003_early_neural_lm → 004_rnn_fundamentals
-004_rnn_fundamentals → 005_lstm_breakthrough
+001_statistical_nlp -> 002_word_embeddings
+002_word_embeddings -> 003_early_neural_lm  
+003_early_neural_lm -> 004_rnn_fundamentals
+004_rnn_fundamentals -> 005_lstm_breakthrough
 ...
-013_transformer → 014_transformer_variants
-014_transformer_variants → 015_bert_revolution
+013_transformer -> 014_transformer_variants
+014_transformer_variants -> 015_bert_revolution
 ```
 
 **Knowledge Checkpoints:**
@@ -864,11 +864,11 @@ KEY MILESTONES
 
 PARADIGM SHIFTS
 ---------------
-- Statistical → Neural methods
-- Word-level → Subword tokenization
-- Fixed → Dynamic representations
-- Task-specific → Transfer learning
-- Human-designed → Learned features
+- Statistical -> Neural methods
+- Word-level -> Subword tokenization
+- Fixed -> Dynamic representations
+- Task-specific -> Transfer learning
+- Human-designed -> Learned features
 
 Each implementation provides complete historical context, architectural evolution,
 and demonstrates why each innovation was revolutionary for the field of NLP.

@@ -175,12 +175,12 @@ STANDARDIZED IMPLEMENTATION BLUEPRINT
 CORE PRINCIPLES
 ---------------
 Consistent implementation approach across all generative AI models:
-• Historical context and innovation analysis for each model
-• Standardized dataset usage for fair comparison across eras
-• Unified evaluation framework with consistent metrics
-• Progressive complexity demonstration showing architectural evolution
-• Educational scaffolding from simple to sophisticated models
-• Real-world application insights and deployment considerations
+- Historical context and innovation analysis for each model
+- Standardized dataset usage for fair comparison across eras
+- Unified evaluation framework with consistent metrics
+- Progressive complexity demonstration showing architectural evolution
+- Educational scaffolding from simple to sophisticated models
+- Real-world application insights and deployment considerations
 
 UNIFIED PROBLEM FRAMEWORK
 =========================
@@ -217,7 +217,7 @@ TRAINING CONFIGURATION STANDARDS
 Generative Model Training:
 - Batch size: 64 (GANs), 128 (VAEs), 32 (Diffusion)
 - Learning rate: 0.0002 (GANs), 0.001 (VAEs), 0.0001 (Diffusion)
-- Optimizer: Adam (β1=0.5, β2=0.999) for GANs, AdamW for others
+- Optimizer: Adam (beta1=0.5, beta2=0.999) for GANs, AdamW for others
 - Epochs: 200 (GANs), 150 (VAEs), 1000 (Diffusion with schedule)
 - Hardware: Consistent GPU setup with mixed precision
 - Regularization: Era-appropriate techniques (spectral norm, gradient penalty, etc.)
@@ -225,7 +225,7 @@ Generative Model Training:
 EVALUATION FRAMEWORK
 ===================
 Quantitative Metrics:
-- Fréchet Inception Distance (FID): Overall generation quality
+- Frechet Inception Distance (FID): Overall generation quality
 - Inception Score (IS): Image quality and diversity
 - Kernel Inception Distance (KID): Alternative to FID
 - LPIPS: Perceptual similarity measurement
@@ -248,11 +248,11 @@ Architecture Analysis:
 PROGRESSIVE COMPLEXITY TRACKING
 ===============================
 Educational Progression:
-1. Simple probabilistic models (VAE) → Complex adversarial training (GAN)
-2. Unconditional generation → Conditional and controllable synthesis
-3. Low resolution (28x28) → High resolution (1024x1024+)
-4. Single modality → Multimodal generation
-5. Task-specific → Foundation model approaches
+1. Simple probabilistic models (VAE) -> Complex adversarial training (GAN)
+2. Unconditional generation -> Conditional and controllable synthesis
+3. Low resolution (28x28) -> High resolution (1024x1024+)
+4. Single modality -> Multimodal generation
+5. Task-specific -> Foundation model approaches
 
 Innovation Impact Quantification:
 - Generation quality improvement over time
@@ -373,7 +373,7 @@ ERA 1: Early Models (2013-2015)
 -------------------------------
 VAE Training:
 - Simple reconstruction + KL loss
-- β=1.0 for standard VAE
+- beta=1.0 for standard VAE
 - Learning rate: 0.001
 - Batch size: 128
 - Focus: Latent space structure
@@ -391,7 +391,7 @@ DCGAN Training:
 - Convolutional architectures
 - Batch normalization
 - ReLU/LeakyReLU activations
-- Adam optimizer (β1=0.5)
+- Adam optimizer (beta1=0.5)
 - Focus: Architectural guidelines
 
 WGAN Training:
@@ -473,17 +473,17 @@ Performance Evolution:
 - GPT-4/DALL-E 3 (2023): Foundation model integration
 
 Quality Metrics Evolution:
-- FID: 100+ (early GANs) → 10-20 (StyleGAN) → 5-10 (modern diffusion)
-- Resolution: 28x28 (MNIST) → 1024x1024 (StyleGAN) → 2048x2048+ (modern)
-- Diversity: Mode collapse issues → High diversity with diffusion models
-- Controllability: Random generation → Fine-grained attribute control
+- FID: 100+ (early GANs) -> 10-20 (StyleGAN) -> 5-10 (modern diffusion)
+- Resolution: 28x28 (MNIST) -> 1024x1024 (StyleGAN) -> 2048x2048+ (modern)
+- Diversity: Mode collapse issues -> High diversity with diffusion models
+- Controllability: Random generation -> Fine-grained attribute control
 
 COMPREHENSIVE EVALUATION FRAMEWORK
 ==================================
 
 Quantitative Metrics:
 1. Generation Quality:
-   - FID (Fréchet Inception Distance): Lower is better
+   - FID (Frechet Inception Distance): Lower is better
    - IS (Inception Score): Higher is better
    - KID (Kernel Inception Distance): Unbiased alternative to FID
    - LPIPS (Learned Perceptual Image Patch Similarity): Perceptual quality
@@ -494,7 +494,7 @@ Quantitative Metrics:
    - Intra-class diversity: Within-class variation
 
 3. Controllability Metrics:
-   - Disentanglement scores (β-VAE, Factor-VAE, MIG)
+   - Disentanglement scores (beta-VAE, Factor-VAE, MIG)
    - Attribute manipulation accuracy
    - Latent space interpolation smoothness
 
