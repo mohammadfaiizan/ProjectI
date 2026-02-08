@@ -128,7 +128,7 @@ Large, comprehensive theory files progressing from beginner to professional leve
 | 009 | Safety_Guardrails_And_Evaluation | Prompt injection defense, output validation, content filtering, human-in-the-loop, evaluation metrics, benchmarks, red-teaming, testing strategies |
 | 010 | Production_Deployment_And_Monitoring | Containerization, scaling, cost optimization, latency management, observability, logging, tracing, A/B testing, CI/CD for agents, LLMOps |
 
-### 02_Frameworks/ (6 subfolders, 18 .py + 6 .md = 24 files)
+### 02_Frameworks/ (6 subfolders, 13 .py + 6 .md = 19 files)
 
 Each framework subfolder contains:
 - 1 theory `.md` file covering the framework's architecture, concepts, pros/cons, and when to use it
@@ -182,10 +182,10 @@ Each file contains 25-30 questions with detailed answers, progressing from basic
 | Section | .md Files | .py Files | Total |
 |---------|-----------|-----------|-------|
 | 01_Theory | 10 | 0 | 10 |
-| 02_Frameworks | 6 | 18 | 24 |
+| 02_Frameworks | 6 | 13 | 19 |
 | 03_Agent_System_Examples | 10 | 10 | 20 |
 | 04_Interview_Questions | 6 | 0 | 6 |
-| **Total** | **32** | **28** | **60** |
+| **Total** | **32** | **23** | **55** |
 
 ---
 
