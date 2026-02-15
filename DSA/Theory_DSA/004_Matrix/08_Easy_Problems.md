@@ -487,6 +487,4 @@ def matrix_sum_queries(n, queries):
             col_seen.add(i)
             total += v * (n - len(row_seen))
     return total
-```
-
-Time: O(q) | Space: O(n)
+```Time: O(q) | Space: O(n)
