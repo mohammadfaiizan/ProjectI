@@ -1,0 +1,322 @@
+SCIKIT-LEARN COMPLETE SYLLABUS & FILE STRUCTURE
+================================================
+
+LEARNING OBJECTIVE: Master Scikit-learn from fundamentals to production deployment
+TARGET: Practical, executable code with minimal theory, comprehensive syntax coverage
+FILE SIZE: ~100 lines per file for focused learning
+STRUCTURE: 13 major segments with multiple focused files each
+
+================================================================================
+SEGMENT 1: SCIKIT-LEARN FUNDAMENTALS (001_fundamentals/)
+================================================================================
+
+01_installation_setup.py              - Scikit-learn installation, version check, dependencies
+02_estimator_api_basics.py            - fit/predict/transform interface
+03_data_representations.py            - Feature matrix X, target vector y, sparse matrices
+04_toy_datasets.py                    - Iris, digits, wine, breast cancer, diabetes, Boston
+05_real_world_datasets.py             - fetch_openml, fetch_20newsgroups, fetch_lfw
+06_generated_datasets.py              - make_classification, make_regression, make_blobs
+07_train_test_split.py                - train_test_split, stratification, shuffling
+08_cross_val_score_basics.py          - cross_val_score, cross_validate basics
+09_basic_pipeline.py                  - Simple Pipeline creation and usage
+10_scoring_metrics_intro.py           - Scoring parameter, common metrics overview
+11_numpy_pandas_interop.py            - NumPy/Pandas integration, set_output
+12_estimator_inspection.py            - get_params, set_params, clone, tags
+13_input_validation.py                - check_array, check_X_y, validation utilities
+14_common_patterns.py                 - Fit-predict, fit-transform, method chaining
+15_configuration_utilities.py         - Config context, global settings, show_versions
+
+================================================================================
+SEGMENT 2: DATA PREPROCESSING (002_preprocessing/)
+================================================================================
+
+01_standard_scaler.py                 - StandardScaler usage and parameters
+02_minmax_robust_scalers.py           - MinMaxScaler, RobustScaler, MaxAbsScaler
+03_normalizer.py                      - Normalizer (L1, L2, max normalization)
+04_power_quantile_transforms.py       - PowerTransformer, QuantileTransformer
+05_label_encoder.py                   - LabelEncoder for target encoding
+06_ordinal_encoder.py                 - OrdinalEncoder for ordered categories
+07_onehot_encoder.py                  - OneHotEncoder, handle_unknown, sparse output
+08_target_encoder.py                  - TargetEncoder for supervised encoding
+09_discretization.py                  - KBinsDiscretizer, Binarizer
+10_polynomial_features.py             - PolynomialFeatures, interaction_only
+11_function_transformer.py            - FunctionTransformer for custom transforms
+12_simple_imputer.py                  - SimpleImputer (mean, median, most_frequent, constant)
+13_advanced_imputers.py               - KNNImputer, IterativeImputer
+14_missing_indicator.py               - MissingIndicator, add_indicator
+15_preprocessing_pipelines.py         - Combining preprocessors in pipelines
+
+================================================================================
+SEGMENT 3: SUPERVISED LEARNING - REGRESSION (003_regression/)
+================================================================================
+
+01_linear_regression.py               - LinearRegression basics and usage
+02_ridge_regression.py                - Ridge (L2 regularization), alpha tuning
+03_lasso_regression.py                - Lasso (L1 regularization), feature selection
+04_elastic_net.py                     - ElasticNet (L1+L2), l1_ratio
+05_sgd_regressor.py                   - SGDRegressor for large-scale regression
+06_support_vector_regression.py       - SVR, LinearSVR, kernel choices
+07_knn_regressor.py                   - KNeighborsRegressor, distance metrics
+08_decision_tree_regressor.py         - DecisionTreeRegressor, pruning
+09_bayesian_regression.py             - BayesianRidge, ARDRegression
+10_robust_regressors.py               - HuberRegressor, RANSACRegressor, TheilSenRegressor
+11_quantile_regression.py             - QuantileRegressor for quantile estimation
+12_pls_regression.py                  - PLSRegression, PLSCanonical
+13_isotonic_regression.py             - IsotonicRegression for monotonic fitting
+14_polynomial_regression.py           - PolynomialFeatures + LinearRegression
+15_regression_comparison.py           - Comparing regression models on same dataset
+
+================================================================================
+SEGMENT 4: SUPERVISED LEARNING - CLASSIFICATION (004_classification/)
+================================================================================
+
+01_logistic_regression.py             - LogisticRegression, penalty, solver, multi_class
+02_support_vector_classifier.py       - SVC, LinearSVC, kernel trick
+03_knn_classifier.py                  - KNeighborsClassifier, distance metrics, weights
+04_decision_tree_classifier.py        - DecisionTreeClassifier, criterion, pruning
+05_naive_bayes.py                     - GaussianNB, MultinomialNB, BernoulliNB, ComplementNB
+06_sgd_classifier.py                  - SGDClassifier for large-scale classification
+07_perceptron.py                      - Perceptron, linear classification
+08_passive_aggressive.py              - PassiveAggressiveClassifier
+09_nearest_centroid.py                - NearestCentroid classifier
+10_ridge_classifier.py                - RidgeClassifier, fast multi-class
+11_multiclass_strategies.py           - OneVsRestClassifier, OneVsOneClassifier
+12_multilabel_classification.py       - MultiLabelBinarizer, multi-label strategies
+13_probability_calibration.py         - CalibratedClassifierCV, calibration curves
+14_class_weight_imbalance.py          - class_weight parameter, balanced strategies
+15_classification_comparison.py       - Comparing classifiers on same dataset
+
+================================================================================
+SEGMENT 5: UNSUPERVISED LEARNING (005_unsupervised/)
+================================================================================
+
+01_kmeans_clustering.py               - KMeans, MiniBatchKMeans, inertia, silhouette
+02_dbscan_clustering.py               - DBSCAN, eps, min_samples, core points
+03_hierarchical_clustering.py         - AgglomerativeClustering, dendrograms, linkage
+04_spectral_clustering.py             - SpectralClustering, affinity matrix
+05_gaussian_mixture.py                - GaussianMixture, BayesianGaussianMixture
+06_other_clustering.py                - MeanShift, OPTICS, Birch, HDBSCAN
+07_pca_decomposition.py               - PCA, explained_variance, n_components
+08_kernel_pca.py                      - KernelPCA, kernel choices
+09_truncated_svd_nmf.py               - TruncatedSVD, NMF for sparse/text data
+10_tsne_visualization.py              - t-SNE for visualization, perplexity
+11_manifold_learning.py               - Isomap, LocallyLinearEmbedding, MDS
+12_isolation_forest.py                - IsolationForest for anomaly detection
+13_local_outlier_factor.py            - LocalOutlierFactor, novelty detection
+14_one_class_svm.py                   - OneClassSVM for outlier detection
+15_clustering_evaluation.py           - Silhouette, Calinski-Harabasz, Davies-Bouldin
+
+================================================================================
+SEGMENT 6: MODEL EVALUATION & SELECTION (006_model_evaluation/)
+================================================================================
+
+01_classification_metrics.py          - accuracy, precision, recall, F1
+02_classification_report.py           - classification_report, per-class metrics
+03_confusion_matrix.py                - confusion_matrix, ConfusionMatrixDisplay
+04_roc_auc.py                         - ROC curve, AUC, RocCurveDisplay
+05_precision_recall_curve.py          - Precision-recall curve, average_precision
+06_regression_metrics.py              - MSE, MAE, R2, MAPE, explained_variance
+07_cross_validation_kfold.py          - KFold, StratifiedKFold, RepeatedKFold
+08_cross_validation_advanced.py       - GroupKFold, TimeSeriesSplit, LeaveOneOut
+09_cross_val_score_validate.py        - cross_val_score, cross_validate, scoring
+10_learning_curve.py                  - learning_curve, LearningCurveDisplay
+11_validation_curve.py                - validation_curve, ValidationCurveDisplay
+12_custom_scoring.py                  - make_scorer, custom scoring functions
+13_multi_metric_evaluation.py         - Multiple metrics, refit strategies
+14_shuffle_split.py                   - ShuffleSplit, StratifiedShuffleSplit
+15_evaluation_best_practices.py       - Evaluation pitfalls and best practices
+
+================================================================================
+SEGMENT 7: FEATURE ENGINEERING & SELECTION (007_feature_engineering/)
+================================================================================
+
+01_variance_threshold.py              - VarianceThreshold for low-variance removal
+02_univariate_selection.py            - SelectKBest, SelectPercentile, f_classif
+03_mutual_information.py              - mutual_info_classif, mutual_info_regression
+04_chi_squared_selection.py           - chi2 test for feature selection
+05_recursive_feature_elimination.py   - RFE, RFECV
+06_select_from_model.py               - SelectFromModel with any estimator
+07_sequential_feature_selector.py     - SequentialFeatureSelector (forward/backward)
+08_feature_importance.py              - Tree-based importance, coefficients
+09_permutation_importance.py          - permutation_importance, interpretation
+10_partial_dependence.py              - partial_dependence, PartialDependenceDisplay
+11_polynomial_interaction.py          - PolynomialFeatures, interaction features
+12_custom_feature_transformers.py     - Custom transformers for feature engineering
+13_text_feature_extraction.py         - CountVectorizer, TfidfVectorizer
+14_image_feature_extraction.py        - PatchExtractor, feature extraction patterns
+15_feature_engineering_pipeline.py    - Complete feature engineering pipelines
+
+================================================================================
+SEGMENT 8: ENSEMBLE METHODS (008_ensemble_methods/)
+================================================================================
+
+01_random_forest_classifier.py        - RandomForestClassifier, parameters, feature importance
+02_random_forest_regressor.py         - RandomForestRegressor, parameters
+03_gradient_boosting_classifier.py    - GradientBoostingClassifier, parameters
+04_gradient_boosting_regressor.py     - GradientBoostingRegressor, parameters
+05_adaboost.py                        - AdaBoostClassifier, AdaBoostRegressor
+06_bagging.py                         - BaggingClassifier, BaggingRegressor
+07_extra_trees.py                     - ExtraTreesClassifier, ExtraTreesRegressor
+08_hist_gradient_boosting.py          - HistGradientBoostingClassifier/Regressor
+09_voting_classifier.py               - VotingClassifier (hard/soft voting)
+10_voting_regressor.py                - VotingRegressor
+11_stacking_classifier.py             - StackingClassifier, final_estimator
+12_stacking_regressor.py              - StackingRegressor, cv parameter
+13_ensemble_feature_importance.py     - Feature importance across ensembles
+14_partial_dependence_plots.py        - Partial dependence for ensembles
+15_ensemble_comparison.py             - Comparing ensemble methods
+
+================================================================================
+SEGMENT 9: PIPELINES & COMPOSITION (009_pipelines/)
+================================================================================
+
+01_pipeline_basics.py                 - Pipeline, make_pipeline
+02_pipeline_with_preprocessing.py     - Preprocessing + model in pipeline
+03_column_transformer.py              - ColumnTransformer, make_column_transformer
+04_feature_union.py                   - FeatureUnion for parallel transformations
+05_custom_transformer.py              - BaseEstimator + TransformerMixin
+06_pipeline_inspection.py             - Named steps, accessing components
+07_pipeline_caching.py                - memory parameter, caching transforms
+08_pipeline_html_display.py           - HTML visualization of pipelines
+09_pipeline_grid_search.py            - Pipeline with GridSearchCV
+10_nested_pipelines.py                - Nested and complex pipeline structures
+11_pipeline_cross_validation.py       - Cross-validation with pipelines
+12_pipeline_persistence.py            - Saving/loading pipelines
+13_pipeline_custom_scoring.py         - Custom scoring in pipeline context
+14_pipeline_debugging.py              - Debugging pipeline issues
+15_pipeline_best_practices.py         - Pipeline design patterns and practices
+
+================================================================================
+SEGMENT 10: HYPERPARAMETER TUNING (010_hyperparameter_tuning/)
+================================================================================
+
+01_grid_search_cv.py                  - GridSearchCV basics and usage
+02_randomized_search_cv.py            - RandomizedSearchCV, distributions
+03_halving_grid_search.py             - HalvingGridSearchCV (successive halving)
+04_halving_random_search.py           - HalvingRandomSearchCV
+05_parameter_distributions.py         - scipy.stats distributions for search
+06_scoring_and_refit.py               - Scoring parameter, refit strategies
+07_cv_strategies_tuning.py            - CV strategies for hyperparameter search
+08_multi_metric_search.py             - Multi-metric evaluation in search
+09_custom_scorer_search.py            - Custom scorers for search
+10_search_results_analysis.py         - Analyzing cv_results_, best parameters
+11_warm_starting.py                   - warm_start for incremental training
+12_bayesian_optimization.py           - BayesSearchCV concepts (scikit-optimize)
+13_optuna_integration.py              - Optuna integration patterns
+14_hyperparameter_visualization.py    - Visualizing search results
+15_tuning_best_practices.py           - Tuning strategies and best practices
+
+================================================================================
+SEGMENT 11: MODEL PERSISTENCE & REPRODUCIBILITY (011_model_persistence/)
+================================================================================
+
+01_joblib_save_load.py                - joblib.dump and joblib.load
+02_pickle_save_load.py                - pickle for model serialization
+03_skops_save_load.py                 - skops for secure serialization
+04_onnx_export.py                     - ONNX export with skl2onnx
+05_model_versioning.py                - Model versioning strategies
+06_reproducibility_random_state.py    - random_state, environment reproducibility
+07_model_validation_loading.py        - Validating models after loading
+08_compression_strategies.py          - Compressed model storage
+09_model_cards.py                     - Model documentation and cards
+10_environment_tracking.py            - Tracking dependencies and environment
+11_model_registry_patterns.py         - Registry patterns for model management
+12_streaming_large_models.py          - Handling large models efficiently
+13_cross_framework_export.py          - Exporting to other frameworks
+14_model_metadata.py                  - Storing metadata with models
+15_persistence_best_practices.py      - Best practices for model persistence
+
+================================================================================
+SEGMENT 12: ADVANCED TOPICS (012_advanced_topics/)
+================================================================================
+
+01_custom_estimator_basics.py         - BaseEstimator, ClassifierMixin, RegressorMixin
+02_custom_estimator_advanced.py       - Full custom estimator with validation
+03_custom_metrics.py                  - Creating custom metrics and scorers
+04_custom_cv_splitters.py             - Custom cross-validation splitters
+05_multi_output_classifier.py         - MultiOutputClassifier
+06_multi_output_regressor.py          - MultiOutputRegressor
+07_chain_classifiers.py               - ClassifierChain, RegressorChain
+08_semi_supervised_learning.py        - LabelPropagation, LabelSpreading
+09_self_training_classifier.py        - SelfTrainingClassifier
+10_target_transformers.py             - TransformedTargetRegressor
+11_calibration_techniques.py          - CalibratedClassifierCV, isotonic/sigmoid
+12_class_imbalance_strategies.py      - class_weight, sample_weight, SMOTE concepts
+13_incremental_learning.py            - partial_fit for online/streaming learning
+14_sparse_data_handling.py            - Sparse matrices, sparse estimators
+15_advanced_patterns.py               - Advanced sklearn patterns and tricks
+
+================================================================================
+SEGMENT 13: INTEGRATION & BEST PRACTICES (013_integration/)
+================================================================================
+
+01_pandas_integration.py              - set_output, DataFrame in/out
+02_numpy_interop.py                   - NumPy array handling, memory layout
+03_decision_boundary_display.py       - DecisionBoundaryDisplay for visualization
+04_roc_confusion_display.py           - RocCurveDisplay, ConfusionMatrixDisplay
+05_precision_recall_display.py        - PrecisionRecallDisplay
+06_learning_curve_display.py          - LearningCurveDisplay, ValidationCurveDisplay
+07_mlflow_integration.py              - MLflow with scikit-learn
+08_shap_lime_interpretation.py        - SHAP and LIME for model interpretation
+09_performance_optimization.py        - n_jobs, warm_start, efficient computation
+10_large_dataset_strategies.py        - Incremental learning, out-of-core
+11_comparison_frameworks.py           - Comparing sklearn with XGBoost, LightGBM
+12_testing_ml_models.py               - Testing strategies for ML models
+13_experiment_tracking.py             - Experiment tracking patterns
+14_production_patterns.py             - Production-ready sklearn patterns
+15_best_practices_guide.py            - Comprehensive best practices
+
+================================================================================
+LEARNING PATH & PREREQUISITES
+================================================================================
+
+BEGINNER PATH (Weeks 1-3):
+- Segment 1: Fundamentals (all files)
+- Segment 2: Preprocessing (all files)
+- Segment 3: Regression (Files 1-8)
+- Segment 4: Classification (Files 1-8)
+
+INTERMEDIATE PATH (Weeks 4-6):
+- Segment 5: Unsupervised Learning
+- Segment 6: Model Evaluation
+- Segment 7: Feature Engineering
+- Segment 8: Ensemble Methods
+
+ADVANCED PATH (Weeks 7-9):
+- Segment 9: Pipelines
+- Segment 10: Hyperparameter Tuning
+- Segment 11: Model Persistence
+- Segment 12: Advanced Topics
+- Segment 13: Integration & Best Practices
+
+PREREQUISITES:
+- Python programming proficiency
+- NumPy and Pandas basics
+- Basic statistics and probability
+- Understanding of machine learning concepts
+
+================================================================================
+EXECUTION GUIDELINES
+================================================================================
+
+CODE STYLE:
+- Executable code with minimal comments
+- Each file ~100 lines maximum
+- Clear variable names for self-documentation
+- Print statements for output verification
+- Error handling where necessary
+- Comprehensive syntax examples
+
+TESTING APPROACH:
+- Each file independently executable
+- Built-in datasets for reproducibility
+- Focus on syntax demonstration
+- Include edge cases and common patterns
+- Performance comparisons where relevant
+
+================================================================================
+TOTAL FILES: 195 files across 13 segments
+ESTIMATED LEARNING TIME: 3-4 months for complete mastery
+DIFFICULTY PROGRESSION: API Basics -> Algorithms -> Selection -> Production
+FOCUS: Comprehensive Scikit-learn syntax mastery for ML development
+================================================================================

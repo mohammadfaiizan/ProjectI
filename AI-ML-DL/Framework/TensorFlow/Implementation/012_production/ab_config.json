@@ -1,0 +1,10 @@
+{
+  "model_a": {
+    "version": "1",
+    "traffic": 0.9
+  },
+  "model_b": {
+    "version": "2",
+    "traffic": 0.1
+  }
+}
